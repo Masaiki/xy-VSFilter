@@ -47,7 +47,13 @@ CRectCoor2 DrawItem::GetDirtyRect()
 
 CRectCoor2 DrawItem::Draw( XyBitmap* bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect )
 {
-    return draw_item.use_addition_draw ? AdditionDraw(bitmap, draw_item, clip_rect) 
+
+    // PF 20180411 disable use_addition=true for planar
+    // because bitmap->type == XyBitmap::PLANNA is not supported and
+    // asserts FATAL in AdditionDraw (use case: Avisynth TextSub plugin for YV12)
+    bool PLANAR = (bitmap->type == XyBitmap::PLANNA);
+
+    return !PLANAR && draw_item.use_addition_draw ? AdditionDraw(bitmap, draw_item, clip_rect) 
                                        : AlphaBltDraw(bitmap, draw_item, clip_rect);
 }
 
