@@ -21,6 +21,8 @@
 #include <DSMPropertyBag.h>
 #include <comdef.h>
 
+#include <omp.h>
+
 #if ENABLE_XY_LOG_RENDERER_REQUEST
 #  define TRACE_RENDERER_REQUEST(msg) XY_LOG_TRACE(msg)
 #  define TRACE_RENDERER_REQUEST_TIMING(msg) XY_AUTO_TIMING(msg)
@@ -2727,6 +2729,9 @@ HRESULT XySubFilter::FindAndConnectConsumer(IFilterGraph* pGraph)
 
 
     CAutoLock cAutolock(&m_csFilter);
+
+    omp_set_num_threads(min(omp_get_num_procs() / 2, 4));
+
     if(pGraph)
     {
         BeginEnumFilters(pGraph, pEF, pBF)
