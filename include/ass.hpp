@@ -1,5 +1,5 @@
 #pragma once
-#include "ass.h"
+#include <ass/ass.h>
 
 struct ASS_LibraryDeleter
 {

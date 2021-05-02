@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <ass.h>
+#include <ass/ass.h>
 
 class SubFrame final
     : public CUnknown
