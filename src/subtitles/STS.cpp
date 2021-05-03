@@ -1958,6 +1958,7 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_eYCbCrRange          = YCbCrRange_AUTO;
     m_fForcedDefaultStyle  = false;
     m_defaultStyle.charSet = DEFAULT_CHARSET;
+    m_assloaded            = false;
 }
 
 CSimpleTextSubtitle::~CSimpleTextSubtitle()
@@ -2711,7 +2712,7 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
         name = name.Mid(name.ReverseFind('.')+1);
     }
 
-    if (lstrcmpi(PathFindExtensionW(fn), L".ass") == 0) {
+    if (lstrcmpi(PathFindExtensionW(fn), L".ass") == 0 || lstrcmpi(PathFindExtensionW(fn), L".ssa") == 0) {
         m_path = f.GetFilePath();
         LoadASSFile();
     }
