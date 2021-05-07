@@ -1921,6 +1921,47 @@ static bool OpenRealText(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet)
     return !ret.IsEmpty();
 }
 
+static std::unique_ptr<char[]> read_file_bytes(FILE* fp, size_t* bufsize)
+{
+    int res = fseek(fp, 0, SEEK_END);
+    if (res == -1) {
+        fclose(fp);
+        return nullptr;
+    }
+    long sz = ftell(fp);
+    rewind(fp);
+    std::unique_ptr<char[]> buf = std::make_unique<char[]>(sz + 1);
+    size_t bytes_read = 0;
+    do {
+        res = fread(buf.get() + bytes_read, sizeof(char), sz - bytes_read, fp);
+        if (res <= 0) {
+            fclose(fp);
+            return nullptr;
+        }
+        bytes_read += res;
+    } while (sz - bytes_read > 0);
+    buf[sz] = '\0';
+    if (bufsize) *bufsize = sz;
+    fclose(fp);
+    return buf;
+}
+
+static const char* detect_bom(const char* buf, const size_t bufsize) {
+    if (bufsize >= 4) {
+        if (!strncmp(buf, "\xef\xbb\xbf", 3))
+            return "UTF-8";
+        if (!strncmp(buf, "\x00\x00\xfe\xff", 4))
+            return "UTF-32BE";
+        if (!strncmp(buf, "\xff\xfe\x00\x00", 4))
+            return "UTF-32LE";
+        if (!strncmp(buf, "\xfe\xff", 2))
+            return "UTF-16BE";
+        if (!strncmp(buf, "\xff\xfe", 2))
+            return "UTF-16LE";
+    }
+    return "UTF-8";
+}
+
 typedef bool (*STSOpenFunct)(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet);
 
 typedef struct {STSOpenFunct open; tmode mode;} OpenFunctStruct;
@@ -3086,7 +3127,11 @@ bool CSimpleTextSubtitle::LoadASSFile()
 
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
-    m_track = decltype(m_track)(ass_read_file(m_ass.get(), const_cast<char*>((const char*)(CStringA)m_path), "UTF-8"));
+    size_t bufsize = 0;
+    FILE* fp = _wfopen(m_path.GetString(), L"rb");
+    auto buf = read_file_bytes(fp, &bufsize);
+    const char* encoding = detect_bom(buf.get(), bufsize);
+    m_track = decltype(m_track)(ass_read_memory(m_ass.get(), buf.get(), bufsize, const_cast<char*>(encoding)));
 
     if (!m_track) return false;
 
