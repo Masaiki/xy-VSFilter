@@ -1206,6 +1206,7 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
                 sts->m_assfontloaded = true;
             }
 
+            ass_set_storage_size(sts->m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
             ass_set_frame_size(sts->m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].right, m_xy_rect_opt[RECT_SUBTITLE_TARGET].bottom);
 
             int changed = 1;
