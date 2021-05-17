@@ -279,7 +279,7 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
                 }
 
                 if (m_pRTS->m_assloaded) {
-                    ass_process_chunk(m_pRTS->m_track.get(), (char*)pData, pSample->GetSize(), tStart / 10000, (tStop - tStart) / 10000);
+                    ass_process_chunk(m_pRTS->m_track.get(), (char*)pData, len, tStart / 10000, (tStop - tStart) / 10000);
                 }
             }
             else

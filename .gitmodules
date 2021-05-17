@@ -1,0 +1,27 @@
+[submodule "SMP/libass"]
+	path = SMP/libass
+	url = https://github.com/ShiftMediaProject/libass.git
+[submodule "SMP/libiconv"]
+	path = SMP/libiconv
+	url = https://github.com/ShiftMediaProject/libiconv.git
+[submodule "SMP/harfbuzz"]
+	path = SMP/harfbuzz
+	url = https://github.com/ShiftMediaProject/harfbuzz.git
+[submodule "SMP/fontconfig"]
+	path = SMP/fontconfig
+	url = https://github.com/ShiftMediaProject/fontconfig.git
+[submodule "SMP/freetype2"]
+	path = SMP/freetype2
+	url = https://github.com/ShiftMediaProject/freetype2.git
+[submodule "SMP/libxml2"]
+	path = SMP/libxml2
+	url = https://github.com/ShiftMediaProject/libxml2.git
+[submodule "SMP/fribidi"]
+	path = SMP/fribidi
+	url = https://github.com/ShiftMediaProject/fribidi.git
+[submodule "SMP/liblzma"]
+	path = SMP/liblzma
+	url = https://github.com/ShiftMediaProject/liblzma.git
+[submodule "SMP/zlib"]
+	path = SMP/zlib
+	url = https://github.com/ShiftMediaProject/zlib.git
