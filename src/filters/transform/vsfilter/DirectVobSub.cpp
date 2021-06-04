@@ -1289,7 +1289,7 @@ CDirectVobSub::CDirectVobSub( const Option *options, CCritSec * pLock )
     m_xy_size_opt[SIZE_EXTEND_PICTURE_RESX2MIN].cx = theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_RESX2MINW), 384);
     m_xy_size_opt[SIZE_EXTEND_PICTURE_RESX2MIN].cy = theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_RESX2MINH), 288);
 
-    m_xy_int_opt[INT_LOAD_SETTINGS_LEVEL     ] =   theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOADLEVEL), 0) & 3;
+    m_xy_int_opt[INT_LOAD_SETTINGS_LEVEL     ] =   theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOADLEVEL), 1) & 3;
     m_xy_bool_opt[BOOL_LOAD_SETTINGS_EXTENAL ] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_EXTERNALLOAD), 1);
     m_xy_bool_opt[BOOL_LOAD_SETTINGS_WEB     ] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_WEBLOAD), 0);
     m_xy_bool_opt[BOOL_LOAD_SETTINGS_EMBEDDED] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_EMBEDDEDLOAD), 1);
@@ -1647,12 +1647,12 @@ CDVS4XySubFilter::CDVS4XySubFilter( const Option *options, CCritSec * pLock )
         m_xy_int_opt[INT_MAX_BITMAP_COUNT] = 1;
     }
 
-    m_xy_int_opt[INT_LOAD_SETTINGS_LEVEL     ] = LOADLEVEL_WHEN_NEEDED;
-    CString str_load_level = theApp.GetProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOADLEVEL), _T("when_needed"));
+    m_xy_int_opt[INT_LOAD_SETTINGS_LEVEL     ] = LOADLEVEL_ALWAYS;
+    CString str_load_level = theApp.GetProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOADLEVEL), _T("always"));
     str_load_level.MakeLower();
-    if (str_load_level.Compare(_T("always"))==0)
+    if (str_load_level.Compare(_T("when_needed"))==0)
     {
-        m_xy_int_opt[INT_LOAD_SETTINGS_LEVEL] = LOADLEVEL_ALWAYS;
+        m_xy_int_opt[INT_LOAD_SETTINGS_LEVEL] = LOADLEVEL_WHEN_NEEDED;
     }
     else if (str_load_level.Compare(_T("disabled"))==0)
     {
