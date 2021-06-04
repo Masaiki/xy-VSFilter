@@ -1209,6 +1209,9 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
             ass_set_storage_size(sts->m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
             ass_set_frame_size(sts->m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].right, m_xy_rect_opt[RECT_SUBTITLE_TARGET].bottom);
 
+            start = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+            stop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+
             int changed = 1;
             ASS_Image *image = ass_render_frame(sts->m_renderer.get(), sts->m_track.get(), start / 10000, &changed);
             if (!changed && m_last_frame) {
