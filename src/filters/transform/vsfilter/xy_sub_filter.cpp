@@ -1723,9 +1723,12 @@ void XySubFilter::LoadASSFont(IPin* pPin, ASS_Library* ass, ASS_Renderer* render
             if (SUCCEEDED(bag->ResGet(i, &name.GetBSTR(), &desc.GetBSTR(), &mime.GetBSTR(), &pData, &len, nullptr)))
             {
                 if (wcscmp(mime.GetBSTR(), L"application/x-truetype-font") == 0 ||
-                    wcscmp(mime.GetBSTR(), L"application/vnd.ms-opentype") == 0) // TODO: more mimes?
+                    wcscmp(mime.GetBSTR(), L"application/vnd.ms-opentype") == 0 ||
+                    wcsncmp(mime.GetBSTR(), L"application/font-", 17) == 0 ||
+                    wcsncmp(mime.GetBSTR(), L"font/", 5) == 0) // TODO: more mimes?
                 {
-                    ass_add_font(ass, "", (char*)pData, len);
+                    auto utf8_name = UTF16To8(name.GetBSTR());
+                    ass_add_font(ass, utf8_name.GetString(), (char*)pData, len);
                     // TODO: clear these fonts somewhere?
                 }
                 CoTaskMemFree(pData);
