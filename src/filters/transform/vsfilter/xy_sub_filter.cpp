@@ -1190,8 +1190,12 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
     HRESULT hr;
 
-    CSimpleTextSubtitle* sts = dynamic_cast<CSimpleTextSubtitle*>(m_curSubStream);
-    if (sts && !m_xy_bool_opt[BOOL_VS_ASS_RENDERING] && sts->m_assloaded) {
+    CRenderedTextSubtitle* rts;
+    {
+        CAutoLock cAutoLock(&m_csFilter);
+        rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
+    }
+    if (rts && !m_xy_bool_opt[BOOL_VS_ASS_RENDERING] && rts->m_assloaded) {
         CComPtr<ISubRenderFrame> sub_render_frame;
         {
             CAutoLock cAutoLock(&m_csFilter);
@@ -1201,19 +1205,19 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
             ASSERT(m_consumer);
 
-            if (!sts->m_assfontloaded) {
-                LoadASSFont(sts->m_pPin, sts->m_ass.get(), sts->m_renderer.get());
-                sts->m_assfontloaded = true;
+            if (!rts->m_assfontloaded) {
+                LoadASSFont(rts->m_pPin, rts->m_ass.get(), rts->m_renderer.get());
+                rts->m_assfontloaded = true;
             }
 
-            ass_set_storage_size(sts->m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
-            ass_set_frame_size(sts->m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].right, m_xy_rect_opt[RECT_SUBTITLE_TARGET].bottom);
+            ass_set_storage_size(rts->m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
+            ass_set_frame_size(rts->m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].right, m_xy_rect_opt[RECT_SUBTITLE_TARGET].bottom);
 
             start = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
             stop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
 
             int changed = 1;
-            ASS_Image *image = ass_render_frame(sts->m_renderer.get(), sts->m_track.get(), start / 10000, &changed);
+            ASS_Image *image = ass_render_frame(rts->m_renderer.get(), rts->m_track.get(), start / 10000, &changed);
             if (!changed && m_last_frame) {
                 sub_render_frame = m_last_frame;
             }
