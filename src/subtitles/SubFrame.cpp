@@ -105,6 +105,7 @@ void SubFrame::Flatten(ASS_Image* image)
         const POINT pixelsPoint = GetRectPos(m_pixelsRect);
         const SIZE pixelsSize = GetRectSize(m_pixelsRect);
         m_pixels = std::make_unique<uint32_t[]>(pixelsSize.cx * pixelsSize.cy);
+        std::fill(m_pixels.get(), m_pixels.get() + pixelsSize.cx * pixelsSize.cy, 0xff000000);
 
         for (auto i = image; i != nullptr; i = i->next)
         {
@@ -122,7 +123,7 @@ void SubFrame::Flatten(ASS_Image* image)
 
                     uint32_t compA = 0xff - srcA;
 
-                    uint32_t outA = srcA + ((destA * compA) >> 8);
+                    uint32_t outA = 0xff - (srcA + (((0xff-destA) * compA) >> 8));
 
                     uint32_t outR = ((i->color & 0xff000000) >> 8) * srcA + (dest & 0x00ff0000) * compA;
                     outR >>= 8;
@@ -138,4 +139,19 @@ void SubFrame::Flatten(ASS_Image* image)
             }, concurrency::static_partitioner());
         }
     }
+}
+
+STDMETHODIMP SubFrame::GetXyColorSpace(int* xyColorSpace)
+{
+    if (!xyColorSpace)
+    {
+        return E_POINTER;
+    }
+    *xyColorSpace = XY_CS_ARGB;
+    return S_OK;
+}
+
+STDMETHODIMP SubFrame::GetBitmapExtra(int index, LPVOID extra_info)
+{
+    return S_OK;
 }

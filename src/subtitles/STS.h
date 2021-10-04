@@ -295,6 +295,7 @@ private:
 
 public:
     IPin* m_pPin;
+    IFilterGraph* m_pGraph;
     bool LoadASSFile();
     bool LoadASSTrack(char* data, int size);
     void UnloadASS();

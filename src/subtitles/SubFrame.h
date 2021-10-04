@@ -21,7 +21,7 @@
 
 class SubFrame final
     : public CUnknown
-    , public ISubRenderFrame
+    , public IXySubRenderFrame
 {
 public:
 
@@ -37,6 +37,10 @@ public:
     STDMETHODIMP GetClipRect(RECT* clipRect) override;
     STDMETHODIMP GetBitmapCount(int* count) override;
     STDMETHODIMP GetBitmap(int index, ULONGLONG* id, POINT* position, SIZE* size, LPCVOID* pixels, int* pitch) override;
+
+    // IXySubRenderFrame
+    STDMETHODIMP GetXyColorSpace(int* xyColorSpace) override;
+    STDMETHODIMP GetBitmapExtra(int index, LPVOID extra_info) override;
 
 private:
 

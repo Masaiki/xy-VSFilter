@@ -3345,11 +3345,123 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx(SubPicDesc& spd, REFERENCE_TIME rt,
     return (!rectList.IsEmpty()) ? S_OK : S_FALSE;
 }
 
+#include <ppl.h>
+namespace {
+    inline POINT GetRectPos(RECT rect) {
+        return { rect.left, rect.top };
+    }
+
+    inline SIZE GetRectSize(RECT rect) {
+        return { rect.right - rect.left, rect.bottom - rect.top };
+    }
+}
+void AssFlatten(ASS_Image* image, SubPicDesc& spd, CRect& rcDirty) {
+    if (image) {
+        RECT pRect = { 0 };
+        for (auto i = image; i != nullptr; i = i->next) {
+            RECT rect1 = pRect;
+            RECT rect2 = { i->dst_x, i->dst_y, i->dst_x + i->w, i->dst_y + i->h };
+            UnionRect(&pRect, &rect1, &rect2);
+        }
+
+        const POINT pixelsPoint = GetRectPos(pRect);
+        const SIZE pixelsSize = GetRectSize(pRect);
+        rcDirty.IntersectRect(CRect(pixelsPoint, pixelsSize), CRect(0, 0, spd.w, spd.h));
+
+        BYTE* pixelBytes = (BYTE*)(spd.bits + spd.pitch * rcDirty.top + rcDirty.left * 4);
+
+        for (auto i = image; i != nullptr; i = i->next) {
+            concurrency::parallel_for(0, i->h, [&](int y)
+                {
+                    for (int x = 0; x < i->w; ++x) {
+                        BYTE* dst = &pixelBytes[((ptrdiff_t)i->dst_y + y - pixelsPoint.y) * spd.pitch + ((ptrdiff_t)i->dst_x + x - pixelsPoint.x) * 4];
+
+                        uint32_t srcA = (i->bitmap[y * i->stride + x] * (0xff - (i->color & 0x000000ff))) >> 8;
+                        uint32_t compA = 0xff - srcA;
+
+
+                        dst[3] = 0xff - (srcA + (((0xff - dst[3]) * compA) >> 8)); //A.  this is inverted alpha, so we invert it before multiplying and then invert it again
+                        dst[2] = (((i->color & 0xff000000) >> 24) * srcA + (dst[2]) * compA) >> 8; //R
+                        dst[1] = (((i->color & 0x00ff0000) >> 16) * srcA + dst[1] * compA) >> 8; //G
+                        dst[0] = (((i->color & 0x0000ff00) >> 8) * srcA + dst[0] * compA) >> 8; //B
+
+                    }
+                }, concurrency::static_partitioner());
+        }
+    }
+}
+#include <DSMPropertyBag.h>
+#include <comutil.h>
+void LoadASSFont(IPin* pPin, IFilterGraph* pGraph, ASS_Library* ass, ASS_Renderer* renderer)
+{
+    // Try to load fonts in the container
+    CComPtr<IAMGraphStreams> graphStreams;
+    CComPtr<IDSMResourceBag> bag;
+    if (SUCCEEDED(pGraph->QueryInterface(IID_PPV_ARGS(&graphStreams))) &&
+        SUCCEEDED(graphStreams->FindUpstreamInterface(pPin, IID_PPV_ARGS(&bag), AM_INTF_SEARCH_FILTER)))
+    {
+        for (DWORD i = 0; i < bag->ResGetCount(); ++i)
+        {
+            _bstr_t name, desc, mime;
+            BYTE* pData = nullptr;
+            DWORD len = 0;
+            if (SUCCEEDED(bag->ResGet(i, &name.GetBSTR(), &desc.GetBSTR(), &mime.GetBSTR(), &pData, &len, nullptr)))
+            {
+                if (wcscmp(mime.GetBSTR(), L"application/x-truetype-font") == 0 ||
+                    wcscmp(mime.GetBSTR(), L"application/vnd.ms-opentype") == 0 ||
+                    wcsncmp(mime.GetBSTR(), L"application/font-", 17) == 0 ||
+                    wcsncmp(mime.GetBSTR(), L"font/", 5) == 0) // TODO: more mimes?
+                {
+                    auto utf8_name = UTF16To8(name.GetBSTR());
+                    ass_add_font(ass, utf8_name.GetString(), (char*)pData, len);
+                    // TODO: clear these fonts somewhere?
+                }
+                CoTaskMemFree(pData);
+            }
+        }
+    }
+    ass_set_fonts(renderer, NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, NULL);
+}
+
 STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame, int spd_type,
     const RECT& video_rect, const RECT& subtitle_target_rect,
     const SIZE& original_video_size,
     REFERENCE_TIME rt, double fps )
 {
+
+    if (m_assloaded) {
+
+        if (spd_type != MSP_RGBA)
+            return E_INVALIDARG;
+
+        CComPtr<IXySubRenderFrame> sub_render_frame;
+
+        if (!m_assfontloaded && m_pPin && m_pGraph) {
+            LoadASSFont(m_pPin, m_pGraph, m_ass.get(), m_renderer.get());
+            m_assfontloaded = true;
+        }
+
+        ass_set_storage_size(m_renderer.get(), original_video_size.cx, original_video_size.cy);
+        ass_set_frame_size(m_renderer.get(), subtitle_target_rect.right, subtitle_target_rect.bottom);
+
+        int changed = 1;
+        ASS_Image* image = ass_render_frame(m_renderer.get(), m_track.get(), rt / 10000, &changed);
+
+        if (!changed && m_last_frame) {
+            sub_render_frame = m_last_frame;
+        }
+        else
+        {
+            m_consumerLastId++;
+            sub_render_frame = new SubFrame(subtitle_target_rect, m_consumerLastId, image);
+            m_last_frame = sub_render_frame;
+        }
+
+        (*subRenderFrame = sub_render_frame)->AddRef();
+
+        return S_OK;
+    }
+
     TRACE_RENDERER_REQUEST("Begin RenderEx rt"<<rt);
     if (!subRenderFrame)
     {

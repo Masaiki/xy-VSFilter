@@ -2753,7 +2753,7 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
         name = name.Mid(name.ReverseFind('.')+1);
     }
 
-    if (lstrcmpi(PathFindExtensionW(fn), L".ass") == 0 || lstrcmpi(PathFindExtensionW(fn), L".ssa") == 0) {
+    if (lstrcmpi(PathFindExtensionW(fn), L".ass") == 0 || lstrcmpi(PathFindExtensionW(fn), L".ssa") == 0 || lstrcmp(name, L"CSRI memory subtitles") == 0) {
         m_path = f.GetFilePath();
         LoadASSFile();
     }

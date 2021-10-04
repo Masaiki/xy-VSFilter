@@ -71,9 +71,6 @@
     <ClCompile Include="auto_load_helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SubFrame.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DirectVobSub.h">
@@ -134,9 +131,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="auto_load_helper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SubFrame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

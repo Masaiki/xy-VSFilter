@@ -528,6 +528,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
             }
 
             pRTS->m_pPin = pReceivePin;
+            pRTS->m_pGraph = GetGraphFromFilter(m_pFilter);
             if (mt.subtype != MEDIASUBTYPE_UTF8)
                 pRTS->LoadASSTrack((char*)mt.Format() + psi->dwOffset, mt.FormatLength() - psi->dwOffset);
             ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);

@@ -30,6 +30,7 @@
 #include <boost/smart_ptr.hpp>
 #include "mru_cache.h"
 #include "xy_int_map.h"
+#include "SubFrame.h"
 
 //how hard positioned is the ass cmd 
 enum AssCmdPosLevel
@@ -506,4 +507,8 @@ public:
     STDMETHODIMP_(int) GetStream();
     STDMETHODIMP SetStream(int iStream);
     STDMETHODIMP Reload();
+
+private:
+    ULONGLONG m_consumerLastId;
+    CComPtr<IXySubRenderFrame> m_last_frame;
 };
