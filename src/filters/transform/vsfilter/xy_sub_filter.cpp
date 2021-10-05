@@ -1239,7 +1239,7 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
     {
         CAutoLock cAutoLock(&m_csFilter);
 
-        rts->m_paused = false;
+        if(rts) rts->m_paused = false;
 
         hr = UpdateParamFromConsumer();
         if (FAILED(hr))
