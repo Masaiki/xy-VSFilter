@@ -195,7 +195,7 @@ void CompositeDrawItem::Draw( XySubRenderFrame**output, CompositeDrawItemListLis
     CreateDrawItemExTree(compDrawItemListList, &draw_item_ex_tree, &rect_ex_list);
 
     //fix subpixel gap whenever possible
-    DecideDrawMethod(compDrawItemListList, rect_ex_list);
+    //DecideDrawMethod(compDrawItemListList, rect_ex_list);
 
     XyRectExList grouped_rect_exs;
     MergeRects(rect_ex_list, &grouped_rect_exs);
