@@ -1200,6 +1200,8 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
         {
             CAutoLock cAutoLock(&m_csFilter);
 
+            rts->m_paused = true;
+
             hr = UpdateParamFromConsumer();
             if (FAILED(hr)) return hr;
 
@@ -1236,6 +1238,8 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
     CComPtr<IXySubRenderFrame> sub_render_frame;
     {
         CAutoLock cAutoLock(&m_csFilter);
+
+        rts->m_paused = false;
 
         hr = UpdateParamFromConsumer();
         if (FAILED(hr))

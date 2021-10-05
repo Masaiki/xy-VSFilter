@@ -272,7 +272,7 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
                     stse.str = sl.RemoveHead();
                 }
 
-                if(!stse.str.IsEmpty())
+                if(!stse.str.IsEmpty() && !m_pRTS->m_paused)
                 {
                     m_pRTS->Add(stse.str, true, (int)(tStart / 10000), (int)(tStop / 10000), 
                         stse.style, stse.actor, stse.effect, stse.marginRect, stse.layer, stse.readorder);

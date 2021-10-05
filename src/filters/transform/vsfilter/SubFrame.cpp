@@ -108,30 +108,29 @@ void SubFrame::Flatten(ASS_Image* image)
 
         for (auto i = image; i != nullptr; i = i->next)
         {
+            const uint32_t tmp_srcA = 0xff - (i->color & 0x000000ff), 
+                tmp_srcR = (i->color & 0xff000000) >> 8,
+                tmp_srcG = (i->color & 0x00ff0000) >> 8,
+                tmp_srcB = (i->color & 0x0000ff00) >> 8;
             concurrency::parallel_for(0, i->h, [&](int y)
             {
                 for (int x = 0; x < i->w; ++x)
                 {
-                    uint32_t& dest = m_pixels[(i->dst_y + y - pixelsPoint.y) * pixelsSize.cx +
-                                              (i->dst_x + x - pixelsPoint.x)];
+                    uint32_t& dest = m_pixels[(i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x)];
 
                     uint32_t destA = (dest & 0xff000000) >> 24;
 
-                    uint32_t srcA = i->bitmap[y * i->stride + x] * (0xff - (i->color & 0x000000ff));
-                    srcA >>= 8;
+                    uint32_t srcA = (i->bitmap[y * i->stride + x] * tmp_srcA) >> 8;
 
                     uint32_t compA = 0xff - srcA;
 
                     uint32_t outA = srcA + ((destA * compA) >> 8);
 
-                    uint32_t outR = ((i->color & 0xff000000) >> 8) * srcA + (dest & 0x00ff0000) * compA;
-                    outR >>= 8;
+                    uint32_t outR = (tmp_srcR * srcA + (dest & 0x00ff0000) * compA) >> 8;
 
-                    uint32_t outG = ((i->color & 0x00ff0000) >> 8) * srcA + (dest & 0x0000ff00) * compA;
-                    outG >>= 8;
+                    uint32_t outG = (tmp_srcG * srcA + (dest & 0x0000ff00) * compA) >> 8;
 
-                    uint32_t outB = ((i->color & 0x0000ff00) >> 8) * srcA + (dest & 0x000000ff) * compA;
-                    outB >>= 8;
+                    uint32_t outB = (tmp_srcB * srcA + (dest & 0x000000ff) * compA) >> 8;
 
                     dest = (outA << 24) + (outR & 0x00ff0000) + (outG & 0x0000ff00) + (outB & 0x000000ff);
                 }
