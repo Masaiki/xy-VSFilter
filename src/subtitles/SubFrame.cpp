@@ -17,6 +17,7 @@
 
 #include "stdafx.h"
 #include "SubFrame.h"
+#include "../subpic/color_conv_table.h"
 #include <ppl.h>
 
 namespace
@@ -32,13 +33,22 @@ namespace
     }
 }
 
-SubFrame::SubFrame(RECT rect, ULONGLONG id, ASS_Image* image)
+SubFrame::SubFrame(RECT rect, ULONGLONG id, ASS_Image* image, XyColorSpace xy_color_space)
     : CUnknown("", nullptr)
     , m_rect(rect)
     , m_id(id)
     , m_pixelsRect{}
+    , m_xy_color_space(xy_color_space)
 {
-    Flatten(image);
+    switch (xy_color_space) {
+    case XY_CS_AYUV_PLANAR:
+        Flatten2AYUV(image);
+        break;
+    case XY_CS_ARGB:
+    case XY_CS_ARGB_F:
+        Flatten2ARGB(image);
+        break;
+    }
 }
 
 STDMETHODIMP SubFrame::NonDelegatingQueryInterface(REFIID riid, void** ppv)
@@ -66,32 +76,68 @@ STDMETHODIMP SubFrame::GetClipRect(RECT* clipRect)
 STDMETHODIMP SubFrame::GetBitmapCount(int* count)
 {
     CheckPointer(count, E_POINTER);
-    *count = (m_pixels ? 1 : 0);
+    if (m_xy_color_space == XY_CS_ARGB || m_xy_color_space == XY_CS_ARGB_F) {
+        *count = (m_pixels ? 1 : 0);
+    }
+    else if (m_xy_color_space == XY_CS_AYUV_PLANAR) {
+        *count = m_bitmaps.GetCount();
+    }
     return S_OK;
 }
 
 STDMETHODIMP SubFrame::GetBitmap(int index, ULONGLONG* id, POINT* position, SIZE* size, LPCVOID* pixels, int* pitch)
 {
-    if (index != 0) return E_INVALIDARG;
+    if (m_xy_color_space == XY_CS_ARGB || m_xy_color_space == XY_CS_ARGB_F) {
+        if (index != 0) return E_INVALIDARG;
 
-    if (!id && !position && !size && !pixels && !pitch)
-        return S_FALSE;
+        if (!id && !position && !size && !pixels && !pitch)
+            return S_FALSE;
 
-    if (id)
-        *id = m_id;
-    if (position)
-        *position = GetRectPos(m_pixelsRect);
-    if (size)
-        *size = GetRectSize(m_pixelsRect);
-    if (pixels)
-        *pixels = m_pixels.get();
-    if (pitch)
-        *pitch = size->cx * 4;
-
+        if (id)
+            *id = m_id;
+        if (position)
+            *position = GetRectPos(m_pixelsRect);
+        if (size)
+            *size = GetRectSize(m_pixelsRect);
+        if (pixels)
+            *pixels = m_pixels.get();
+        if (pitch)
+            *pitch = size->cx * 4;
+    }
+    else if (m_xy_color_space == XY_CS_AYUV_PLANAR) {
+        if (index < 0 || index >= (int)m_bitmaps.GetCount())
+        {
+            return E_INVALIDARG;
+        }
+        if (id)
+        {
+            *id = m_bitmap_ids.GetAt(index);
+        }
+        const XyBitmap& bitmap = *(m_bitmaps.GetAt(index));
+        if (position)
+        {
+            position->x = bitmap.x;
+            position->y = bitmap.y;
+        }
+        if (size)
+        {
+            size->cx = bitmap.w;
+            size->cy = bitmap.h;
+        }
+        if (pixels)
+        {
+            *pixels = bitmap.plans[0];
+        }
+        if (pitch)
+        {
+            *pitch = bitmap.pitch;
+        }
+    }
+    else return E_FAIL;
     return S_OK;
 }
 
-void SubFrame::Flatten(ASS_Image* image)
+void SubFrame::Flatten2ARGB(ASS_Image* image)
 {
     if (image)
     {
@@ -141,17 +187,60 @@ void SubFrame::Flatten(ASS_Image* image)
     }
 }
 
+void SubFrame::Flatten2AYUV(ASS_Image* image)
+{
+    if (image)
+    {
+        for (auto i = image; i != nullptr; i = i->next)
+        {
+            int h2 = (i->h + 1) & (~1);
+            CRect target_rect{ i->dst_x,i->dst_y,i->dst_x + i->w,i->dst_y + h2 };
+            SharedBitmap tmp = boost::shared_ptr<XyBitmap>(XyBitmap::CreateBitmap(target_rect, XyBitmap::PLANNA));
+            uint32_t srcRGB = (i->color >> 8) & 0x00ffffff;
+            uint32_t partial_srcA = 0xff - (i->color & 0x000000ff);
+            concurrency::parallel_for(0, i->h, [&](int y)
+                {
+                    for (int x = 0; x < i->w; ++x)
+                    {
+                        uint32_t srcA = i->bitmap[y * i->stride + x] * partial_srcA;
+                        uint32_t AYUV = ColorConvTable::Argb2Ayuv(((srcA << 16) & 0xff000000) | srcRGB);
+                        tmp->plans[0][y * tmp->pitch + x] = (AYUV >> 24) & 0x000000ff;
+                        tmp->plans[1][y * tmp->pitch + x] = (AYUV >> 16) & 0x000000ff;
+                        tmp->plans[2][y * tmp->pitch + x] = (AYUV >> 8) & 0x000000ff;
+                        tmp->plans[3][y * tmp->pitch + x] = (AYUV) & 0x000000ff;
+                    }
+                }, concurrency::static_partitioner());
+            m_bitmaps.Add(tmp);
+            m_bitmap_ids.Add((uint64_t)tmp.get());
+        }
+    }
+}
+
 STDMETHODIMP SubFrame::GetXyColorSpace(int* xyColorSpace)
 {
     if (!xyColorSpace)
     {
         return E_POINTER;
     }
-    *xyColorSpace = XY_CS_ARGB;
+    *xyColorSpace = m_xy_color_space;
     return S_OK;
 }
 
 STDMETHODIMP SubFrame::GetBitmapExtra(int index, LPVOID extra_info)
 {
+    if (index < 0 || index >= (int)m_bitmaps.GetCount())
+    {
+        return E_INVALIDARG;
+    }
+    if (extra_info && m_xy_color_space == XY_CS_AYUV_PLANAR)
+    {
+        const XyBitmap& bitmap = *(m_bitmaps.GetAt(index));
+        XyPlannerFormatExtra* output = reinterpret_cast<XyPlannerFormatExtra*>(extra_info);
+
+        output->plans[0] = bitmap.plans[0];
+        output->plans[1] = bitmap.plans[1];
+        output->plans[2] = bitmap.plans[2];
+        output->plans[3] = bitmap.plans[3];
+    }
     return S_OK;
 }

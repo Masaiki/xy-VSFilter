@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "xy_bitmap.h"
 #include <ass/ass.h>
 
 class SubFrame final
@@ -25,7 +26,7 @@ class SubFrame final
 {
 public:
 
-    SubFrame(RECT rect, ULONGLONG id, ASS_Image* image);
+    SubFrame(RECT rect, ULONGLONG id, ASS_Image* image, XyColorSpace xy_color_space);
 
     DECLARE_IUNKNOWN;
 
@@ -44,11 +45,18 @@ public:
 
 private:
 
-    void Flatten(ASS_Image* image);
+    void Flatten2ARGB(ASS_Image* image);
+    void Flatten2AYUV(ASS_Image* image);
 
     const RECT m_rect;
     const ULONGLONG m_id;
 
     std::unique_ptr<uint32_t[]> m_pixels;
     RECT m_pixelsRect;
+
+    typedef ::boost::shared_ptr<XyBitmap> SharedBitmap;
+
+    CAtlArray<SharedBitmap> m_bitmaps;
+    CAtlArray<uint64_t> m_bitmap_ids;
+    XyColorSpace m_xy_color_space;
 };
