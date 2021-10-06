@@ -2126,12 +2126,11 @@ void CSimpleTextSubtitle::Add(CStringW str, bool fUnicode, int start, int end,
                 if (!entriesCount || sub.readorder >= m_entries.GetAt(sAdd.subs[entriesCount - 1]).readorder) {
                     sAdd.subs.Add(n);
                 } else {
-                    for (size_t j = 0; j < entriesCount; j++) {
-                        if (sub.readorder < m_entries.GetAt(sAdd.subs[j]).readorder) {
-                            sAdd.subs.InsertAt(j, n);
-                            break;
-                        }
-                    }
+                    auto subs_begin = sAdd.subs.GetData(), subs_end = sAdd.subs.GetData() + sAdd.subs.GetCount();
+                    auto insert_pos = std::upper_bound(subs_begin, subs_end, n, [this](const int& a, const int& b) {
+                        return m_entries.GetAt(a).readorder < m_entries.GetAt(b).readorder;
+                        }) - subs_begin;
+                    sAdd.subs.InsertAt(insert_pos, n);
                 }
 
                 lastEnd = sAdd.end;
