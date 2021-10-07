@@ -18,6 +18,7 @@
 #include "stdafx.h"
 #include "SubFrame.h"
 #include <ppl.h>
+#include <emmintrin.h>
 
 namespace
 {
@@ -98,7 +99,7 @@ void SubFrame::Flatten(ASS_Image* image)
         for (auto i = image; i != nullptr; i = i->next)
         {
             RECT rect1 = m_pixelsRect;
-            RECT rect2 = {i->dst_x, i->dst_y, i->dst_x + i->w, i->dst_y + i->h};
+            RECT rect2 = { i->dst_x, i->dst_y, i->dst_x + i->w, i->dst_y + i->h };
             UnionRect(&m_pixelsRect, &rect1, &rect2);
         }
 
@@ -108,33 +109,61 @@ void SubFrame::Flatten(ASS_Image* image)
 
         for (auto i = image; i != nullptr; i = i->next)
         {
-            const uint32_t tmp_srcA = 0xff - (i->color & 0x000000ff), 
-                tmp_srcR = (i->color & 0xff000000) >> 8,
-                tmp_srcG = (i->color & 0x00ff0000) >> 8,
-                tmp_srcB = (i->color & 0x0000ff00) >> 8;
+
+            int w00 = (i->w) & ~3;
+
+            uint8_t* pcolor = reinterpret_cast<uint8_t*>(&(i->color));
+            const uint8_t tmp_srcA = ~(*pcolor), & tmp_srcR = *(pcolor + 3), & tmp_srcG = *(pcolor + 2), & tmp_srcB = *(pcolor + 1);
+            const __m128i ia = _mm_set1_epi32(tmp_srcA), ir = _mm_set1_epi32(tmp_srcR << 16), ig = _mm_set1_epi32(tmp_srcG << 8), ib = _mm_set1_epi32(tmp_srcB);
+            const __m128i m1 = _mm_set1_epi32(0xff000000), m2 = _mm_set1_epi32(0x00ff0000), m3 = _mm_set1_epi32(0x0000ff00), m4 = _mm_set1_epi32(0x000000ff);
             concurrency::parallel_for(0, i->h, [&](int y)
-            {
-                for (int x = 0; x < i->w; ++x)
                 {
-                    uint32_t& dest = m_pixels[(i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x)];
+                    for (int x = 0; x < w00; x+=4)
+                    {
+                        auto p = m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x);
 
-                    uint32_t destA = (dest & 0xff000000) >> 24;
+                        __m128i dest = _mm_loadu_si128(reinterpret_cast<__m128i*>(p));
 
-                    uint32_t srcA = (i->bitmap[y * i->stride + x] * tmp_srcA) >> 8;
+                        __m128i da = _mm_srli_epi32(dest, 24);
 
-                    uint32_t compA = 0xff - srcA;
+                        __m128i srcA = _mm_srli_epi32(_mm_mullo_epi32(_mm_setr_epi32(i->bitmap[y * i->stride + x], i->bitmap[y * i->stride + x + 1], i->bitmap[y * i->stride + x + 2], i->bitmap[y * i->stride + x + 3]), ia), 8);
 
-                    uint32_t outA = srcA + ((destA * compA) >> 8);
+                        __m128i compA = _mm_sub_epi32(_mm_set1_epi32(0xff), srcA);
 
-                    uint32_t outR = (tmp_srcR * srcA + (dest & 0x00ff0000) * compA) >> 8;
+                        __m128i oa = _mm_add_epi32(srcA, _mm_srli_epi32(_mm_mullo_epi32(da, compA), 8));
 
-                    uint32_t outG = (tmp_srcG * srcA + (dest & 0x0000ff00) * compA) >> 8;
+                        __m128i or = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(ir, srcA), _mm_mullo_epi32(_mm_and_si128(dest, m2), compA)), 8);
 
-                    uint32_t outB = (tmp_srcB * srcA + (dest & 0x000000ff) * compA) >> 8;
+                        __m128i og = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(ig, srcA), _mm_mullo_epi32(_mm_and_si128(dest, m3), compA)), 8);
 
-                    dest = (outA << 24) + (outR & 0x00ff0000) + (outG & 0x0000ff00) + (outB & 0x000000ff);
-                }
-            }, concurrency::static_partitioner());
+                        __m128i ob = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(ib, srcA), _mm_mullo_epi32(_mm_and_si128(dest, m4), compA)), 8);
+
+                        dest = _mm_or_si128(_mm_slli_epi32(oa, 24),_mm_or_si128(_mm_and_si128(or , m2),_mm_or_si128(_mm_and_si128(og , m3),_mm_and_si128(ob , m4))));
+
+                        _mm_storeu_si128(reinterpret_cast<__m128i*>(p), dest);
+                    }
+                    for (int x = w00; x < i->w; ++x)
+                    {
+                        uint32_t& dest = m_pixels[(i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x)];
+
+                        uint8_t* pdest = reinterpret_cast<uint8_t*>(&dest);
+
+                        const uint8_t& destA = *(pdest + 3), & destR = *(pdest + 2), & destG = *(pdest + 1), & destB = *(pdest);
+
+                        uint8_t srcA = (i->bitmap[y * i->stride + x] * tmp_srcA) >> 8;
+
+                        uint8_t compA = ~srcA;
+
+                        *(pdest + 3) = srcA + ((destA * compA) >> 8);
+
+                        *(pdest + 2) = (tmp_srcR * srcA + destR * compA) >> 8;
+
+                        *(pdest + 1) = (tmp_srcG * srcA + destG * compA) >> 8;
+
+                        *(pdest) = (tmp_srcB * srcA + destB * compA) >> 8;
+                    }
+
+                }, concurrency::static_partitioner());
         }
     }
 }
