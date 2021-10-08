@@ -128,7 +128,7 @@ void SubFrame::Flatten(ASS_Image* image)
 
                         __m128i srcA = _mm_srli_epi32(_mm_mullo_epi32(_mm_setr_epi32(i->bitmap[y * i->stride + x], i->bitmap[y * i->stride + x + 1], i->bitmap[y * i->stride + x + 2], i->bitmap[y * i->stride + x + 3]), ia), 8);
 
-                        __m128i compA = _mm_sub_epi32(_mm_set1_epi32(0xff), srcA);
+                        __m128i compA = _mm_sub_epi32(m4, srcA);
 
                         __m128i oa = _mm_add_epi32(srcA, _mm_srli_epi32(_mm_mullo_epi32(da, compA), 8));
 
