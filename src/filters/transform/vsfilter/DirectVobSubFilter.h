@@ -192,6 +192,9 @@ private:
 	SystrayIconData m_tbid;
 
 	VIDEOINFOHEADER2 m_CurrentVIH2;
+
+	bool m_bExternalSubtitle = false;
+	std::vector<ISubStream*> m_ExternalSubstreams;
 };
 
 /* The "auto-loading" version */
