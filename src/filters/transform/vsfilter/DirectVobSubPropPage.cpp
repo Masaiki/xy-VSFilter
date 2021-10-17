@@ -1196,8 +1196,6 @@ bool CDVSAboutPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     switch(uMsg) {
     case WM_INITDIALOG:
         {
-            CStringA version_sha1_short = XY_VSFILTER_VERSION_COMMIT_SHA1;
-            version_sha1_short = version_sha1_short.Left(7);
             CStringA version = XY_ABOUT_VERSION_STR;
 
             LPWSTR name = NULL;
@@ -1207,8 +1205,11 @@ bool CDVSAboutPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             CStringW str_name(name, chars);
             LocalFree(name);
 
-            version.Format("%ls %s (git %s)\nxy-VSFilter\nCopyright 2001-2012 Yu Zhuohuang, Gabest et. al.", 
-                str_name.GetString(), XY_ABOUT_VERSION_STR, version_sha1_short);
+            CStringA version_sha1 = XY_VSFILTER_VERSION_COMMIT_SHA1;
+            if (!version_sha1.IsEmpty())
+                version.Format("%ls %s (git %s)\nxy-VSFilter\nCopyright 2001-2012 Yu Zhuohuang, Gabest et. al.", str_name.GetString(), XY_ABOUT_VERSION_STR, version_sha1.Left(7));
+            else
+                version.Format("%ls %s\nxy-VSFilter\nCopyright 2001-2012 Yu Zhuohuang, Gabest et. al.", str_name.GetString(), XY_ABOUT_VERSION_STR);
 
             SetDlgItemTextA( m_Dlg, IDC_VERSION, version.GetString() );
             break;

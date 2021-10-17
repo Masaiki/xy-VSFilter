@@ -71,7 +71,7 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
     XY_LOG_INFO(XY_LOG_VAR_2_STR(this));
-    m_xy_str_opt[STRING_NAME] = L"XySubFilter";
+    m_xy_str_opt[STRING_NAME] = L"XySubFilter with libass";
     m_xy_str_opt[STRING_OUTPUT_LEVELS] = L"PC";
     m_filter_info_string = m_xy_str_opt[STRING_NAME];
 
