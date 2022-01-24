@@ -249,6 +249,24 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
         }
         else if(m_mt.subtype == MEDIASUBTYPE_SSA || m_mt.subtype == MEDIASUBTYPE_ASS || m_mt.subtype == MEDIASUBTYPE_ASS2)
         {
+            if (m_pRTS->m_assloaded) {
+                CAutoLock cAutoLock(&(m_pRTS->csSample));
+                int read_order;
+                std::unordered_map<int, int>::iterator found;
+                if (sscanf((char *)pData, "%d", &read_order) == 1 && (found = m_pRTS->readorder2eid.find(read_order)) != m_pRTS->readorder2eid.end()) {
+                    auto p_event = m_pRTS->m_track->events + found->second;
+                    p_event->Start = tStart / 10000;
+                    p_event->Duration = (tStop - tStart) / 10000;
+                }
+                else {
+                    ass_process_chunk(m_pRTS->m_track.get(), (char *)pData, len, tStart / 10000, (tStop - tStart) / 10000);
+                    for (int i = m_pRTS->readorder2eid.size(); i < m_pRTS->m_track->n_events; ++i) {
+                        auto p_event = m_pRTS->m_track->events + i;
+                        m_pRTS->readorder2eid[p_event->ReadOrder] = i;
+                    }
+                }
+            }
+            if (m_pRTS->m_paused) return S_OK;
             CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
             if(!str.IsEmpty())
             {
@@ -272,30 +290,10 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
                     stse.str = sl.RemoveHead();
                 }
 
-                if(!stse.str.IsEmpty() && !m_pRTS->m_paused)
+                if(!stse.str.IsEmpty())
                 {
                     m_pRTS->Add(stse.str, true, (int)(tStart / 10000), (int)(tStop / 10000), 
                         stse.style, stse.actor, stse.effect, stse.marginRect, stse.layer, stse.readorder);
-                }
-
-                if (m_pRTS->m_assloaded) {
-                    CAutoLock cAutoLock(&(m_pRTS->csSample));
-                    int read_order;
-                    if (sscanf((char *)pData, "%d", &read_order) == 1) {
-                        auto found = m_pRTS->readorder2eid.find(read_order);
-                        if (found != m_pRTS->readorder2eid.end()) {
-                            auto p_event = m_pRTS->m_track->events + found->second;
-                            p_event->Start = tStart / 10000;
-                            p_event->Duration = (tStop - tStart) / 10000;
-                        }
-                        else {
-                            ass_process_chunk(m_pRTS->m_track.get(), (char *)pData, len, tStart / 10000, (tStop - tStart) / 10000);
-                            for (int i = m_pRTS->readorder2eid.size(); i < m_pRTS->m_track->n_events; ++i) {
-                                auto p_event = m_pRTS->m_track->events + i;
-                                m_pRTS->readorder2eid[p_event->ReadOrder] = i;
-                            }
-                        }
-                    }
                 }
             }
             else
