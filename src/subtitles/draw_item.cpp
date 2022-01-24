@@ -2,7 +2,6 @@
 #include "draw_item.h"
 #include <vector>
 #include <algorithm>
-#include <boost/shared_ptr.hpp>
 #include "xy_overlay_paint_machine.h"
 #include "xy_clipper_paint_machine.h"
 #include "../SubPic/ISubPic.h"
@@ -153,7 +152,7 @@ typedef CAtlList<CompositeDrawItemEx*> PCompositeDrawItemExList;
 typedef CAtlArray<CompositeDrawItemEx> CompositeDrawItemExVec;
 typedef CAtlArray<CompositeDrawItemExVec> CompositeDrawItemExTree;
 
-typedef ::boost::shared_ptr<PCompositeDrawItemExList> SharedPCompositeDrawItemExList;
+typedef std::shared_ptr<PCompositeDrawItemExList> SharedPCompositeDrawItemExList;
 
 class XyRectEx: public CRect
 {

@@ -4,7 +4,6 @@
 #include <boost/flyweight/set_factory.hpp>
 #include <boost/flyweight/no_tracking.hpp>
 #include <boost/flyweight/no_locking.hpp>
-#include <boost/smart_ptr.hpp>
 #include <afx.h>
 
 #include "mru_cache.h"
@@ -29,7 +28,7 @@ class XyFlyWeight
 {
 public:
     typedef std::size_t IdType;
-    typedef ::boost::shared_ptr<const V> SharedConstV;
+    typedef std::shared_ptr<const V> SharedConstV;
 
     class SharedVElementTraits:public CElementTraits<SharedConstV>
     {

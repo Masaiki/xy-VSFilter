@@ -22,13 +22,12 @@
 #include "stdafx.h"
 #include "alpha_blender.h"
 #include "MemSubPic.h"
-#include <boost/scoped_ptr.hpp>
 
 BaseAlphaBlender* BaseAlphaBlender::s_default_alpha_blender = NULL;
 
 BaseAlphaBlender* BaseAlphaBlender::SetupDefaultAlphaBlender( int src_type, int dst_type, int cpu_flags )
 {
-    static ::boost::scoped_ptr<BaseAlphaBlender> s_auto_cleaner;
+    static std::unique_ptr<BaseAlphaBlender> s_auto_cleaner;
     s_default_alpha_blender = CreateAlphaBlender(src_type, dst_type, cpu_flags);
     s_auto_cleaner.reset(s_default_alpha_blender);
     return s_default_alpha_blender;

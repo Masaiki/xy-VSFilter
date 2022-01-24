@@ -218,7 +218,7 @@ public:
 public:
     ULONG m_hash_value;
 private:
-    typedef ::boost::shared_ptr<OverlayKey> SharedOverlayKey;
+    typedef std::shared_ptr<OverlayKey> SharedOverlayKey;
     SharedOverlayKey m_overlay_key;
     ClipperAlphaMaskCacheKey m_clipper_key;
     CRect m_clip_rect;
@@ -242,9 +242,9 @@ public:
 public:
     ULONG m_hash_value;
 private:
-    typedef ::boost::shared_ptr<DrawItemHashKey> PKey;
+    typedef std::shared_ptr<DrawItemHashKey> PKey;
     typedef CAtlArray<PKey> Keys;
-    typedef ::boost::shared_ptr<Keys> PKeys;
+    typedef std::shared_ptr<Keys> PKeys;
 
     PKeys m_key;
     CRect m_clip_rect;
@@ -291,7 +291,7 @@ typedef EnhancedXyMru<OverlayNoOffsetKey, OverlayNoBlurKey, XyCacheKeyTraits<Ove
 typedef EnhancedXyMru<ClipperAlphaMaskCacheKey, SharedPtrGrayImage2, XyCacheKeyTraits<ClipperAlphaMaskCacheKey>> ClipperAlphaMaskMruCache;
 
 class XyBitmap;
-typedef ::boost::shared_ptr<XyBitmap> SharedPtrXyBitmap;
+typedef std::shared_ptr<XyBitmap> SharedPtrXyBitmap;
 typedef EnhancedXyMru<std::size_t, SharedPtrXyBitmap> BitmapMruCache;
 
 class CacheManager

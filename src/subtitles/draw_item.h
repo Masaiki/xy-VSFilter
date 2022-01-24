@@ -4,17 +4,16 @@
 #include <WTypes.h>
 #include "RTS.h"
 #include <atlcoll.h>
-#include <boost/shared_ptr.hpp>
 #include "xy_bitmap.h"
 
 class OverlayPaintMachine;
-typedef ::boost::shared_ptr<OverlayPaintMachine> SharedPtrOverlayPaintMachine;
+typedef std::shared_ptr<OverlayPaintMachine> SharedPtrOverlayPaintMachine;
 
 class CClipperPaintMachine;
-typedef ::boost::shared_ptr<CClipperPaintMachine> SharedPtrCClipperPaintMachine;
+typedef std::shared_ptr<CClipperPaintMachine> SharedPtrCClipperPaintMachine;
 
 class DrawItemHashKey;
-typedef ::boost::shared_ptr<DrawItemHashKey> SharedPtrDrawItemHashKey;
+typedef std::shared_ptr<DrawItemHashKey> SharedPtrDrawItemHashKey;
 
 struct DrawItem
 {
@@ -45,7 +44,7 @@ public:
         const DWORD* switchpts, bool fBody, bool fBorder);
 };
 
-typedef ::boost::shared_ptr<DrawItem> SharedPtrDrawItem;
+typedef std::shared_ptr<DrawItem> SharedPtrDrawItem;
 
 typedef CAtlList<DrawItem> DrawItemList;
 

@@ -1,18 +1,17 @@
 #ifndef __XY_OVERLAY_PAINT_MACHINE_47C522B7_4317_441C_A536_5F667DCB0141_H__
 #define __XY_OVERLAY_PAINT_MACHINE_47C522B7_4317_441C_A536_5F667DCB0141_H__
 
-#include <boost/shared_ptr.hpp>
 class CWord;
-typedef ::boost::shared_ptr<CWord> SharedPtrCWord;
+typedef std::shared_ptr<CWord> SharedPtrCWord;
 
 struct Overlay;
-typedef ::boost::shared_ptr<Overlay> SharedPtrOverlay;
+typedef std::shared_ptr<Overlay> SharedPtrOverlay;
 
 class OverlayPaintMachine;
-typedef ::boost::shared_ptr<OverlayPaintMachine> SharedPtrOverlayPaintMachine;
+typedef std::shared_ptr<OverlayPaintMachine> SharedPtrOverlayPaintMachine;
 
 class OverlayKey;
-typedef ::boost::shared_ptr<OverlayKey> SharedPtrOverlayKey;
+typedef std::shared_ptr<OverlayKey> SharedPtrOverlayKey;
 
 class CWordPaintMachine
 {
@@ -51,7 +50,7 @@ private:
     SharedPtrOverlayKey m_shadow_key, m_border_key, m_body_key;
 };
 
-typedef ::boost::shared_ptr<CWordPaintMachine> SharedCWordPaintMachine;
+typedef std::shared_ptr<CWordPaintMachine> SharedCWordPaintMachine;
 
 class OverlayPaintMachine
 {

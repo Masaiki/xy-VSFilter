@@ -645,7 +645,7 @@ SharedPtrCWord CText::Copy()
 
 bool CText::Append(const SharedPtrCWord& w)
 {
-    boost::shared_ptr<CText> p = boost::dynamic_pointer_cast<CText>(w);
+    std::shared_ptr<CText> p = std::dynamic_pointer_cast<CText>(w);
     return (p && CWord::Append(w));
 }
 
