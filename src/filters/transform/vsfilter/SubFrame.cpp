@@ -91,7 +91,7 @@ STDMETHODIMP SubFrame::GetBitmap(int index, ULONGLONG* id, POINT* position, SIZE
 
     return S_OK;
 }
-
+#define div_255_fast_v2(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
 void SubFrame::Flatten(ASS_Image* image)
 {
     if (image)
@@ -109,40 +109,11 @@ void SubFrame::Flatten(ASS_Image* image)
 
         for (auto i = image; i != nullptr; i = i->next)
         {
-
-            int w00 = (i->w) & ~3;
-
             uint8_t* pcolor = reinterpret_cast<uint8_t*>(&(i->color));
             const uint8_t tmp_srcA = ~(*pcolor), & tmp_srcR = *(pcolor + 3), & tmp_srcG = *(pcolor + 2), & tmp_srcB = *(pcolor + 1);
-            const __m128i ia = _mm_set1_epi32(tmp_srcA), ir = _mm_set1_epi32(tmp_srcR << 16), ig = _mm_set1_epi32(tmp_srcG << 8), ib = _mm_set1_epi32(tmp_srcB);
-            const __m128i m1 = _mm_set1_epi32(0xff000000), m2 = _mm_set1_epi32(0x00ff0000), m3 = _mm_set1_epi32(0x0000ff00), m4 = _mm_set1_epi32(0x000000ff);
             concurrency::parallel_for(0, i->h, [&](int y)
                 {
-                    for (int x = 0; x < w00; x+=4)
-                    {
-                        auto p = m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x);
-
-                        __m128i dest = _mm_loadu_si128(reinterpret_cast<__m128i*>(p));
-
-                        __m128i da = _mm_srli_epi32(dest, 24);
-
-                        __m128i srcA = _mm_srli_epi32(_mm_mullo_epi32(_mm_setr_epi32(i->bitmap[y * i->stride + x], i->bitmap[y * i->stride + x + 1], i->bitmap[y * i->stride + x + 2], i->bitmap[y * i->stride + x + 3]), ia), 8);
-
-                        __m128i compA = _mm_sub_epi32(m4, srcA);
-
-                        __m128i oa = _mm_add_epi32(srcA, _mm_srli_epi32(_mm_mullo_epi32(da, compA), 8));
-
-                        __m128i or = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(ir, srcA), _mm_mullo_epi32(_mm_and_si128(dest, m2), compA)), 8);
-
-                        __m128i og = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(ig, srcA), _mm_mullo_epi32(_mm_and_si128(dest, m3), compA)), 8);
-
-                        __m128i ob = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(ib, srcA), _mm_mullo_epi32(_mm_and_si128(dest, m4), compA)), 8);
-
-                        dest = _mm_or_si128(_mm_slli_epi32(oa, 24),_mm_or_si128(_mm_and_si128(or , m2),_mm_or_si128(_mm_and_si128(og , m3),_mm_and_si128(ob , m4))));
-
-                        _mm_storeu_si128(reinterpret_cast<__m128i*>(p), dest);
-                    }
-                    for (int x = w00; x < i->w; ++x)
+                    for (int x = 0; x < i->w; ++x)
                     {
                         uint32_t& dest = m_pixels[(i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x)];
 
@@ -150,17 +121,17 @@ void SubFrame::Flatten(ASS_Image* image)
 
                         const uint8_t& destA = *(pdest + 3), & destR = *(pdest + 2), & destG = *(pdest + 1), & destB = *(pdest);
 
-                        uint8_t srcA = (i->bitmap[y * i->stride + x] * tmp_srcA) >> 8;
+                        uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * tmp_srcA);
 
                         uint8_t compA = ~srcA;
 
-                        *(pdest + 3) = srcA + ((destA * compA) >> 8);
+                        *(pdest + 3) = srcA + div_255_fast_v2(destA * compA);
 
-                        *(pdest + 2) = (tmp_srcR * srcA + destR * compA) >> 8;
+                        *(pdest + 2) = div_255_fast_v2(tmp_srcR * srcA + destR * compA);
 
-                        *(pdest + 1) = (tmp_srcG * srcA + destG * compA) >> 8;
+                        *(pdest + 1) = div_255_fast_v2(tmp_srcG * srcA + destG * compA);
 
-                        *(pdest) = (tmp_srcB * srcA + destB * compA) >> 8;
+                        *(pdest) = div_255_fast_v2(tmp_srcB * srcA + destB * compA);
                     }
 
                 }, concurrency::static_partitioner());
