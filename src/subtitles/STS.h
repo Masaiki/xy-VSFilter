@@ -26,6 +26,7 @@
 #include "TextFile.h"
 #include "GFN.h"
 #include <ass.hpp>
+#include <unordered_map>
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
 
@@ -303,6 +304,8 @@ public:
     std::unique_ptr<ASS_Library, ASS_LibraryDeleter> m_ass;
     std::unique_ptr<ASS_Renderer, ASS_RendererDeleter> m_renderer;
     std::unique_ptr<ASS_Track, ASS_TrackDeleter> m_track;
+    std::unordered_map<int, int> readorder2eid;
+    CCritSec csSample;
 };
 
 extern BYTE   CharSetList[];
