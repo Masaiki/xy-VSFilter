@@ -169,8 +169,8 @@ CWord::CWord( const CWord& src):m_str(src.m_str)
     m_width                                      = src.m_width;
     m_ascent                                     = src.m_ascent;
     m_descent                                    = src.m_descent;
-    m_scalex = src.m_scalex;
-    m_scaley = src.m_scaley;
+    m_scalex                                     = src.m_scalex;
+    m_scaley                                     = src.m_scaley;
     m_target_scale_x                             = src.m_target_scale_x;
     m_target_scale_y                             = src.m_target_scale_y;
     m_round_to_whole_pixel_after_scale_to_target = src.m_round_to_whole_pixel_after_scale_to_target;
@@ -591,6 +591,8 @@ bool CWord::operator==( const CWord& rhs ) const
         m_width           == rhs.m_width           &&
         m_ascent          == rhs.m_ascent          &&
         m_descent         == rhs.m_descent         &&
+        m_scalex          == rhs.m_scalex          &&
+        m_scaley          == rhs.m_scaley          &&
         m_target_scale_x  == rhs.m_target_scale_x  &&
         m_target_scale_y  == rhs.m_target_scale_y);
     //m_pOpaqueBox
