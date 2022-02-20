@@ -5,6 +5,7 @@
 #include "SubRenderIntf.h"
 #include "SubRenderOptionsImpl.h"
 #include <ass.hpp>
+#include "FontLoaderContext.h"
 
 class CDirectVobSubFilter;
 
@@ -167,6 +168,8 @@ private:
     bool m_disconnect_entered;
 
     CStringW m_filter_info_string;
+
+    std::unique_ptr<FontLoaderContext> font_loader_ctx;
 
 #ifdef SUBTITLE_FRAME_DUMP_FILE
     int   m_dump_subtitle_frame_start_rt;

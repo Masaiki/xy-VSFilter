@@ -141,6 +141,9 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     CAMThread::Create();
 
     WaitForSingleObject(m_frd.ThreadStartedEvent, INFINITE);
+
+    const wchar_t *font_path = L"D:\\Fonts";
+    font_loader_ctx = std::make_unique<FontLoaderContext>(font_path);
 }
 
 XySubFilter::~XySubFilter()
@@ -1645,12 +1648,17 @@ bool XySubFilter::Open()
         if(m_frd.files.Find(ret[i].full_file_name))
             continue;
 
+        const wchar_t *full_file_name = ret[i].full_file_name;
+        const wchar_t *ext = PathFindExtensionW(full_file_name);
+
         CComPtr<ISubStream> pSubStream;
 
         if(!pSubStream)
         {
             //            CAutoTiming t(TEXT("CRenderedTextSubtitle::Open"), 0);
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
+            if (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0)
+                font_loader_ctx->LoadFontFromPath(full_file_name);
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {

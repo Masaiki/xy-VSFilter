@@ -48,28 +48,28 @@
     <TargetName>XySubFilter</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(SolutionDir)src\thirdparty\FontLoaderSub\FontLoaderSub;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(SolutionDir)src\thirdparty\FontLoaderSub\FontLoaderSub;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(SolutionDir)src\thirdparty\FontLoaderSub\FontLoaderSub;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(SolutionDir)src\thirdparty\FontLoaderSub\FontLoaderSub;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <Link>
       <ModuleDefinitionFile>xy_sub_filter.def</ModuleDefinitionFile>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">libass.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">libass.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">libassd.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">libassd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">FontLoaderSubLib.lib;Bcrypt.lib;libass.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">FontLoaderSubLib.lib;Bcrypt.lib;libass.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">FontLoaderSubLib.lib;Bcrypt.lib;libassd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">FontLoaderSubLib.lib;Bcrypt.lib;libassd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <PreprocessorDefinitions>XY_SUB_FILTER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -94,6 +94,12 @@
     <ClCompile Include="auto_load_helper.cpp" />
     <ClCompile Include="DirectVobSub.cpp" />
     <ClCompile Include="DirectVobSubPropPage.cpp" />
+    <ClCompile Include="FontLoaderContext.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="once_logger.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -116,6 +122,7 @@
     <ClInclude Include="CAutoTiming.h" />
     <ClInclude Include="DirectVobSub.h" />
     <ClInclude Include="DirectVobSubPropPage.h" />
+    <ClInclude Include="FontLoaderContext.h" />
     <ClInclude Include="IDirectVobSub.h" />
     <ClInclude Include="IDirectVobSubXy.h" />
     <ClInclude Include="once_logger.h" />
