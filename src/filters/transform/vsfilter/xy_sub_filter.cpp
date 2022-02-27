@@ -702,8 +702,15 @@ static void detect_style_changes(STSStyle *before, STSStyle *after, const wchar_
         styles_overrides.push_back(std::move(tmp));
     }
     if (before->scrAlignment != after->scrAlignment) {
+        int Alignment = ((after->scrAlignment - 1) % 3) + 1;  // horizontal alignment
+        if (after->scrAlignment <= 3)
+            Alignment |= VALIGN_SUB;
+        else if (after->scrAlignment <= 6)
+            Alignment |= VALIGN_CENTER;
+        else
+            Alignment |= VALIGN_TOP;
         CStringA tmp;
-        tmp.Format("%sAlignment=%d", prefix, after->scrAlignment);
+        tmp.Format("%sAlignment=%d", prefix, Alignment);
         styles_overrides.push_back(std::move(tmp));
     }
     if (before->marginRect != after->marginRect) {
