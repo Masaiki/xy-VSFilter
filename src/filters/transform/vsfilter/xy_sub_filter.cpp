@@ -730,12 +730,12 @@ static void detect_style_changes(STSStyle *before, STSStyle *after, const wchar_
     }
     if (before->fontScaleX != after->fontScaleX) {
         CStringA tmp;
-        tmp.Format("%sScaleX=%f", prefix, after->fontScaleX);
+        tmp.Format("%sScaleX=%f", prefix, after->fontScaleX / 100.0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (before->fontScaleY != after->fontScaleY) {
         CStringA tmp;
-        tmp.Format("%sScaleY=%f", prefix, after->fontScaleY);
+        tmp.Format("%sScaleY=%f", prefix, after->fontScaleY / 100.0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (before->outlineWidthX != after->outlineWidthX) {
