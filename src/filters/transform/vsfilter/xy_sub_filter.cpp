@@ -703,7 +703,7 @@ static void detect_style_changes(STSStyle *before, STSStyle *after, const wchar_
     }
     if (before->scrAlignment != after->scrAlignment) {
         CStringA tmp;
-        tmp.Format("%sStrikeOut=%d", prefix, after->scrAlignment);
+        tmp.Format("%sAlignment=%d", prefix, after->scrAlignment);
         styles_overrides.push_back(std::move(tmp));
     }
     if (before->marginRect != after->marginRect) {
