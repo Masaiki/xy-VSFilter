@@ -297,7 +297,9 @@ private:
 public:
     IPin* m_pPin;
     bool LoadASSFile();
+    bool LoadSRTFile();
     bool LoadASSTrack(char* data, int size);
+    bool CreateASSTrack();
     void UnloadASS();
     bool m_assloaded;
     bool m_assfontloaded;

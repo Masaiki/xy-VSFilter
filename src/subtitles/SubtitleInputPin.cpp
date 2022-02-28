@@ -237,6 +237,13 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
     {
         if(m_mt.subtype == MEDIASUBTYPE_UTF8)
         {
+            if (m_pRTS->m_assloaded) {
+                int buffer_size = len + 128;
+                std::unique_ptr<char[]> buf = std::make_unique<char[]>(buffer_size);
+                snprintf(buf.get(), buffer_size, "%d,0,Default,,0,0,0,,%s", m_pRTS->m_track->n_events+1, reinterpret_cast<char *>(pData));
+                ass_process_chunk(m_pRTS->m_track.get(), buf.get(), strlen(buf.get()), tStart / 10000, (tStop - tStart) / 10000);
+            }
+
             CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
             if(!str.IsEmpty())
             {
@@ -544,6 +551,8 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
             pRTS->m_pPin = pReceivePin;
             if (mt.subtype != MEDIASUBTYPE_UTF8)
                 pRTS->LoadASSTrack(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
+            else
+                pRTS->CreateASSTrack();
             ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);
         }
         else if(mt.subtype == MEDIASUBTYPE_SSF)
