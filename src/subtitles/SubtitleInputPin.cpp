@@ -253,16 +253,16 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
                 CAutoLock cAutoLock(&(m_pRTS->csSample));
                 int read_order;
                 std::unordered_map<int, int>::iterator found;
-                if (sscanf((char *)pData, "%d", &read_order) == 1 && (found = m_pRTS->readorder2eid.find(read_order)) != m_pRTS->readorder2eid.end()) {
+                if (sscanf((char *)pData, "%d", &read_order) == 1 && (found = m_pRTS->read_order_to_event_index.find(read_order)) != m_pRTS->read_order_to_event_index.end()) {
                     auto p_event = m_pRTS->m_track->events + found->second;
                     p_event->Start = tStart / 10000;
                     p_event->Duration = (tStop - tStart) / 10000;
                 }
                 else {
                     ass_process_chunk(m_pRTS->m_track.get(), (char *)pData, len, tStart / 10000, (tStop - tStart) / 10000);
-                    for (int i = m_pRTS->readorder2eid.size(); i < m_pRTS->m_track->n_events; ++i) {
+                    for (int i = m_pRTS->read_order_to_event_index.size(); i < m_pRTS->m_track->n_events; ++i) {
                         auto p_event = m_pRTS->m_track->events + i;
-                        m_pRTS->readorder2eid[p_event->ReadOrder] = i;
+                        m_pRTS->read_order_to_event_index[p_event->ReadOrder] = i;
                     }
                 }
             }
@@ -543,7 +543,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
 
             pRTS->m_pPin = pReceivePin;
             if (mt.subtype != MEDIASUBTYPE_UTF8)
-                pRTS->LoadASSTrack((char*)mt.Format() + psi->dwOffset, mt.FormatLength() - psi->dwOffset);
+                pRTS->LoadASSTrack(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
             ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);
         }
         else if(mt.subtype == MEDIASUBTYPE_SSF)

@@ -1966,7 +1966,7 @@ typedef bool (*STSOpenFunct)(CTextFile* file, CSimpleTextSubtitle& ret, int Char
 
 typedef struct {STSOpenFunct open; tmode mode;} OpenFunctStruct;
 
-static OpenFunctStruct OpenFuncts[] =
+static constexpr OpenFunctStruct OpenFuncts[] =
 {
     OpenSubStationAlpha, TIME,
     OpenSubRipper      , TIME,
@@ -1981,7 +1981,21 @@ static OpenFunctStruct OpenFuncts[] =
     OpenRealText       , TIME,
 };
 
-static int nOpenFuncts = countof(OpenFuncts);
+static constexpr int nOpenFuncts = countof(OpenFuncts);
+
+static constexpr TCHAR *func_name[] = {
+    TEXT("OpenSubStationAlpha"),
+    TEXT("OpenSubRipper"),
+    TEXT("OpenOldSubRipper"),
+    TEXT("OpenSubViewer"),
+    TEXT("OpenMicroDVD"),
+    TEXT("OpenSami"),
+    TEXT("OpenVPlayer"),
+    TEXT("OpenXombieSub"),
+    TEXT("OpenUSF"),
+    TEXT("OpenMPL2"),
+    TEXT("OpenRealText")
+};
 
 //
 
@@ -2753,7 +2767,8 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
         name = name.Mid(name.ReverseFind('.')+1);
     }
 
-    if (lstrcmpi(PathFindExtensionW(fn), L".ass") == 0 || lstrcmpi(PathFindExtensionW(fn), L".ssa") == 0) {
+    const wchar_t *ext = PathFindExtensionW(fn);
+    if (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0) {
         m_path = f.GetFilePath();
         LoadASSFile();
     }
@@ -2777,18 +2792,6 @@ bool CSimpleTextSubtitle::Open(CTextFile* f, int CharSet, CString name)
 
     for(int i = 0; i < nOpenFuncts; i++)
     {
-         const TCHAR* func_name[]={
-             TEXT("OpenSubStationAlpha"),
-             TEXT("OpenSubRipper"),
-             TEXT("OpenOldSubRipper"),
-             TEXT("OpenSubViewer"),
-             TEXT("OpenMicroDVD"),
-             TEXT("OpenSami"),
-             TEXT("OpenVPlayer"),
-             TEXT("OpenXombieSub"),
-             TEXT("OpenUSF"),
-             TEXT("OpenMPL2"),
-             TEXT("OpenRealText")};
         XY_LOG_INFO("Open '"<<f->GetFilePath().GetString()<<"' with "<<func_name[i]<<" begin" );
         if(!OpenFuncts[i].open(f, *this, CharSet) /*|| !GetCount()*/)
         {
@@ -3127,15 +3130,17 @@ bool CSimpleTextSubtitle::LoadASSFile()
 
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
+
     size_t bufsize = 0;
     FILE* fp = _wfopen(m_path.GetString(), L"rb");
     auto buf = read_file_bytes(fp, &bufsize);
     const char* encoding = detect_bom(buf.get(), bufsize);
+
     m_track = decltype(m_track)(ass_read_memory(m_ass.get(), buf.get(), bufsize, const_cast<char*>(encoding)));
 
     if (!m_track) return false;
 
-    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, NULL);
+    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
 
     m_assloaded = true;
     m_assfontloaded = true;
@@ -3155,7 +3160,7 @@ bool CSimpleTextSubtitle::LoadASSTrack(char *data, int size)
 
     ass_process_codec_private(m_track.get(), data, size);
 
-    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, NULL);
+    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
 
     m_assloaded = true;
     return true;
