@@ -699,7 +699,7 @@ static void detect_style_changes(STSStyle *before, STSStyle *after, const wchar_
     }
     if (!before || before->borderStyle != after->borderStyle) {
         CStringA tmp;
-        tmp.Format("%sStrikeOut=%d", prefix, after->borderStyle);
+        tmp.Format("%sBorderStyle=%d", prefix, after->borderStyle ? 3 : 1);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->scrAlignment != after->scrAlignment) {
