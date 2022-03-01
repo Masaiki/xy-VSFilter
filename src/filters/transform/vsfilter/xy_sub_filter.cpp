@@ -636,70 +636,71 @@ static void detect_style_changes(STSStyle *before, STSStyle *after, const wchar_
         prefix.AppendChar('.');
     }
     else prefix = "";
+    const char *prefix_cstr = prefix.GetString();
     if (!before || before->fontName != after->fontName) {
         CStringA tmp;
-        CStringA fontName_utf8 = UTF16To8(after->fontName);
-        tmp.Format("%sFontName=%s", prefix, fontName_utf8);
+        CStringA font_name_utf8 = UTF16To8(after->fontName);
+        tmp.Format("%sFontName=%s", prefix_cstr, font_name_utf8.GetString());
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->colors[0] != after->colors[0] || before->alpha[0]!= after->alpha[0]) {
         CStringA tmp;
-        tmp.Format("%sPrimaryColour=&H%8X", prefix, (after->alpha[0] << 24) | after->colors[0]);
+        tmp.Format("%sPrimaryColour=&H%8X", prefix_cstr, (after->alpha[0] << 24) | after->colors[0]);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->colors[1] != after->colors[1] || before->alpha[1] != after->alpha[1]) {
         CStringA tmp;
-        tmp.Format("%sSecondaryColour=&H%8X", prefix, (after->alpha[1] << 24) | after->colors[1]);
+        tmp.Format("%sSecondaryColour=&H%8X", prefix_cstr, (after->alpha[1] << 24) | after->colors[1]);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->colors[2] != after->colors[2] || before->alpha[2] != after->alpha[2]) {
         CStringA tmp;
-        tmp.Format("%sOutlineColour=&H%8X", prefix, (after->alpha[2] << 24) | after->colors[2]);
+        tmp.Format("%sOutlineColour=&H%8X", prefix_cstr, (after->alpha[2] << 24) | after->colors[2]);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->colors[3] != after->colors[3] || before->alpha[3] != after->alpha[3]) {
         CStringA tmp;
-        tmp.Format("%sBackColour=&H%8X", prefix, (after->alpha[3] << 24) | after->colors[3]);
+        tmp.Format("%sBackColour=&H%8X", prefix_cstr, (after->alpha[3] << 24) | after->colors[3]);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fontSize != after->fontSize) {
         CStringA tmp;
-        tmp.Format("%sFontSize=%f", prefix, after->fontSize);
+        tmp.Format("%sFontSize=%f", prefix_cstr, after->fontSize);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fontWeight != after->fontWeight) {
         CStringA tmp;
-        tmp.Format("%sBold=%d", prefix, after->fontWeight);
+        tmp.Format("%sBold=%d", prefix_cstr, after->fontWeight);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fItalic != after->fItalic) {
         CStringA tmp;
-        tmp.Format("%sItalic=%d", prefix, after->fItalic ? 1 : 0);
+        tmp.Format("%sItalic=%d", prefix_cstr, after->fItalic ? 1 : 0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fUnderline != after->fUnderline) {
         CStringA tmp;
-        tmp.Format("%sUnderline=%d", prefix, after->fUnderline ? 1 : 0);
+        tmp.Format("%sUnderline=%d", prefix_cstr, after->fUnderline ? 1 : 0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fStrikeOut != after->fStrikeOut) {
         CStringA tmp;
-        tmp.Format("%sStrikeOut=%d", prefix, after->fStrikeOut ? 1 : 0);
+        tmp.Format("%sStrikeOut=%d", prefix_cstr, after->fStrikeOut ? 1 : 0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fontSpacing != after->fontSpacing) {
         CStringA tmp;
-        tmp.Format("%sSpacing=%f", prefix, after->fontSpacing);
+        tmp.Format("%sSpacing=%f", prefix_cstr, after->fontSpacing);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fontAngleZ != after->fontAngleZ) {
         CStringA tmp;
-        tmp.Format("%sAngle=%f", prefix, after->fontAngleZ);
+        tmp.Format("%sAngle=%f", prefix_cstr, after->fontAngleZ);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->borderStyle != after->borderStyle) {
         CStringA tmp;
-        tmp.Format("%sBorderStyle=%d", prefix, after->borderStyle ? 3 : 1);
+        tmp.Format("%sBorderStyle=%d", prefix_cstr, after->borderStyle ? 3 : 1);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->scrAlignment != after->scrAlignment) {
@@ -711,47 +712,47 @@ static void detect_style_changes(STSStyle *before, STSStyle *after, const wchar_
         else
             Alignment |= VALIGN_TOP;
         CStringA tmp;
-        tmp.Format("%sAlignment=%d", prefix, Alignment);
+        tmp.Format("%sAlignment=%d", prefix_cstr, Alignment);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->marginRect != after->marginRect) {
         const CRect &r = after->marginRect.get();
         CStringA tmp1,tmp2,tmp3;
-        tmp1.Format("%sMarginL=%ld", prefix, r.left);
-        tmp2.Format("%sMarginR=%ld", prefix, r.right);
-        tmp3.Format("%sMarginV=%ld", prefix, r.bottom); // may not equal to r.top
+        tmp1.Format("%sMarginL=%ld", prefix_cstr, r.left);
+        tmp2.Format("%sMarginR=%ld", prefix_cstr, r.right);
+        tmp3.Format("%sMarginV=%ld", prefix_cstr, r.bottom); // may not equal to r.top
         styles_overrides.push_back(std::move(tmp1));
         styles_overrides.push_back(std::move(tmp2));
         styles_overrides.push_back(std::move(tmp3));
     }
     if (!before || before->charSet != after->charSet) {
         CStringA tmp;
-        tmp.Format("%sEncoding=%d", prefix, after->charSet);
+        tmp.Format("%sEncoding=%d", prefix_cstr, after->charSet);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fontScaleX != after->fontScaleX) {
         CStringA tmp;
-        tmp.Format("%sScaleX=%f", prefix, after->fontScaleX / 100.0);
+        tmp.Format("%sScaleX=%f", prefix_cstr, after->fontScaleX / 100.0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fontScaleY != after->fontScaleY) {
         CStringA tmp;
-        tmp.Format("%sScaleY=%f", prefix, after->fontScaleY / 100.0);
+        tmp.Format("%sScaleY=%f", prefix_cstr, after->fontScaleY / 100.0);
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->outlineWidthX != after->outlineWidthX) {
         CStringA tmp;
-        tmp.Format("%sOutline=%f", prefix, after->outlineWidthX); // equal to outlineWidthY
+        tmp.Format("%sOutline=%f", prefix_cstr, after->outlineWidthX); // equal to outlineWidthY
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->shadowDepthX != after->shadowDepthX) {
         CStringA tmp;
-        tmp.Format("%sShadow=%f", prefix, after->shadowDepthX); // equal to shadowDepthY
+        tmp.Format("%sShadow=%f", prefix_cstr, after->shadowDepthX); // equal to shadowDepthY
         styles_overrides.push_back(std::move(tmp));
     }
     if (!before || before->fGaussianBlur != after->fGaussianBlur) {
         CStringA tmp;
-        tmp.Format("%sBlur=%f", prefix, after->fGaussianBlur); // maybe not equal to fBlur
+        tmp.Format("%sBlur=%f", prefix_cstr, after->fGaussianBlur); // maybe not equal to fBlur
         styles_overrides.push_back(std::move(tmp));
     }
 }
