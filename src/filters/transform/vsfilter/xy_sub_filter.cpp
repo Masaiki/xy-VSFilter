@@ -1355,11 +1355,11 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
             ass_set_storage_size(rts->m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
             ass_set_frame_size(rts->m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].right, m_xy_rect_opt[RECT_SUBTITLE_TARGET].bottom);
 
-            start = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
-            stop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+            REFERENCE_TIME subtitleStart = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+            REFERENCE_TIME subtitleStop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
 
             int changed = 1;
-            ASS_Image *image = ass_render_frame(rts->m_renderer.get(), rts->m_track.get(), start / 10000, &changed);
+            ASS_Image *image = ass_render_frame(rts->m_renderer.get(), rts->m_track.get(), subtitleStart / 10000, &changed);
             if (!changed && m_last_frame) {
                 sub_render_frame = m_last_frame;
             }
@@ -1389,9 +1389,9 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
         }
 
         //
-        start = (start - 10000i64*m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv; // no, it won't overflow if we use normal parameters (__int64 is enough for about 2000 hours if we multiply it by the max: 65536 as m_SubtitleSpeedMul)
-        stop = (stop - 10000i64*m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
-        REFERENCE_TIME now = start; //NOTE: It seems that the physically right way is (start + stop) / 2, but...
+        REFERENCE_TIME subtitleStart = (start - 10000i64*m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv; // no, it won't overflow if we use normal parameters (__int64 is enough for about 2000 hours if we multiply it by the max: 65536 as m_SubtitleSpeedMul)
+        REFERENCE_TIME subtitleStop = (stop - 10000i64*m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+        REFERENCE_TIME now = subtitleStart; //NOTE: It seems that the physically right way is (start + stop) / 2, but...
         m_last_requested = now;
 
         if(m_sub_provider)
