@@ -1730,6 +1730,17 @@ bool CXySubFilterMainPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                         EditStyle(m_hwnd, m_pDirectVobSubXy, &m_defStyle);
                         return(true);
                     }
+                    else if (LOWORD(wParam) == IDC_CHECKBOX_FORCE_DEFAULT_STYLE)
+                    {
+                        /*if (!m_force_default_style.GetCheck())
+                        {
+                            MessageBoxW(m_hwnd,
+                                L"This and the later operations will take effect the next time the filter is started",
+                                L"Information",
+                                MB_OK
+                            );
+                        }*/
+                    }
                 }
                 break;
             case CBN_SELCHANGE:
