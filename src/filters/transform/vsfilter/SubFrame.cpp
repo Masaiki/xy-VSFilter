@@ -92,7 +92,7 @@ STDMETHODIMP SubFrame::GetBitmap(int index, ULONGLONG* id, POINT* position, SIZE
     return S_OK;
 }
 #define div_255_fast_v2(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
-void SubFrame::Flatten(ASS_Image* image)
+void SubFrame::Flatten(ASS_Image *image)
 {
     if (image)
     {
@@ -109,32 +109,26 @@ void SubFrame::Flatten(ASS_Image* image)
 
         for (auto i = image; i != nullptr; i = i->next)
         {
-            uint8_t* pcolor = reinterpret_cast<uint8_t*>(&(i->color));
-            const uint8_t tmp_srcA = ~(*pcolor), & tmp_srcR = *(pcolor + 3), & tmp_srcG = *(pcolor + 2), & tmp_srcB = *(pcolor + 1);
+            uint8_t *imageColorPtr = reinterpret_cast<uint8_t *>(&(i->color));
+            const uint8_t imageColorA = ~(*imageColorPtr), &imageColorR = *(imageColorPtr + 3), &imageColorG = *(imageColorPtr + 2), &imageColorB = *(imageColorPtr + 1);
             concurrency::parallel_for(0, i->h, [&](int y)
                 {
                     for (int x = 0; x < i->w; ++x)
                     {
-                        uint32_t& dest = m_pixels[(i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x)];
+                        uint8_t *destPtr = reinterpret_cast<uint8_t *>(m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x));
+                        uint8_t &destA = *(destPtr + 3), &destR = *(destPtr + 2), &destG = *(destPtr + 1), &destB = *(destPtr);
 
-                        uint8_t* pdest = reinterpret_cast<uint8_t*>(&dest);
-
-                        const uint8_t& destA = *(pdest + 3), & destR = *(pdest + 2), & destG = *(pdest + 1), & destB = *(pdest);
-
-                        uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * tmp_srcA);
-
+                        uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * imageColorA);
                         uint8_t compA = ~srcA;
 
-                        *(pdest + 3) = srcA + div_255_fast_v2(destA * compA);
-
-                        *(pdest + 2) = div_255_fast_v2(tmp_srcR * srcA + destR * compA);
-
-                        *(pdest + 1) = div_255_fast_v2(tmp_srcG * srcA + destG * compA);
-
-                        *(pdest) = div_255_fast_v2(tmp_srcB * srcA + destB * compA);
+                        destA = srcA + div_255_fast_v2(destA * compA);
+                        destR = div_255_fast_v2(imageColorR * srcA + destR * compA);
+                        destG = div_255_fast_v2(imageColorG * srcA + destG * compA);
+                        destB = div_255_fast_v2(imageColorB * srcA + destB * compA);
                     }
 
                 }, concurrency::static_partitioner());
         }
     }
 }
+#undef div_255_fast_v2
