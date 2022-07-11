@@ -2772,6 +2772,10 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
         m_path = f.GetFilePath();
         LoadASSFile();
     }
+    else if (lstrcmpi(ext, L".srt") == 0) {
+        m_path = f.GetFilePath();
+        LoadSRTFile();
+    }
 
     return(Open(&f, CharSet, name));
 }
@@ -3147,6 +3151,77 @@ bool CSimpleTextSubtitle::LoadASSFile()
     return true;
 }
 
+bool CSimpleTextSubtitle::LoadSRTFile()
+{
+    UnloadASS();
+    m_assfontloaded = false;
+
+    if (m_path.IsEmpty()) return false;
+
+    m_ass = decltype(m_ass)(ass_library_init());
+    m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
+
+    FILE *fh = _wfopen(m_path.GetString(), L"rb");
+
+    if (!fh)
+        return false;
+
+    char l[BUFSIZ], buf[1024];
+    int start[4], end[4], isn;
+    m_track = decltype(m_track)(ass_new_track(m_ass.get()));
+
+    const CStringA font_name_utf8 = UTF16To8(m_defaultStyle.fontName);
+    uint32_t colors[4] = { 0 };
+    for (int i = 0; i < 4; ++i)
+        colors[i] = m_defaultStyle.alpha[i] << 24 | m_defaultStyle.colors[i];
+    const CRect &marginRect = m_defaultStyle.marginRect.get();
+
+    sprintf(buf, "[Script Info]\n[V4+ Styles]\nStyle: Default,%s,%f,&H%8X,&H%8X,&H%8X,&H%8X,%d,%d,%d,%d,%f,%f,%f,%f,%d,%f,%f,%d,%ld,%ld,%ld,%d\n\n[Events]\n",
+        font_name_utf8.GetString(), m_defaultStyle.fontSize, colors[0], colors[1], colors[2], colors[3], m_defaultStyle.fontWeight, m_defaultStyle.fItalic ? 1 : 0,
+        m_defaultStyle.fUnderline ? 1 : 0, m_defaultStyle.fStrikeOut ? 1 : 0, m_defaultStyle.fontScaleX, m_defaultStyle.fontScaleY, m_defaultStyle.fontSpacing, m_defaultStyle.fontAngleZ,
+        m_defaultStyle.borderStyle, m_defaultStyle.outlineWidthX, m_defaultStyle.shadowDepthX, m_defaultStyle.scrAlignment, marginRect.left, marginRect.right, marginRect.bottom,
+        m_defaultStyle.charSet);
+        
+
+    ass_process_data(m_track.get(), buf, strlen(buf));
+
+    while (fgets(l, BUFSIZ - 1, fh) != NULL) {
+        if (l[0] == 0 || l[0] == '\n' || l[0] == '\r')
+            continue;
+
+        if (sscanf(l, "%d:%d:%d,%d --> %d:%d:%d,%d", &start[0], &start[1], &start[2], &start[3], &end[0], &end[1], &end[2], &end[3]) == 8) {
+            sprintf(buf, "Dialogue: 0,%d:%02d:%02d.%02d,%d:%02d:%02d.%02d,Default,,0,0,0,,",
+                start[0], start[1], start[2], (int)((double)start[3] / 10.0 + 0.5), end[0], end[1], end[2], (int)((double)end[3] / 10.0 + 0.5));
+            isn = 0;
+
+            while (fgets(l, BUFSIZ - 1, fh) != NULL) {
+                if (l[0] == 0 || l[0] == '\n' || l[0] == '\r')
+                    break;
+
+                if (l[strlen(l) - 1] == '\n' || l[strlen(l) - 1] == '\r')
+                    l[strlen(l) - 1] = 0;
+
+                if (isn) {
+                    strcat(buf, "\\N");
+                }
+
+                strncat(buf, l, BUFSIZ - 1);
+                isn = 1;
+            }
+
+            ass_process_data(m_track.get(), buf, strlen(buf));
+        }
+    }
+
+    fclose(fh);
+
+    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
+
+    m_assloaded = true;
+    m_assfontloaded = true;
+    return true;
+}
+
 bool CSimpleTextSubtitle::LoadASSTrack(char *data, int size)
 {
     UnloadASS();
@@ -3159,6 +3234,39 @@ bool CSimpleTextSubtitle::LoadASSTrack(char *data, int size)
     if (!m_track) return false;
 
     ass_process_codec_private(m_track.get(), data, size);
+
+    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
+
+    m_assloaded = true;
+    return true;
+}
+
+bool CSimpleTextSubtitle::CreateASSTrack()
+{
+    UnloadASS();
+    m_assfontloaded = false;
+
+    m_ass = decltype(m_ass)(ass_library_init());
+    m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
+    m_track = decltype(m_track)(ass_new_track(m_ass.get()));
+
+    if (!m_track) return false;
+
+    char buf[1024];
+
+    const CStringA font_name_utf8 = UTF16To8(m_defaultStyle.fontName);
+    uint32_t colors[4] = { 0 };
+    for (int i = 0; i < 4; ++i)
+        colors[i] = m_defaultStyle.alpha[i] << 24 | m_defaultStyle.colors[i];
+    const CRect &marginRect = m_defaultStyle.marginRect.get();
+
+    sprintf(buf, "[Script Info]\n[V4+ Styles]\nStyle: Default,%s,%f,&H%8X,&H%8X,&H%8X,&H%8X,%d,%d,%d,%d,%f,%f,%f,%f,%d,%f,%f,%d,%ld,%ld,%ld,%d\n\n[Events]\n",
+        font_name_utf8.GetString(), m_defaultStyle.fontSize, colors[0], colors[1], colors[2], colors[3], m_defaultStyle.fontWeight, m_defaultStyle.fItalic ? 1 : 0,
+        m_defaultStyle.fUnderline ? 1 : 0, m_defaultStyle.fStrikeOut ? 1 : 0, m_defaultStyle.fontScaleX, m_defaultStyle.fontScaleY, m_defaultStyle.fontSpacing, m_defaultStyle.fontAngleZ,
+        m_defaultStyle.borderStyle, m_defaultStyle.outlineWidthX, m_defaultStyle.shadowDepthX, m_defaultStyle.scrAlignment, marginRect.left, marginRect.right, marginRect.bottom,
+        m_defaultStyle.charSet);
+
+    ass_process_codec_private(m_track.get(), buf, strlen(buf));
 
     ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
 
