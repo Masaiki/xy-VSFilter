@@ -2014,6 +2014,8 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_fForcedDefaultStyle  = false;
     m_defaultStyle.charSet = DEFAULT_CHARSET;
     m_assloaded            = false;
+    m_assfontloaded        = false;
+    m_using_default_style  = false;
 }
 
 CSimpleTextSubtitle::~CSimpleTextSubtitle()
@@ -3219,6 +3221,7 @@ bool CSimpleTextSubtitle::LoadSRTFile()
 
     m_assloaded = true;
     m_assfontloaded = true;
+    m_using_default_style = true;
     return true;
 }
 
@@ -3271,6 +3274,7 @@ bool CSimpleTextSubtitle::CreateASSTrack()
     ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
 
     m_assloaded = true;
+    m_using_default_style = true;
     return true;
 }
 

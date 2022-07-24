@@ -940,7 +940,7 @@ STDMETHODIMP XySubFilter::put_TextSettings(STSStyle* pDefStyle)
 
     CRenderedTextSubtitle *pRTS = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream);
 
-    if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS && pRTS->m_assloaded) {
+    if (pRTS && pRTS->m_assloaded && (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] || pRTS->m_using_default_style)) {
         std::vector<CStringA> styles_overrides;
         detect_style_changes(&m_defStyle, pDefStyle, nullptr, styles_overrides);
 
@@ -2003,7 +2003,7 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
                 XY_LOG_ERROR("Failed to set default style");
             }
             pRTS->SetForceDefaultStyle(m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]);
-            if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS->m_assloaded) {
+            if (pRTS->m_assloaded && (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] || pRTS->m_using_default_style)) {
                 std::vector<CStringA> styles_overrides;
                 detect_style_changes(nullptr, &m_defStyle, nullptr, styles_overrides);
 

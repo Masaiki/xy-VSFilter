@@ -303,6 +303,7 @@ public:
     void UnloadASS();
     bool m_assloaded;
     bool m_assfontloaded;
+    bool m_using_default_style;
     std::unique_ptr<ASS_Library, ASS_LibraryDeleter> m_ass;
     std::unique_ptr<ASS_Renderer, ASS_RendererDeleter> m_renderer;
     std::unique_ptr<ASS_Track, ASS_TrackDeleter> m_track;
