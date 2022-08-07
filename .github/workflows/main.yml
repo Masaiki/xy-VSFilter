@@ -1,0 +1,43 @@
+name: C/C++ CI
+
+on: [push]
+
+jobs:
+  build-win:
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        include:
+        - platform: 'Win32'
+        - platform: 'x64'
+    steps:
+      - uses: actions/checkout@v2
+      - name: install submodules
+        shell: cmd
+        run: |
+          git submodule update --init --recursive --remote
+      - name: install nasm
+        shell: cmd
+        run: |
+          git clone https://github.com/ShiftMediaProject/VSNASM.git
+          .\VSNASM\install_script.bat
+      - name: install yasm
+        shell: cmd
+        run: |
+          git clone https://github.com/ShiftMediaProject/VSYASM.git
+          .\VSYASM\install_script.bat
+      - name: force /MT build
+        shell: bash
+        run: |
+          sed -i -e 's|<ClCompile>|&<RuntimeLibrary>MultiThreaded</RuntimeLibrary>|g' SMP/*/SMP/*.vcxproj
+      - name: add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1
+      - name: build
+        run: MSBuild.exe VSFilter.sln /t:xy_sub_filter:Rebuild /p:WindowsTargetPlatformVersion=10.0.19041.0 /p:PlatformToolset=v142 /m /p:Configuration=Release /p:Platform=${{matrix.platform}}
+      - name: copy
+        run: cmake -E copy "bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll" dist\${{matrix.platform}}\XySubFilter.dll
+      - name: upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: xysubfilter_with_libass
+          path: dist

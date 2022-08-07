@@ -40,16 +40,16 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ExecutablePath>C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC;$(VC_ExecutablePath_x86);$(CommonExecutablePath)</ExecutablePath>
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_x86);$(CommonExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ExecutablePath>C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC;$(VC_ExecutablePath_x86);$(CommonExecutablePath)</ExecutablePath>
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_x86);$(CommonExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExecutablePath>C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC;$(VC_ExecutablePath_x64);$(CommonExecutablePath)</ExecutablePath>
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_x64);$(CommonExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ExecutablePath>C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC;$(VC_ExecutablePath_x64);$(CommonExecutablePath)</ExecutablePath>
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_x64);$(CommonExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
