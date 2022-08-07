@@ -8,7 +8,7 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
     - Options -> Playback -> Output -> Subtitle Renderer in MPC-HC
 
 ## How to compile
-1. clone or download release from https://github.com/ShiftMediaProject/VSYASM, and run install_script.bat as administrator.
+1. clone or download release from https://github.com/ShiftMediaProject/VSYASM and https://github.com/ShiftMediaProject/VSNASM, and run install_script.bat as administrator.
 2. Clone the repo and run `git submodule update --init --recursive --remote` in the folder.
 3. In Visual Studio, manully set the Runtime Library of libass and its dependencies to "/MT" for Release and "/MTd" for Debug. See [here](https://docs.microsoft.com/en-us/cpp/build/reference/md-mt-ld-use-run-time-library?view=msvc-170) for more.
 4. Build project xy_sub_filter.
