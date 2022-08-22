@@ -589,16 +589,16 @@ STDMETHODIMP CSubtitleInputPin::ReceiveConnection(IPin* pConnector, const AM_MED
 {
     CAutoLock cAutoLock(m_pSubLock);
     XY_LOG_DEBUG(XY_LOG_VAR_2_STR(pConnector)<<XY_LOG_VAR_2_STR(pmt));
-	if(m_Connected)
-	{
+    if(m_Connected)
+    {
         RemoveSubStream(m_helper->GetSubStream());
         delete m_helper; m_helper = NULL;
 
         m_Connected->Release();
         m_Connected = NULL;
-	}
+    }
 
-	return __super::ReceiveConnection(pConnector, pmt);
+    return __super::ReceiveConnection(pConnector, pmt);
 }
 
 STDMETHODIMP CSubtitleInputPin::NewSegment(REFERENCE_TIME tStart, REFERENCE_TIME tStop, double dRate)
@@ -619,8 +619,8 @@ STDMETHODIMP CSubtitleInputPin::NewSegment(REFERENCE_TIME tStart, REFERENCE_TIME
 interface __declspec(uuid("D3D92BC3-713B-451B-9122-320095D51EA5"))
 IMpeg2DemultiplexerTesting :
 public IUnknown {
-	STDMETHOD(GetMpeg2StreamType)(ULONG* plType) = NULL;
-	STDMETHOD(toto)() = NULL;
+    STDMETHOD(GetMpeg2StreamType)(ULONG* plType) = NULL;
+    STDMETHOD(toto)() = NULL;
 };
 
 STDMETHODIMP CSubtitleInputPin::Receive(IMediaSample* pSample)
@@ -667,11 +667,11 @@ STDMETHODIMP CSubtitleInputPin::EndOfStream(void)
 
 bool CSubtitleInputPin::IsHdmvSub(const CMediaType* pmt)
 {
-	return pmt->majortype == MEDIATYPE_Subtitle && (pmt->subtype == MEDIASUBTYPE_HDMVSUB ||			// Blu ray presentation graphics
-			pmt->subtype == MEDIASUBTYPE_DVB_SUBTITLES ||	// DVB subtitles
-			(pmt->subtype == MEDIASUBTYPE_NULL && pmt->formattype == FORMAT_SubtitleInfo)) // Workaround : support for Haali PGS
-		   ? true
-		   : false;
+    return pmt->majortype == MEDIATYPE_Subtitle && (pmt->subtype == MEDIASUBTYPE_HDMVSUB ||			// Blu ray presentation graphics
+           pmt->subtype == MEDIASUBTYPE_DVB_SUBTITLES ||	// DVB subtitles
+           (pmt->subtype == MEDIASUBTYPE_NULL && pmt->formattype == FORMAT_SubtitleInfo)) // Workaround : support for Haali PGS
+           ? true
+           : false;
 }
 
 ISubStream* CSubtitleInputPin::GetSubStream()

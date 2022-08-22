@@ -2353,7 +2353,7 @@ HRESULT XySubFilter::UpdateParamFromConsumer( bool getNameAndVersion/*=false*/ )
         UpdateSubtitle(false);
         //if (clear_consumer)
         //{
-    	//    m_consumer->Clear();
+        //    m_consumer->Clear();
         //}
     }
     return hr;
@@ -2726,24 +2726,24 @@ HRESULT XySubFilter::FindAndConnectConsumer(IFilterGraph* pGraph)
             {
                 CComQIPtr<ISubRenderConsumer> new_consumer(pBF);
                 CLSID filterID;
-				hr = pBF->GetClassID(&filterID);
-				
-				if(!new_consumer && filterID == CLSID_EnhancedVideoRenderer)
-				{
-					//EVR wouldn't implement ISubRenderConsumer itself, but a custom presenter might.
-					CComQIPtr<IMFGetService> evrservices(pBF);
-					if(evrservices)
-					{
-						ISubRenderConsumer * tmpCI = NULL;
-						HRESULT hrevr = evrservices->GetService(MR_VIDEO_RENDER_SERVICE, __uuidof(ISubRenderConsumer), (LPVOID*)&tmpCI);
-						if(tmpCI)
-						{
-							CComQIPtr<ISubRenderConsumer> tmpconsumer(tmpCI);
-							new_consumer = tmpconsumer;
-							SAFE_RELEASE(tmpCI);
-						}
-					}
-				}
+                hr = pBF->GetClassID(&filterID);
+                
+                if(!new_consumer && filterID == CLSID_EnhancedVideoRenderer)
+                {
+                    //EVR wouldn't implement ISubRenderConsumer itself, but a custom presenter might.
+                    CComQIPtr<IMFGetService> evrservices(pBF);
+                    if(evrservices)
+                    {
+                        ISubRenderConsumer * tmpCI = NULL;
+                        HRESULT hrevr = evrservices->GetService(MR_VIDEO_RENDER_SERVICE, __uuidof(ISubRenderConsumer), (LPVOID*)&tmpCI);
+                        if(tmpCI)
+                        {
+                            CComQIPtr<ISubRenderConsumer> tmpconsumer(tmpCI);
+                            new_consumer = tmpconsumer;
+                            SAFE_RELEASE(tmpCI);
+                        }
+                    }
+                }
 
                 if (new_consumer)
                 {
@@ -2766,8 +2766,8 @@ HRESULT XySubFilter::FindAndConnectConsumer(IFilterGraph* pGraph)
                             consumer = new_consumer;
                         }
                     }
-					m_consumer = consumer;
-					hr = UpdateParamFromConsumer(true);
+                    m_consumer = consumer;
+                    hr = UpdateParamFromConsumer(true);
                 }
             }
         }

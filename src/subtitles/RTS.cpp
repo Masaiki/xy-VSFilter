@@ -642,7 +642,7 @@ CText::CText( const CText& src ):CWord(src)
 SharedPtrCWord CText::Copy()
 {
     SharedPtrCWord result(DEBUG_NEW CText(*this));
-	return result;
+    return result;
 }
 
 bool CText::Append(const SharedPtrCWord& w)
@@ -3088,7 +3088,7 @@ STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStart(POSITION pos, doub
 
 STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStop(POSITION pos, double fps)
 {
-	return(10000i64 * TranslateSegmentEnd((int)pos-1, fps));
+    return(10000i64 * TranslateSegmentEnd((int)pos-1, fps));
 }
 
 //@start, @stop: -1 if segment not found; @stop may < @start if subIndex exceed uppper bound

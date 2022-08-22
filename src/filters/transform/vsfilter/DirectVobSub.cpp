@@ -65,7 +65,7 @@ STDMETHODIMP DirectVobSubImpl::get_LanguageName(int iLanguage, WCHAR** ppName)
     {
         return E_NOTIMPL;
     }
-	return S_OK;
+    return S_OK;
 }
 
 STDMETHODIMP DirectVobSubImpl::get_SelectedLanguage(int* iSelected)
@@ -427,7 +427,7 @@ STDMETHODIMP DirectVobSubImpl::HasConfigDialog(int iSelected)
     {
         return E_NOTIMPL;
     }
-	return E_NOTIMPL;
+    return E_NOTIMPL;
 }
 
 STDMETHODIMP DirectVobSubImpl::ShowConfigDialog(int iSelected, HWND hWndParent)
@@ -436,7 +436,7 @@ STDMETHODIMP DirectVobSubImpl::ShowConfigDialog(int iSelected, HWND hWndParent)
     {
         return E_NOTIMPL;
     }
-	return E_NOTIMPL;
+    return E_NOTIMPL;
 }
 
 STDMETHODIMP DirectVobSubImpl::IsSubtitleReloaderLocked(bool* fLocked)
@@ -618,8 +618,8 @@ STDMETHODIMP DirectVobSubImpl::AdviseSubClock(ISubClock* pSubClock)
     {
         return E_NOTIMPL;
     }
-	m_pSubClock = pSubClock;
-	return S_OK;
+    m_pSubClock = pSubClock;
+    return S_OK;
 }
 
 STDMETHODIMP_(bool) DirectVobSubImpl::get_Forced()
@@ -644,13 +644,13 @@ STDMETHODIMP DirectVobSubImpl::get_TextSettings(STSStyle* pDefStyle)
     {
         return E_NOTIMPL;
     }
-	CheckPointer(pDefStyle, E_POINTER);
+    CheckPointer(pDefStyle, E_POINTER);
 
-	CAutoLock cAutoLock(m_propsLock);
+    CAutoLock cAutoLock(m_propsLock);
 
-	*pDefStyle = m_defStyle;
+    *pDefStyle = m_defStyle;
 
-	return S_OK;
+    return S_OK;
 }
 
 STDMETHODIMP DirectVobSubImpl::put_TextSettings(STSStyle* pDefStyle)
@@ -688,7 +688,7 @@ STDMETHODIMP DirectVobSubImpl::put_AspectRatioSettings(CSimpleTextSubtitle::EPAR
 
 STDMETHODIMP_(DWORD) DirectVobSubImpl::GetFilterVersion()
 {
-	return 0x0234;
+    return 0x0234;
 }
 
 bool DirectVobSubImpl::is_compatible()
@@ -720,7 +720,7 @@ CString DirectVobSubImpl::GetCompatibleProfileString( LPCTSTR lpszSection, LPCTS
     CString result = lpszDefault;
     if (is_compatible())
     {
-    	result = theApp.GetProfileString(lpszSection, lpszEntry, lpszDefault);
+        result = theApp.GetProfileString(lpszSection, lpszEntry, lpszDefault);
     }
     return result;
 }
