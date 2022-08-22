@@ -1818,7 +1818,38 @@ bool XySubFilter::Open()
         if(m_frd.files.Find(ret[i].full_file_name))
             continue;
 
+        const CStringW ext = PathFindExtensionW(ret[i].full_file_name.MakeLower().GetString());
         CComPtr<ISubStream> pSubStream;
+
+        if (!pSubStream && ext == L".sup")
+        {
+            CAutoPtr<SupFileSubtitleProvider> sup(DEBUG_NEW SupFileSubtitleProvider());
+            if (sup && sup->Open(ret[i].full_file_name) && sup->GetStreamCount() > 0)
+            {
+                pSubStream = sup.Detach();
+            }
+        }
+
+        if (!pSubStream && ext == L".idx")
+        {
+            CAutoTiming t(TEXT("CVobSubFile::Open"), 0);
+            CAutoPtr<CVobSubFile> pVSF(DEBUG_NEW CVobSubFile(&m_csFilter));
+            if (pVSF && pVSF->Open(ret[i].full_file_name) && pVSF->GetStreamCount() > 0)
+            {
+                pSubStream = pVSF.Detach();
+                m_frd.files.AddTail(ret[i].full_file_name.Left(ret[i].full_file_name.GetLength() - 4) + _T(".sub"));
+            }
+        }
+
+        if (!pSubStream && ext == L".ssf")
+        {
+            CAutoTiming t(TEXT("ssf::CRenderer::Open"), 0);
+            CAutoPtr<ssf::CRenderer> pSSF(DEBUG_NEW ssf::CRenderer(&m_csFilter));
+            if (pSSF && pSSF->Open(ret[i].full_file_name) && pSSF->GetStreamCount() > 0)
+            {
+                pSubStream = pSSF.Detach();
+            }
+        }
 
         if(!pSubStream)
         {
@@ -1832,35 +1863,6 @@ bool XySubFilter::Open()
             }
         }
 
-        if(!pSubStream)
-        {
-            CAutoTiming t(TEXT("CVobSubFile::Open"), 0);
-            CAutoPtr<CVobSubFile> pVSF(DEBUG_NEW CVobSubFile(&m_csFilter));
-            if(pVSF && pVSF->Open(ret[i].full_file_name) && pVSF->GetStreamCount() > 0)
-            {
-                pSubStream = pVSF.Detach();
-                m_frd.files.AddTail(ret[i].full_file_name.Left(ret[i].full_file_name.GetLength()-4) + _T(".sub"));
-            }
-        }
-
-        if(!pSubStream)
-        {
-            CAutoTiming t(TEXT("ssf::CRenderer::Open"), 0);
-            CAutoPtr<ssf::CRenderer> pSSF(DEBUG_NEW ssf::CRenderer(&m_csFilter));
-            if(pSSF && pSSF->Open(ret[i].full_file_name) && pSSF->GetStreamCount() > 0)
-            {
-                pSubStream = pSSF.Detach();
-            }
-        }
-
-        if (!pSubStream)
-        {
-            CAutoPtr<SupFileSubtitleProvider> sup(DEBUG_NEW SupFileSubtitleProvider());
-            if (sup && sup->Open(ret[i].full_file_name) && sup->GetStreamCount() > 0)
-            {
-                pSubStream = sup.Detach();
-            }
-        }
         if(pSubStream)
         {
             m_pSubStreams.AddTail(pSubStream);
