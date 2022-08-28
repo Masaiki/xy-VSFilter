@@ -287,7 +287,7 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 
                         if(pName)
                         {
-                            popup.AppendMenu(MF_ENABLED|MF_STRING|(flags?MF_CHECKED:MF_UNCHECKED), (1<<15)|(j<<8)|(i), CString(pName));
+                            popup.AppendMenu(MF_ENABLED|MF_STRING|(flags?MF_CHECKED:MF_UNCHECKED), (1<<16)|(j<<8)|(i), CString(pName));
                             CoTaskMemFree(pName);
                         }
                     }
@@ -302,25 +302,25 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
             for(i = 0; str = CallPPage(m_tbid->graph, i, (HWND)INVALID_HANDLE_VALUE); i++)
             {
                 if(_tcsncmp(str, _T("DivX MPEG"), 9) || m_tbid->fRunOnce) // divx3's ppage will crash if the graph hasn't been run at least once yet
-                    popup.AppendMenu(MF_ENABLED|MF_STRING|MF_UNCHECKED, (1<<14)|(i), str);
+                    popup.AppendMenu(MF_ENABLED|MF_STRING|MF_UNCHECKED, (1<<17)|(i), str);
 
                 delete [] str;
             }
 
             if (m_tbid->use_legacy_vsfilter) {
                 popup.AppendMenu(MF_SEPARATOR);
-                popup.AppendMenu(MF_ENABLED | MF_STRING | (m_tbid->use_legacy_vsfilter(false) ? MF_CHECKED : MF_UNCHECKED), (1 << 13), L"use legacy VSFilter implementation");
+                popup.AppendMenu(MF_ENABLED | MF_STRING | (m_tbid->use_legacy_vsfilter(false) ? MF_CHECKED : MF_UNCHECKED), (1 << 18), L"use legacy VSFilter implementation");
             }
 
             SetForegroundWindow();
-            UINT id = popup.TrackPopupMenu(TPM_LEFTBUTTON|TPM_RETURNCMD, p.x, p.y, CWnd::FromHandle(hWnd), 0);
+            BOOL id = popup.TrackPopupMenu(TPM_LEFTBUTTON|TPM_RETURNCMD, p.x, p.y, CWnd::FromHandle(hWnd), 0);
             PostMessage(WM_NULL);
 
-            if(id & (1<<15)) 
+            if(id & (1<<16)) 
             {
                 pStreams[(id>>8)&0x3f]->Enable(id&0xff, AMSTREAMSELECTENABLE_ENABLE);
             }
-            else if(id & (1<<14))
+            else if(id & (1<<17))
             {
                 if(CComQIPtr<IVideoWindow> pVW = m_tbid->graph)
                 {
@@ -332,7 +332,7 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 
                 CallPPage(m_tbid->graph, id&0xff, hWnd);
             }
-            else if (id & (1 << 13)) {
+            else if (id & (1<<18)) {
                 m_tbid->use_legacy_vsfilter(true);
             }
         }
