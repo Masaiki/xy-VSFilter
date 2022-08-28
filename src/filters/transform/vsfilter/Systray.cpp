@@ -307,6 +307,11 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 				delete [] str;
 			}
 
+			if (m_tbid->use_legacy_vsfilter) {
+				popup.AppendMenu(MF_SEPARATOR);
+				popup.AppendMenu(MF_ENABLED | MF_STRING | (m_tbid->use_legacy_vsfilter(false) ? MF_CHECKED : MF_UNCHECKED), (1 << 13), L"use legacy VSFilter implementation");
+			}
+
 			SetForegroundWindow();
 			UINT id = popup.TrackPopupMenu(TPM_LEFTBUTTON|TPM_RETURNCMD, p.x, p.y, CWnd::FromHandle(hWnd), 0);
 			PostMessage(WM_NULL);
@@ -326,6 +331,9 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 				}
 
 				CallPPage(m_tbid->graph, id&0xff, hWnd);
+			}
+			else if (id & (1 << 13)) {
+				m_tbid->use_legacy_vsfilter(true);
 			}
 		}
 		break; 

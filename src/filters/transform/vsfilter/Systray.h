@@ -22,6 +22,7 @@
 #pragma once
 
 #include <atlsync.h>
+#include <functional>
 
 typedef struct
 {
@@ -30,6 +31,7 @@ typedef struct
     IDirectVobSub2* dvs;
     bool fRunOnce, fShowIcon;
     ATL::CEvent WndCreatedEvent;
+    std::function<bool(bool)> use_legacy_vsfilter;
 } SystrayIconData;
 
 extern DWORD CALLBACK SystrayThreadProc(void* pParam);

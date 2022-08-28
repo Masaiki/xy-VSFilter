@@ -245,6 +245,15 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     m_tbid.graph = NULL;
     m_tbid.fRunOnce = false;
     m_tbid.fShowIcon = true;
+    m_tbid.use_legacy_vsfilter = [this](bool trigger) mutable {
+        bool use_legacy_vsfilter = false;
+        this->XyGetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, &use_legacy_vsfilter);
+        if (trigger) {
+            use_legacy_vsfilter = !use_legacy_vsfilter;
+            this->XySetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, use_legacy_vsfilter);
+        }
+        return use_legacy_vsfilter;
+    };
 
     CacheManager::GetPathDataMruCache()->SetMaxItemNum(m_xy_int_opt[INT_PATH_DATA_CACHE_MAX_ITEM_NUM]);
     CacheManager::GetScanLineData2MruCache()->SetMaxItemNum(m_xy_int_opt[INT_SCAN_LINE_DATA_CACHE_MAX_ITEM_NUM]);
