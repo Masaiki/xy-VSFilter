@@ -308,8 +308,11 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
             }
 
             if (m_tbid->use_legacy_vsfilter) {
-                popup.AppendMenu(MF_SEPARATOR);
-                popup.AppendMenu(MF_ENABLED | MF_STRING | (m_tbid->use_legacy_vsfilter(false) ? MF_CHECKED : MF_UNCHECKED), (1 << 18), L"use legacy VSFilter implementation");
+                auto result = m_tbid->use_legacy_vsfilter(false);
+                if (result.has_value()) {
+                    popup.AppendMenu(MF_SEPARATOR);
+                    popup.AppendMenu(MF_ENABLED | MF_STRING | (result.value() ? MF_CHECKED : MF_UNCHECKED), (1 << 18), L"use legacy VSFilter implementation");
+                }
             }
 
             SetForegroundWindow();
