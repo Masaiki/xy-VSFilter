@@ -8,8 +8,10 @@ jobs:
     strategy:
       matrix:
         include:
-        - platform: 'Win32'
-        - platform: 'x64'
+        - vcpkg_target: 'x86'
+          platform: 'Win32'
+        - vcpkg_target: 'x64'
+          platform: 'x64'
     steps:
       - uses: actions/checkout@v2
       - name: install submodules
@@ -26,6 +28,23 @@ jobs:
         run: |
           git clone https://github.com/ShiftMediaProject/VSYASM.git
           .\VSYASM\install_script.bat
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v7
+        with:
+          vcpkgDirectory: C:/vcpkg
+          doNotUpdateVcpkg: true  # the preinstalled vcpkg is updated regularly
+          setupOnly: true
+      - name: Install dependencies from vcpkg
+        run: |
+          $packages = `
+            "boost-flyweight:${{matrix.vcpkg_target}}-windows-static",
+            "log4cplus:${{matrix.vcpkg_target}}-windows-static"
+          ${{ env.RUNVCPKG_VCPKG_ROOT }}/vcpkg.exe upgrade `
+            --no-dry-run
+          ${{ env.RUNVCPKG_VCPKG_ROOT }}/vcpkg.exe install `
+            --clean-after-build `
+            $packages
+          ${{ env.RUNVCPKG_VCPKG_ROOT }}/vcpkg.exe integrate install
       - name: force /MT build
         shell: bash
         run: |
@@ -35,7 +54,7 @@ jobs:
       - name: build
         run: MSBuild.exe VSFilter.sln /t:xy_sub_filter:Rebuild /p:WindowsTargetPlatformVersion=10.0.19041.0 /p:PlatformToolset=v142 /m /p:Configuration=Release /p:Platform=${{matrix.platform}}
       - name: copy
-        run: cmake -E copy "bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll" dist\${{matrix.platform}}\XySubFilter.dll
+        run: cmake -E copy "bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll" dist\${{matrix.vcpkg_target}}\XySubFilter.dll
       - name: upload
         uses: actions/upload-artifact@v2
         with:
