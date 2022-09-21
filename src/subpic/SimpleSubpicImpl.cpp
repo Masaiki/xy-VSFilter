@@ -337,7 +337,7 @@ HRESULT SimpleSubpic::AlphaBlt( SubPicDesc* target, const Bitmap& src )
         break;
     }
 
-    //emmsҪ40��cpu����
+    //emms要40个cpu周期
     //__asm emms;
     return S_OK;
 }
