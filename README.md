@@ -3,7 +3,12 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
 
 ## How to use
 1. Run Install_XySubFilter.bat as administrator and dont move or delete the "XySubFilter.dll".
-2. Select XySubFilter in your player as your subtitle renderer.
+    - Alternatively, you can install [XySubFilter](https://scoop.sh/#/apps?q=xysubfilter-libass-np&s=0&d=1&o=true) via Scoop:
+    ```
+    scoop bucket add nonportable
+    scoop install xysubfilter-libass-np -g
+    ```
+3. Select XySubFilter in your player as your subtitle renderer.
     - Options -> Subtitle -> Subtitle renderer in MPC-BE 
     - Options -> Playback -> Output -> Subtitle Renderer in MPC-HC
 
