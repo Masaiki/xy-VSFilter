@@ -35,7 +35,9 @@ jobs:
       - name: build
         run: MSBuild.exe VSFilter.sln /t:xy_sub_filter:Rebuild /p:WindowsTargetPlatformVersion=10.0.19041.0 /p:PlatformToolset=v142 /m /p:Configuration=Release /p:Platform=${{matrix.platform}}
       - name: copy
-        run: cmake -E copy "bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll" dist\${{matrix.platform}}\XySubFilter.dll
+        run: |
+          cmake -E copy bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll dist\${{matrix.platform}}\XySubFilter.dll
+          cmake -E copy Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat && cmake -E copy Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
       - name: upload
         uses: actions/upload-artifact@v2
         with:
