@@ -22,7 +22,7 @@ function Usage()
 script_dir=`dirname $0`
 cd $script_dir
 
-solution="VSFilter.sln"
+solution="../VSFilter.sln"
 action="build"
 configuration="Release"
 platform="Win32"

@@ -37,7 +37,7 @@ jobs:
       - name: copy
         run: |
           cmake -E copy bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll dist\${{matrix.platform}}\XySubFilter.dll
-          cmake -E copy Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat && cmake -E copy Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
+          cmake -E copy scripts\Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat && cmake -E copy scripts\Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
       - name: upload
         uses: actions/upload-artifact@v2
         with:
