@@ -17,7 +17,7 @@
 
 #include "stdafx.h"
 #include "SubFrame.h"
-#include <ppl.h>
+//#include <ppl.h>
 #include <emmintrin.h>
 
 namespace
@@ -111,23 +111,24 @@ void SubFrame::Flatten(ASS_Image *image)
         {
             uint8_t *imageColorPtr = reinterpret_cast<uint8_t *>(&(i->color));
             const uint8_t imageColorA = ~(*imageColorPtr), &imageColorR = *(imageColorPtr + 3), &imageColorG = *(imageColorPtr + 2), &imageColorB = *(imageColorPtr + 1);
-            concurrency::parallel_for(0, i->h, [&](int y)
+            //concurrency::parallel_for(0, i->h, [&](int y)
+            for (int y = 0; y < i->h; ++y)
+            {
+                for (int x = 0; x < i->w; ++x)
                 {
-                    for (int x = 0; x < i->w; ++x)
-                    {
-                        uint8_t *destPtr = reinterpret_cast<uint8_t *>(m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x));
-                        uint8_t &destA = *(destPtr + 3), &destR = *(destPtr + 2), &destG = *(destPtr + 1), &destB = *(destPtr);
+                    uint8_t *destPtr = reinterpret_cast<uint8_t *>(m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x + x - pixelsPoint.x));
+                    uint8_t &destA = *(destPtr + 3), &destR = *(destPtr + 2), &destG = *(destPtr + 1), &destB = *(destPtr);
 
-                        uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * imageColorA);
-                        uint8_t compA = ~srcA;
+                    uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * imageColorA);
+                    uint8_t compA = ~srcA;
 
-                        destA = srcA + div_255_fast_v2(destA * compA);
-                        destR = div_255_fast_v2(imageColorR * srcA + destR * compA);
-                        destG = div_255_fast_v2(imageColorG * srcA + destG * compA);
-                        destB = div_255_fast_v2(imageColorB * srcA + destB * compA);
-                    }
-
-                }, concurrency::static_partitioner());
+                    destA = srcA + div_255_fast_v2(destA * compA);
+                    destR = div_255_fast_v2(imageColorR * srcA + destR * compA);
+                    destG = div_255_fast_v2(imageColorG * srcA + destG * compA);
+                    destB = div_255_fast_v2(imageColorB * srcA + destB * compA);
+                }
+            }
+            //, concurrency::static_partitioner());
         }
     }
 }
