@@ -11,7 +11,7 @@ jobs:
         - platform: 'Win32'
         - platform: 'x64'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: install submodules
         shell: cmd
         run: |
@@ -39,7 +39,7 @@ jobs:
           cmake -E copy bin\lib_16.0\${{matrix.platform}}\Release\XySubFilter.dll dist\${{matrix.platform}}\XySubFilter.dll
           cmake -E copy scripts\Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat && cmake -E copy scripts\Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
       - name: upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: xysubfilter_with_libass
           path: dist
