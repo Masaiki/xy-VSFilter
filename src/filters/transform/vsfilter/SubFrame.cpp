@@ -93,7 +93,7 @@ STDMETHODIMP SubFrame::GetBitmap(int index, ULONGLONG* id, POINT* position, SIZE
 
 static __forceinline void pixmix_sse2(DWORD *dst, DWORD color, DWORD alpha)
 {
-    //    alpha = (((alpha) * (color>>24)) >> 6) & 0xff;
+    alpha = ((alpha+1) * (color>>24)) >> 8;
     color &= 0xffffff;
     __m128i zero = _mm_setzero_si128();
     __m128i a = _mm_set1_epi32(((alpha + 1) << 16) | (0x100 - alpha));
@@ -157,6 +157,7 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
     __m128i c_r = _mm_set1_epi32((color & 0xFF0000));
     __m128i c_g = _mm_set1_epi32((color & 0xFF00) << 8);
     __m128i c_b = _mm_set1_epi32((color & 0xFF) << 16);
+    __m128i c_a = _mm_set1_epi16((color & 0xFF000000) >> 24);
 
     __m128i zero = _mm_setzero_si128();
 
@@ -176,10 +177,22 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
 #ifdef _DEBUG
         ra = _mm_setzero_si128();
 #endif // _DEBUG
+        __m128i a1 = _mm_unpacklo_epi8(a, zero);
+        a1 = _mm_add_epi16(a1, ones);
+        a1 = _mm_mullo_epi16(a1, c_a);
+        a1 = _mm_srli_epi16(a1, 8);
+
+        __m128i a2 = _mm_unpackhi_epi8(a, zero);
+        a2 = _mm_add_epi16(a2, ones);
+        a2 = _mm_mullo_epi16(a2, c_a);
+        a2 = _mm_srli_epi16(a2, 8);
+
+        a = _mm_packus_epi16(a1, a2);
+
         ra = _mm_cmpeq_epi32(ra, ra);
         ra = _mm_xor_si128(ra, a);
-        __m128i a1 = _mm_unpacklo_epi8(ra, a);
-        __m128i a2 = _mm_unpackhi_epi8(a1, zero);
+        a1 = _mm_unpacklo_epi8(ra, a);
+        a2 = _mm_unpackhi_epi8(a1, zero);
         a1 = _mm_unpacklo_epi8(a1, zero);
         a1 = _mm_add_epi16(a1, ones);
         a2 = _mm_add_epi16(a2, ones);
@@ -228,7 +241,7 @@ void SubFrame::Flatten(ASS_Image *image)
             {
                 auto dst = reinterpret_cast<uint8_t *>(m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x - pixelsPoint.x));
                 auto alpha = i->bitmap + y * i->stride;
-                packed_pix_mix_sse2(dst, alpha, i->w, i->color >> 8);
+                packed_pix_mix_sse2(dst, alpha, i->w, (i->color >> 8) | (~(i->color) << 24));
             }
         }
     }
