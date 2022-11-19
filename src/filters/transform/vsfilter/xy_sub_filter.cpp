@@ -245,12 +245,10 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     m_tbid.graph = NULL;
     m_tbid.fRunOnce = false;
     m_tbid.fShowIcon = true;
-    m_tbid.use_legacy_vsfilter = [this](bool trigger) mutable {
-        bool use_legacy_vsfilter = false;
-        this->XyGetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, &use_legacy_vsfilter);
+    m_tbid.use_legacy_vsfilter = [&](bool trigger) mutable {
+        bool &use_legacy_vsfilter = m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
         if (trigger) {
             use_legacy_vsfilter = !use_legacy_vsfilter;
-            this->XySetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, use_legacy_vsfilter);
         }
         return use_legacy_vsfilter;
     };
