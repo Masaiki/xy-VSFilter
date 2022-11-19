@@ -83,7 +83,6 @@ protected:
 public:
     // str[0] = 0 -> m_fLineBreak = true (in this case we only need and use the height of m_font from the whole class)
     CWord(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
-        , double scalex, double scaley
         , double target_scale_x=1.0, double target_scale_y=1.0
         , bool round_to_whole_pixel_after_scale_to_target = false);
     CWord(const CWord&);
@@ -108,7 +107,6 @@ public:
     SharedPtrCPolygon m_pOpaqueBox;
     int               m_ktype, m_kstart, m_kend;
     int               m_width, m_ascent, m_descent;
-    double            m_scalex, m_scaley;
     double            m_target_scale_x, m_target_scale_y;
     bool              m_round_to_whole_pixel_after_scale_to_target;//it is necessary to avoid some artifacts
 
@@ -135,7 +133,6 @@ protected:
     static void GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str);
 public:
     CText(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
-        , double scalex, double scaley
         , double target_scale_x=1.0, double target_scale_y=1.0);
     CText(const CText& src);
 
@@ -150,6 +147,7 @@ class CPolygon : public CWord
     bool ParseStr();
 
 protected:
+    double            m_scalex, m_scaley;
     int               m_baseline;
     CAtlArray<BYTE>   m_pathTypesOrg;
     CAtlArray<CPoint> m_pathPointsOrg;

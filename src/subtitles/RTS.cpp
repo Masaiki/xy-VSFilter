@@ -138,14 +138,12 @@ CMyFont::CMyFont(const STSStyleBase& style)
 // CWord
 
 CWord::CWord( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
-    , double scalex, double scaley
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
     , bool round_to_whole_pixel_after_scale_to_target/*=false*/)
     : m_style(style), m_str(DEBUG_NEW CStringW(str))
     , m_width(0), m_ascent(0), m_descent(0)
     , m_ktype(ktype), m_kstart(kstart), m_kend(kend)
     , m_fLineBreak(false), m_fWhiteSpaceChar(false)
-    , m_scalex(scalex), m_scaley(scaley)
     , m_target_scale_x(target_scale_x), m_target_scale_y(target_scale_y)
     , m_round_to_whole_pixel_after_scale_to_target(round_to_whole_pixel_after_scale_to_target)
     //, m_pOpaqueBox(NULL)
@@ -169,8 +167,6 @@ CWord::CWord( const CWord& src):m_str(src.m_str)
     m_width                                      = src.m_width;
     m_ascent                                     = src.m_ascent;
     m_descent                                    = src.m_descent;
-    m_scalex = src.m_scalex;
-    m_scaley = src.m_scaley;
     m_target_scale_x                             = src.m_target_scale_x;
     m_target_scale_y                             = src.m_target_scale_y;
     m_round_to_whole_pixel_after_scale_to_target = src.m_round_to_whole_pixel_after_scale_to_target;
@@ -514,39 +510,37 @@ void CWord::Transform(PathData* path_data, const CPointCoor2 &org )
 
     //S0*A0*A1*A2*A3*A4
 
-    tmp1 = 20000.0 * m_scalex * m_target_scale_x;
+    tmp1 = 20000.0*m_target_scale_x;
     xxx[0][0] *= tmp1;
     xxx[0][1] *= tmp1;
     xxx[0][2] *= tmp1;
 
-    tmp1 = 20000.0 * m_scaley * m_target_scale_y;
+    tmp1 = 20000.0*m_target_scale_y;
     xxx[1][0] *= tmp1;
     xxx[1][1] *= tmp1;
     xxx[1][2] *= tmp1;
 
     //A0*A1*A2*A3*A4+B0
 
-    //xxx[2][2] += 20000.0;
+    xxx[2][2] += 20000.0;
 
     double scaled_org_x = org.x+0.5;
     double scaled_org_y = org.y+0.5;
 
     for (ptrdiff_t i = 0; i < path_data->mPathPoints; i++) {
-        double x, y, zx, zy, xx;
+        double x, y, z, xx;
 
         xx = path_data->mpPathPoints[i].x;
         y = path_data->mpPathPoints[i].y;
 
-        zx = xxx[2][0] * xx + xxx[2][1] * y + xxx[2][2] + 20000.0 * m_scalex;
-        zy = xxx[2][0] * xx + xxx[2][1] * y + xxx[2][2] + 20000.0 * m_scaley;
+        z = xxx[2][0] * xx + xxx[2][1] * y + xxx[2][2];
         x = xxx[0][0] * xx + xxx[0][1] * y + xxx[0][2];
         y = xxx[1][0] * xx + xxx[1][1] * y + xxx[1][2];
 
-        zx = zx > 1000.0 ? zx : 1000.0;
-        zy = zy > 1000.0 ? zy : 1000.0;
+        z = z > 1000.0 ? z : 1000.0;
 
-        x = x / zx;
-        y = y / zy;
+        x = x / z;
+        y = y / z;
 
         path_data->mpPathPoints[i].x = (long)(x + scaled_org_x);
         path_data->mpPathPoints[i].y = (long)(y + scaled_org_y);
@@ -600,9 +594,8 @@ bool CWord::operator==( const CWord& rhs ) const
 // CText
 
 CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
-    , double scalex, double scaley
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/ )
-    : CWord(style, str, ktype, kstart, kend, scalex, scaley, target_scale_x, target_scale_y)
+    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y)
 {
     if(m_str.Get() == L" ")
     {
@@ -734,8 +727,8 @@ CPolygon::CPolygon( const FwSTSStyle& style, const CStringW& str, int ktype, int
     , double scalex, double scaley, int baseline 
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
     , bool round_to_whole_pixel_after_scale_to_target/*=false*/)
-    : CWord(style, str, ktype, kstart, kend, scalex, scaley, target_scale_x, target_scale_y, round_to_whole_pixel_after_scale_to_target)
-    , m_baseline(baseline)
+    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, round_to_whole_pixel_after_scale_to_target)
+    , m_scalex(scalex), m_scaley(scaley), m_baseline(baseline)
 {
     ParseStr();
 }
@@ -1983,7 +1976,6 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(ite < j)
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, str.Mid(ite, j-ite), m_ktype, m_kstart, m_kend
-                , sub->m_scalex, sub->m_scaley
                 , m_target_scale_x, m_target_scale_y))
             {
                 SharedPtrCWord w(tmp_ptr);
@@ -1998,7 +1990,6 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(c == L'\n')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(), m_ktype, m_kstart, m_kend
-                , sub->m_scalex, sub->m_scaley
                 , m_target_scale_x, m_target_scale_y))
             {
                 SharedPtrCWord w(tmp_ptr);
@@ -2013,7 +2004,6 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         else if(c == L' ')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(c), m_ktype, m_kstart, m_kend
-                , sub->m_scalex, sub->m_scaley
                 , m_target_scale_x, m_target_scale_y))
             {
                 SharedPtrCWord w(tmp_ptr);
