@@ -47,29 +47,9 @@
   <PropertyGroup>
     <TargetName>XySubFilter</TargetName>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(SolutionDir)msvc\include\;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
-  </PropertyGroup>
   <ItemDefinitionGroup>
     <Link>
       <ModuleDefinitionFile>xy_sub_filter.def</ModuleDefinitionFile>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">libass.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">libass.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">libassd.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">libassd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <PreprocessorDefinitions>XY_SUB_FILTER_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
