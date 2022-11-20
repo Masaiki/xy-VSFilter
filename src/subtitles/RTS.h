@@ -403,8 +403,6 @@ public:
     };
 public:
     static std::size_t SetMaxCacheSize(std::size_t max_cache_size);
-
-    bool                     m_paused;
 private:
     XyIntMap<CSubtitle*>     m_subtitleCache;
     CAtlList<int>            m_subtitleCacheEntry;

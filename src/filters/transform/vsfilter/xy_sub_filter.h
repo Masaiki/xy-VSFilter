@@ -4,7 +4,6 @@
 #include "DirectVobSub.h"
 #include "SubRenderIntf.h"
 #include "SubRenderOptionsImpl.h"
-#include <ass.hpp>
 
 class CDirectVobSubFilter;
 
@@ -83,8 +82,6 @@ private:
     void SetYuvMatrix();
     void SetRgbOutputLevel();
     bool Open();
-
-    void LoadASSFont(IPin* pPin, ASS_Library* ass, ASS_Renderer* renderer);
 
     void UpdateSubtitle(bool fApplyDefStyle = true);
     void SetSubtitle(ISubStream* pSubStream, bool fApplyDefStyle = true);

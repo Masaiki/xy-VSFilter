@@ -18,8 +18,6 @@
 #include <evr.h>
 
 #include "SubFrame.h"
-#include <DSMPropertyBag.h>
-#include <comdef.h>
 
 #if ENABLE_XY_LOG_RENDERER_REQUEST
 #  define TRACE_RENDERER_REQUEST(msg) XY_LOG_TRACE(msg)
@@ -723,7 +721,7 @@ STDMETHODIMP XySubFilter::XySetBool(unsigned field, bool      value)
         {
             CAutoLock cAutolock1(&m_csFilter);
             CRenderedTextSubtitle *pRTS = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream);
-            if (pRTS && pRTS->m_assloaded) {
+            if (pRTS && pRTS->m_ass_context.m_assloaded) {
                 if (value) {
                     std::vector<CStringA> styles_overrides;
                     detect_style_changes(nullptr, &m_defStyle, nullptr, styles_overrides);
@@ -732,8 +730,8 @@ STDMETHODIMP XySubFilter::XySetBool(unsigned field, bool      value)
                     for (size_t i = 0; i < styles_overrides.size(); ++i)
                         tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
                     tmp[styles_overrides.size()] = NULL;
-                    ass_set_style_overrides(pRTS->m_ass.get(), tmp.get());
-                    ass_process_force_style(pRTS->m_track.get());
+                    ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
+                    ass_process_force_style(pRTS->m_ass_context.m_track.get());
                 }
             }
         }
@@ -810,19 +808,19 @@ HRESULT XySubFilter::SetCurStyles( const SubStyle sub_style[], int count )
             ASSERT(style);
             if (sub_style[i].style)
             {
-                if (rts->m_assloaded)
+                if (rts->m_ass_context.m_assloaded)
                     detect_style_changes(style, static_cast<STSStyle *>(sub_style[i].style), sub_style[i].name, styles_overrides);
-                *style = *static_cast<STSStyle*>(sub_style[i].style);
+                *style = *static_cast<STSStyle *>(sub_style[i].style);
                 changed = true;
             }
         }
-        if (rts->m_assloaded && styles_overrides.size()) {
-            std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size()+1);
+        if (rts->m_ass_context.m_assloaded && styles_overrides.size()) {
+            std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
             for (size_t i = 0; i < styles_overrides.size(); ++i)
                 tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
             tmp[styles_overrides.size()] = NULL;
-            ass_set_style_overrides(rts->m_ass.get(), tmp.get());
-            ass_process_force_style(rts->m_track.get());
+            ass_set_style_overrides(rts->m_ass_context.m_ass.get(), tmp.get());
+            ass_process_force_style(rts->m_ass_context.m_track.get());
         }
         if (changed) {
             hr = OnOptionChanged(BIN2_CUR_STYLES);
@@ -947,7 +945,7 @@ STDMETHODIMP XySubFilter::put_TextSettings(STSStyle* pDefStyle)
 
     CRenderedTextSubtitle *pRTS = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream);
 
-    if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS && pRTS->m_assloaded) {
+    if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS && pRTS->m_ass_context.m_assloaded) {
         std::vector<CStringA> styles_overrides;
         detect_style_changes(&m_defStyle, pDefStyle, nullptr, styles_overrides);
 
@@ -955,8 +953,8 @@ STDMETHODIMP XySubFilter::put_TextSettings(STSStyle* pDefStyle)
         for (size_t i = 0; i < styles_overrides.size(); ++i)
             tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
         tmp[styles_overrides.size()] = NULL;
-        ass_set_style_overrides(pRTS->m_ass.get(), tmp.get());
-        ass_process_force_style(pRTS->m_track.get());
+        ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
+        ass_process_force_style(pRTS->m_ass_context.m_track.get());
     }
 
     if(hr == NOERROR)
@@ -1370,45 +1368,41 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
     HRESULT hr;
 
-    CRenderedTextSubtitle* rts;
-    {
-        CAutoLock cAutoLock(&m_csFilter);
-        rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
-    }
-    if (rts && !m_xy_bool_opt[BOOL_VS_ASS_RENDERING] && rts->m_assloaded) {
+    CSimpleTextSubtitle *sts;
+    if (!m_xy_bool_opt[BOOL_VS_ASS_RENDERING] && (sts = dynamic_cast<CSimpleTextSubtitle *>(m_curSubStream)) && sts->m_ass_context.m_assloaded) {
         CComPtr<ISubRenderFrame> sub_render_frame;
         {
             CAutoLock cAutoLock(&m_csFilter);
-
-            rts->m_paused = true;
 
             hr = UpdateParamFromConsumer();
             if (FAILED(hr)) return hr;
 
             ASSERT(m_consumer);
 
-            if (!rts->m_assfontloaded) {
-                LoadASSFont(rts->m_pPin, rts->m_ass.get(), rts->m_renderer.get());
-                rts->m_assfontloaded = true;
+            if (!sts->m_ass_context.m_assfontloaded) {
+                sts->m_ass_context.LoadASSFont(sts->m_pPin, sts->m_pGraph);
+                sts->m_ass_context.m_assfontloaded = true;
             }
 
-            ass_set_storage_size(rts->m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
-            ass_set_frame_size(rts->m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].right, m_xy_rect_opt[RECT_SUBTITLE_TARGET].bottom);
+            ass_set_storage_size(sts->m_ass_context.m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
+            ass_set_frame_size(sts->m_ass_context.m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Width(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Height());
 
             REFERENCE_TIME subtitleStart = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
             REFERENCE_TIME subtitleStop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
 
             int changed = 1;
-            ASS_Image *image = ass_render_frame(rts->m_renderer.get(), rts->m_track.get(), subtitleStart / 10000, &changed);
+            ASS_Image *image = ass_render_frame(sts->m_ass_context.m_renderer.get(), sts->m_ass_context.m_track.get(), subtitleStart / 10000, &changed);
             if (!changed && m_last_frame) {
                 sub_render_frame = m_last_frame;
             }
-            else 
+            else
             {
                 m_consumerLastId++;
                 sub_render_frame = new SubFrame(m_xy_rect_opt[RECT_SUBTITLE_TARGET], m_consumerLastId, image);
                 m_last_frame = sub_render_frame;
             }
+
+            sts->m_vsfilter_paused = true;
         }
         CAutoLock cAutoLock(&m_csConsumer);
         hr = m_consumer->DeliverFrame(start, stop, context, sub_render_frame);
@@ -1418,8 +1412,6 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
     CComPtr<IXySubRenderFrame> sub_render_frame;
     {
         CAutoLock cAutoLock(&m_csFilter);
-
-        if(rts) rts->m_paused = false;
 
         hr = UpdateParamFromConsumer();
         if (FAILED(hr))
@@ -1477,7 +1469,7 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
             CRenderedTextSubtitle * rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
             m_xy_bool_opt[BOOL_IS_MOVABLE] = (!rts) || ((rts->IsMovable()) && ((rts->IsSimple()) || (m_xy_bool_opt[BOOL_ALLOW_MOVING])));
-
+            if (rts) rts->m_vsfilter_paused = false;
         }
     }
     CAutoLock cAutoLock(&m_csConsumer);
@@ -1897,37 +1889,6 @@ bool XySubFilter::Open()
     return (m_pSubStreams.GetCount() > 0);
 }
 
-void XySubFilter::LoadASSFont(IPin* pPin, ASS_Library* ass, ASS_Renderer* renderer)
-{
-    // Try to load fonts in the container
-    CComPtr<IAMGraphStreams> graphStreams;
-    CComPtr<IDSMResourceBag> bag;
-    if (SUCCEEDED(GetFilterGraph()->QueryInterface(IID_PPV_ARGS(&graphStreams))) &&
-        SUCCEEDED(graphStreams->FindUpstreamInterface(pPin, IID_PPV_ARGS(&bag), AM_INTF_SEARCH_FILTER)))
-    {
-        for (DWORD i = 0; i < bag->ResGetCount(); ++i)
-        {
-            _bstr_t name, desc, mime;
-            BYTE* pData = nullptr;
-            DWORD len = 0;
-            if (SUCCEEDED(bag->ResGet(i, &name.GetBSTR(), &desc.GetBSTR(), &mime.GetBSTR(), &pData, &len, nullptr)))
-            {
-                if (wcscmp(mime.GetBSTR(), L"application/x-truetype-font") == 0 ||
-                    wcscmp(mime.GetBSTR(), L"application/vnd.ms-opentype") == 0 ||
-                    wcsncmp(mime.GetBSTR(), L"application/font-", 17) == 0 ||
-                    wcsncmp(mime.GetBSTR(), L"font/", 5) == 0) // TODO: more mimes?
-                {
-                    auto utf8_name = UTF16To8(name.GetBSTR());
-                    ass_add_font(ass, utf8_name.GetString(), (char*)pData, len);
-                    // TODO: clear these fonts somewhere?
-                }
-                CoTaskMemFree(pData);
-            }
-        }
-    }
-    ass_set_fonts(renderer, NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, NULL);
-}
-
 void XySubFilter::UpdateSubtitle(bool fApplyDefStyle/*= true*/)
 {
     XY_LOG_INFO(XY_LOG_VAR_2_STR(fApplyDefStyle));
@@ -2012,7 +1973,7 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
                 XY_LOG_ERROR("Failed to set default style");
             }
             pRTS->SetForceDefaultStyle(m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]);
-            if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS->m_assloaded) {
+            if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS->m_ass_context.m_assloaded) {
                 std::vector<CStringA> styles_overrides;
                 detect_style_changes(nullptr, &m_defStyle, nullptr, styles_overrides);
 
@@ -2020,8 +1981,8 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
                 for (size_t i = 0; i < styles_overrides.size(); ++i)
                     tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
                 tmp[styles_overrides.size()] = NULL;
-                ass_set_style_overrides(pRTS->m_ass.get(), tmp.get());
-                ass_process_force_style(pRTS->m_track.get());
+                ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
+                ass_process_force_style(pRTS->m_ass_context.m_track.get());
             }
 
             pRTS->m_ePARCompensationType = CSimpleTextSubtitle::EPCTDisabled;

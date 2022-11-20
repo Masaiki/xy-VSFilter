@@ -25,7 +25,7 @@
 #include <wxutil.h>
 #include "TextFile.h"
 #include "GFN.h"
-#include <ass.hpp>
+#include "libass_context.h"
 #include <unordered_map>
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
@@ -296,14 +296,9 @@ private:
 
 public:
     IPin* m_pPin;
-    bool LoadASSFile();
-    bool LoadASSTrack(char* data, int size);
-    void UnloadASS();
-    bool m_assloaded;
-    bool m_assfontloaded;
-    std::unique_ptr<ASS_Library, ASS_LibraryDeleter> m_ass;
-    std::unique_ptr<ASS_Renderer, ASS_RendererDeleter> m_renderer;
-    std::unique_ptr<ASS_Track, ASS_TrackDeleter> m_track;
+    IFilterGraph *m_pGraph;
+    ASS_Context m_ass_context;
+    bool m_vsfilter_paused;
     std::unordered_map<int, int> read_order_to_event_index;
     CCritSec csSample;
 };

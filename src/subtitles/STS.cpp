@@ -1921,47 +1921,6 @@ static bool OpenRealText(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet)
     return !ret.IsEmpty();
 }
 
-static std::unique_ptr<char[]> read_file_bytes(FILE* fp, size_t* bufsize)
-{
-    int res = fseek(fp, 0, SEEK_END);
-    if (res == -1) {
-        fclose(fp);
-        return nullptr;
-    }
-    long sz = ftell(fp);
-    rewind(fp);
-    std::unique_ptr<char[]> buf = std::make_unique<char[]>(sz + 1);
-    size_t bytes_read = 0;
-    do {
-        res = fread(buf.get() + bytes_read, sizeof(char), sz - bytes_read, fp);
-        if (res <= 0) {
-            fclose(fp);
-            return nullptr;
-        }
-        bytes_read += res;
-    } while (sz - bytes_read > 0);
-    buf[sz] = '\0';
-    if (bufsize) *bufsize = sz;
-    fclose(fp);
-    return buf;
-}
-
-static const char* detect_bom(const char* buf, const size_t bufsize) {
-    if (bufsize >= 4) {
-        if (!strncmp(buf, "\xef\xbb\xbf", 3))
-            return "UTF-8";
-        if (!strncmp(buf, "\x00\x00\xfe\xff", 4))
-            return "UTF-32BE";
-        if (!strncmp(buf, "\xff\xfe\x00\x00", 4))
-            return "UTF-32LE";
-        if (!strncmp(buf, "\xfe\xff", 2))
-            return "UTF-16BE";
-        if (!strncmp(buf, "\xff\xfe", 2))
-            return "UTF-16LE";
-    }
-    return "UTF-8";
-}
-
 typedef bool (*STSOpenFunct)(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet);
 
 typedef struct {STSOpenFunct open; tmode mode;} OpenFunctStruct;
@@ -2013,7 +1972,7 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_eYCbCrRange          = YCbCrRange_AUTO;
     m_fForcedDefaultStyle  = false;
     m_defaultStyle.charSet = DEFAULT_CHARSET;
-    m_assloaded            = false;
+    m_vsfilter_paused      = false;
 }
 
 CSimpleTextSubtitle::~CSimpleTextSubtitle()
@@ -2768,9 +2727,9 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
     }
 
     const wchar_t *ext = PathFindExtensionW(fn);
-    if (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0) {
-        m_path = f.GetFilePath();
-        LoadASSFile();
+    if (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0 || name == _T("CSRI memory subtitles"))
+    {
+        m_ass_context.LoadASSFile(f.GetFilePath());
     }
 
     return(Open(&f, CharSet, name));
@@ -3119,59 +3078,6 @@ bool CSimpleTextSubtitle::IsEmpty()
 void CSimpleTextSubtitle::RemoveAllEntries()
 {
     m_entries.RemoveAll();
-}
-
-bool CSimpleTextSubtitle::LoadASSFile()
-{
-    UnloadASS();
-    m_assfontloaded = false;
-
-    if (m_path.IsEmpty()) return false;
-
-    m_ass = decltype(m_ass)(ass_library_init());
-    m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
-
-    size_t bufsize = 0;
-    FILE* fp = _wfopen(m_path.GetString(), L"rb");
-    auto buf = read_file_bytes(fp, &bufsize);
-    const char* encoding = detect_bom(buf.get(), bufsize);
-
-    m_track = decltype(m_track)(ass_read_memory(m_ass.get(), buf.get(), bufsize, const_cast<char*>(encoding)));
-
-    if (!m_track) return false;
-
-    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
-
-    m_assloaded = true;
-    m_assfontloaded = true;
-    return true;
-}
-
-bool CSimpleTextSubtitle::LoadASSTrack(char *data, int size)
-{
-    UnloadASS();
-    m_assfontloaded = false;
-
-    m_ass = decltype(m_ass)(ass_library_init());
-    m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
-    m_track = decltype(m_track)(ass_new_track(m_ass.get()));
-
-    if (!m_track) return false;
-
-    ass_process_codec_private(m_track.get(), data, size);
-
-    ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
-
-    m_assloaded = true;
-    return true;
-}
-
-void CSimpleTextSubtitle::UnloadASS()
-{
-    m_assloaded = false;
-    if (m_track) m_track.reset();
-    if (m_renderer) m_renderer.reset();
-    if (m_ass) m_ass.reset();
 }
 
 ////////////////////////////////////////////////////////////////////

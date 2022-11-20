@@ -1668,7 +1668,6 @@ CAtlArray<AssCmdPosLevel> CRenderedTextSubtitle::m_cmd_pos_level;
 CRenderedTextSubtitle::CRenderedTextSubtitle(CCritSec* pLock)
     : CSubPicProviderImpl(pLock)
     , m_target_scale_x(1.0), m_target_scale_y(1.0)
-    , m_paused(true)
 {
     if( m_cmdMap.IsEmpty() )
     {

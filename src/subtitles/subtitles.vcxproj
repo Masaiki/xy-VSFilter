@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <IncludePath>$(KIT_SHARED_IncludePath);$(UM_IncludePath);$(VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)src\filters\transform\vsfilter;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)include\;$(SolutionDir)include\unrar\;$(SolutionDir)src\thirdparty\;$(IncludePath)</IncludePath>
-    <IncludePath Condition="'$(VisualStudioVersion)'&gt;'10.0'">$(SolutionDir)msvc\include\;$(WindowsSdkDir)include\shared;$(WindowsSdkDir)include\um;$(IncludePath)</IncludePath>
+    <IncludePath Condition="'$(VisualStudioVersion)'&gt;'10.0'">$(SolutionDir)msvc\include\;$(WindowsSdkDir)include\shared;$(WindowsSdkDir)include\um;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -77,6 +77,7 @@
     <ClCompile Include="GFN.cpp" />
     <ClCompile Include="HdmvSub.cpp" />
     <ClCompile Include="hdmv_subtitle_provider.cpp" />
+    <ClCompile Include="libass_context.cpp" />
     <ClCompile Include="Rasterizer.cpp">
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
@@ -120,6 +121,7 @@
     <ClInclude Include="GFN.h" />
     <ClInclude Include="HdmvSub.h" />
     <ClInclude Include="hdmv_subtitle_provider.h" />
+    <ClInclude Include="libass_context.h" />
     <ClInclude Include="mru_cache.h" />
     <ClInclude Include="Rasterizer.h" />
     <ClInclude Include="RealTextParser.h" />
