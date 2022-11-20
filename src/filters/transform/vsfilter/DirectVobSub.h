@@ -85,12 +85,12 @@ protected:
     ColorSpaceOpt m_outputColorSpace[MAX_COLOR_SPACE];
     ColorSpaceOpt m_inputColorSpace[MAX_COLOR_SPACE];
 
-    STSStyle m_defStyle;
+	STSStyle m_defStyle;
 
-    bool m_fAdvancedRenderer;
-    int m_nReloaderDisableCount;
-    int m_SubtitleDelay, m_SubtitleSpeedMul, m_SubtitleSpeedDiv;
-    NORMALIZEDRECT m_ZoomRect;
+	bool m_fAdvancedRenderer;
+	int m_nReloaderDisableCount;
+	int m_SubtitleDelay, m_SubtitleSpeedMul, m_SubtitleSpeedDiv;
+	NORMALIZEDRECT m_ZoomRect;
 
     CAtlArray<CStringW> m_known_source_filters_guid;
     CAtlArray<CStringW> m_known_source_filters_name;
@@ -98,7 +98,7 @@ protected:
     int m_supported_filter_verion;
     int m_config_info_version;
 
-    CComPtr<ISubClock> m_pSubClock;
+	CComPtr<ISubClock> m_pSubClock;
 
 public:
     static void LoadKnownSourceFilters( CAtlArray<CStringW> *filter_guid,
@@ -116,7 +116,7 @@ public:
 
     STDMETHODIMP XySetBin      (unsigned field, LPVOID    value, int size );
 
-    // IDirectVobSub
+	// IDirectVobSub
 
     STDMETHODIMP get_FileName(WCHAR* fn);
     STDMETHODIMP put_FileName(WCHAR* fn);
@@ -156,50 +156,50 @@ public:
     STDMETHODIMP put_Flip(bool fPicture, bool fSubtitles);
     STDMETHODIMP get_OSD(bool* fShowOSD);
     STDMETHODIMP put_OSD(bool fShowOSD);
-    STDMETHODIMP get_SaveFullPath(bool* fSaveFullPath);
-    STDMETHODIMP put_SaveFullPath(bool fSaveFullPath);
+	STDMETHODIMP get_SaveFullPath(bool* fSaveFullPath);
+	STDMETHODIMP put_SaveFullPath(bool fSaveFullPath);
     STDMETHODIMP get_SubtitleTiming(int* delay, int* speedmul, int* speeddiv);
     STDMETHODIMP put_SubtitleTiming(int delay, int speedmul, int speeddiv);
     STDMETHODIMP get_MediaFPS(bool* fEnabled, double* fps);
     STDMETHODIMP put_MediaFPS(bool fEnabled, double fps);
-    STDMETHODIMP get_ZoomRect(NORMALIZEDRECT* rect);
+	STDMETHODIMP get_ZoomRect(NORMALIZEDRECT* rect);
     STDMETHODIMP put_ZoomRect(NORMALIZEDRECT* rect);
-    STDMETHODIMP get_ColorFormat(int* iPosition) {return E_NOTIMPL;}
+	STDMETHODIMP get_ColorFormat(int* iPosition) {return E_NOTIMPL;}
     STDMETHODIMP put_ColorFormat(int iPosition) {return E_NOTIMPL;}
 
     STDMETHOD (get_CachesInfo)(CachesInfo* caches_info);
     STDMETHOD (get_XyFlyWeightInfo)(XyFlyWeightInfo* xy_fw_info);
 
-    STDMETHODIMP HasConfigDialog(int iSelected);
-    STDMETHODIMP ShowConfigDialog(int iSelected, HWND hWndParent);
+	STDMETHODIMP HasConfigDialog(int iSelected);
+	STDMETHODIMP ShowConfigDialog(int iSelected, HWND hWndParent);
 
-    // settings for the rest are stored in the registry
+	// settings for the rest are stored in the registry
 
-    STDMETHODIMP IsSubtitleReloaderLocked(bool* fLocked);
+	STDMETHODIMP IsSubtitleReloaderLocked(bool* fLocked);
     STDMETHODIMP LockSubtitleReloader(bool fLock);
-    STDMETHODIMP get_SubtitleReloader(bool* fDisabled);
+	STDMETHODIMP get_SubtitleReloader(bool* fDisabled);
     STDMETHODIMP put_SubtitleReloader(bool fDisable);
 
-    // the followings need a partial or full reloading of the filter
+	// the followings need a partial or full reloading of the filter
 
-    STDMETHODIMP get_ExtendPicture(int* horizontal, int* vertical, int* resx2, int* resx2minw, int* resx2minh);
-    STDMETHODIMP put_ExtendPicture(int horizontal, int vertical, int resx2, int resx2minw, int resx2minh);
-    STDMETHODIMP get_LoadSettings(int* level, bool* fExternalLoad, bool* fWebLoad, bool* fEmbeddedLoad);
-    STDMETHODIMP put_LoadSettings(int level, bool fExternalLoad, bool fWebLoad, bool fEmbeddedLoad);
+	STDMETHODIMP get_ExtendPicture(int* horizontal, int* vertical, int* resx2, int* resx2minw, int* resx2minh);
+	STDMETHODIMP put_ExtendPicture(int horizontal, int vertical, int resx2, int resx2minw, int resx2minh);
+	STDMETHODIMP get_LoadSettings(int* level, bool* fExternalLoad, bool* fWebLoad, bool* fEmbeddedLoad);
+	STDMETHODIMP put_LoadSettings(int level, bool fExternalLoad, bool fWebLoad, bool fEmbeddedLoad);
         
-    // IDirectVobSub2
+	// IDirectVobSub2
 
-    STDMETHODIMP AdviseSubClock(ISubClock* pSubClock);
-    STDMETHODIMP_(bool) get_Forced();
-    STDMETHODIMP put_Forced(bool fForced);
+	STDMETHODIMP AdviseSubClock(ISubClock* pSubClock);
+	STDMETHODIMP_(bool) get_Forced();
+	STDMETHODIMP put_Forced(bool fForced);
     STDMETHODIMP get_TextSettings(STSStyle* pDefStyle);
     STDMETHODIMP put_TextSettings(STSStyle* pDefStyle);
-    STDMETHODIMP get_AspectRatioSettings(CSimpleTextSubtitle::EPARCompensationType* ePARCompensationType);
-    STDMETHODIMP put_AspectRatioSettings(CSimpleTextSubtitle::EPARCompensationType* ePARCompensationType);
+	STDMETHODIMP get_AspectRatioSettings(CSimpleTextSubtitle::EPARCompensationType* ePARCompensationType);
+	STDMETHODIMP put_AspectRatioSettings(CSimpleTextSubtitle::EPARCompensationType* ePARCompensationType);
 
-    // IFilterVersion
-    
-    STDMETHODIMP_(DWORD) GetFilterVersion();
+	// IFilterVersion
+	
+	STDMETHODIMP_(DWORD) GetFilterVersion();
 };
 
 // For DirectVobSubFilter

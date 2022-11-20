@@ -2046,7 +2046,7 @@ void CXySubFilterMorePPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSub->put_HideSubtitles(m_fHideSubtitles);
         CHECK_N_LOG(hr, "Failed to set option");
-        hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_ALLOW_MOVING, m_fAllowMoving);
+		hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_ALLOW_MOVING, m_fAllowMoving);
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSub->put_SubtitleReloader(m_fReloaderDisabled);
         CHECK_N_LOG(hr, "Failed to set option");

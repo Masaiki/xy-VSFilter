@@ -160,7 +160,7 @@ public:
         , double scalex, double scaley, int baseline
         , double target_scale_x=1.0, double target_scale_y=1.0
         , bool round_to_whole_pixel_after_scale_to_target = false);
-    // can't use a const reference because we need to use CAtlArray::Copy which expects a non-const reference
+	// can't use a const reference because we need to use CAtlArray::Copy which expects a non-const reference
     CPolygon(CPolygon&); 
     virtual ~CPolygon();
 
