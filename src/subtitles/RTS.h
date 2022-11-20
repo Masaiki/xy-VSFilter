@@ -27,6 +27,7 @@
 #include "../SubPic/ISimpleSubPic.h"
 #include <atlcoll.h>
 #include <boost/flyweight/key_value.hpp>
+#include <boost/smart_ptr.hpp>
 #include "mru_cache.h"
 #include "xy_int_map.h"
 
@@ -51,7 +52,7 @@ typedef ::boost::flyweights::flyweight<::boost::flyweights::key_value<STSStyleBa
 class CPolygon;
 
 class CClipper;
-typedef std::shared_ptr<CClipper> SharedPtrCClipper;
+typedef ::boost::shared_ptr<CClipper> SharedPtrCClipper;
 
 struct CompositeDrawItem;
 typedef CAtlList<CompositeDrawItem> CompositeDrawItemList;
@@ -59,11 +60,11 @@ typedef CAtlList<CompositeDrawItemList> CompositeDrawItemListList;
 
 class CWord;
 typedef CWord* PCWord;
-typedef std::shared_ptr<CWord> SharedPtrCWord;
-typedef std::shared_ptr<CPolygon> SharedPtrCPolygon;
+typedef ::boost::shared_ptr<CWord> SharedPtrCWord;
+typedef ::boost::shared_ptr<CPolygon> SharedPtrCPolygon;
 
 class CClipperPaintMachine;
-typedef std::shared_ptr<CClipperPaintMachine> SharedPtrCClipperPaintMachine;
+typedef ::boost::shared_ptr<CClipperPaintMachine> SharedPtrCClipperPaintMachine;
 
 class OverlayKey;
 interface IXySubRenderFrame;
@@ -126,7 +127,7 @@ public:
     {
         int m_width, m_ascent, m_descent;
     };
-    typedef std::shared_ptr<TextInfo> SharedPtrTextInfo;
+    typedef ::boost::shared_ptr<TextInfo> SharedPtrTextInfo;
 protected:
     virtual bool CreatePath(PathData* path_data);
 
@@ -394,7 +395,7 @@ public:
 
     struct AssTag;
     typedef CAtlList<AssTag> AssTagList;
-    typedef std::shared_ptr<const AssTagList> SharedPtrConstAssTagList;
+    typedef ::boost::shared_ptr<const AssTagList> SharedPtrConstAssTagList;
     struct AssTag
     {
         AssCmdType cmdType;

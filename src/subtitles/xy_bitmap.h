@@ -2,6 +2,7 @@
 #define __XY_BITMAP_674EB983_2A49_432D_A750_62C3B3E9DA67_H__
 
 #include <atltypes.h>
+#include <boost/shared_ptr.hpp>
 #include "XySubRenderIntf.h"
 
 class XyBitmap
@@ -53,7 +54,7 @@ public:
     XySubRenderFrame();
     ~XySubRenderFrame();
 
-    typedef std::shared_ptr<XyBitmap> SharedBitmap;
+    typedef ::boost::shared_ptr<XyBitmap> SharedBitmap;
 
     void MoveTo(int x, int y);
 public:
@@ -66,7 +67,7 @@ public:
     int m_left, m_top;
 };
 
-typedef std::shared_ptr<XySubRenderFrame> SharedPtrXySubRenderFrame;
+typedef ::boost::shared_ptr<XySubRenderFrame> SharedPtrXySubRenderFrame;
 
 class XySubRenderFrameCreater
 {
