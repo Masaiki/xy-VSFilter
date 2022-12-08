@@ -1368,45 +1368,50 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
     HRESULT hr;
 
-    CSimpleTextSubtitle *sts;
-    if (!m_xy_bool_opt[BOOL_VS_ASS_RENDERING] && (sts = dynamic_cast<CSimpleTextSubtitle *>(m_curSubStream)) && sts->m_ass_context.m_assloaded) {
-        CComPtr<ISubRenderFrame> sub_render_frame;
-        {
-            CAutoLock cAutoLock(&m_csFilter);
-
-            hr = UpdateParamFromConsumer();
-            if (FAILED(hr)) return hr;
-
-            ASSERT(m_consumer);
-
-            if (!sts->m_ass_context.m_assfontloaded) {
-                sts->m_ass_context.LoadASSFont(sts->m_pPin, sts->m_pGraph);
-                sts->m_ass_context.m_assfontloaded = true;
-            }
-
-            ass_set_storage_size(sts->m_ass_context.m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
-            ass_set_frame_size(sts->m_ass_context.m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Width(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Height());
-
-            REFERENCE_TIME subtitleStart = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
-            REFERENCE_TIME subtitleStop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
-
-            int changed = 1;
-            ASS_Image *image = ass_render_frame(sts->m_ass_context.m_renderer.get(), sts->m_ass_context.m_track.get(), subtitleStart / 10000, &changed);
-            if (!changed && m_last_frame) {
-                sub_render_frame = m_last_frame;
-            }
-            else
+    if (!m_xy_bool_opt[BOOL_VS_ASS_RENDERING]) {
+        do {
+            CComPtr<ISubRenderFrame> sub_render_frame;
             {
-                m_consumerLastId++;
-                sub_render_frame = new SubFrame(m_xy_rect_opt[RECT_SUBTITLE_TARGET], m_consumerLastId, image);
-                m_last_frame = sub_render_frame;
-            }
+                CAutoLock cAutoLock(&m_csFilter);
 
-            sts->m_vsfilter_paused = true;
-        }
-        CAutoLock cAutoLock(&m_csConsumer);
-        hr = m_consumer->DeliverFrame(start, stop, context, sub_render_frame);
-        return hr;
+                CSimpleTextSubtitle *sts = dynamic_cast<CSimpleTextSubtitle *>(m_curSubStream);
+                if (!sts || !sts->m_ass_context.m_assloaded)
+                    break;
+
+                hr = UpdateParamFromConsumer();
+                if (FAILED(hr)) return hr;
+
+                ASSERT(m_consumer);
+
+                if (!sts->m_ass_context.m_assfontloaded) {
+                    sts->m_ass_context.LoadASSFont(sts->m_pPin, sts->m_pGraph);
+                    sts->m_ass_context.m_assfontloaded = true;
+                }
+
+                ass_set_storage_size(sts->m_ass_context.m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
+                ass_set_frame_size(sts->m_ass_context.m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Width(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Height());
+
+                REFERENCE_TIME subtitleStart = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+                REFERENCE_TIME subtitleStop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
+
+                int changed = 1;
+                ASS_Image *image = ass_render_frame(sts->m_ass_context.m_renderer.get(), sts->m_ass_context.m_track.get(), subtitleStart / 10000, &changed);
+                if (!changed && m_last_frame) {
+                    sub_render_frame = m_last_frame;
+                }
+                else
+                {
+                    m_consumerLastId++;
+                    sub_render_frame = new SubFrame(m_xy_rect_opt[RECT_SUBTITLE_TARGET], m_consumerLastId, image);
+                    m_last_frame = sub_render_frame;
+                }
+
+                sts->m_vsfilter_paused = true;
+            }
+            CAutoLock cAutoLock(&m_csConsumer);
+            hr = m_consumer->DeliverFrame(start, stop, context, sub_render_frame);
+            return hr;
+        } while (0);
     }
 
     CComPtr<IXySubRenderFrame> sub_render_frame;
