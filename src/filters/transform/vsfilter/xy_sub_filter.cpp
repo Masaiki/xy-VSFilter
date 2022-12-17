@@ -784,9 +784,24 @@ HRESULT XySubFilter::SetCurStyles( const SubStyle sub_style[], int count )
 {
     HRESULT hr = NOERROR;
     CAutoLock cAutoLock(&m_csFilter);
-    if (dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream)!=NULL)
+    auto new_defStyle = static_cast<STSStyle *>(sub_style[0].style);
+    sub_style += 1;
+    CRenderedTextSubtitle *rts;
+    if (rts = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream))
     {
-        CRenderedTextSubtitle * rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
+        if (rts->m_ass_context.m_assloaded) {
+            if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]) {
+                rts->reserved_styles.clear();
+                POSITION pos = rts->m_styles.GetStartPosition();
+                while (pos) {
+                    CSTSStyleMap::CPair *pair = rts->m_styles.GetNext(pos);
+                    detect_style_changes(new_defStyle, pair->m_value, pair->m_key.GetString(), rts->reserved_styles);
+                }
+
+                detect_style_changes(nullptr, new_defStyle, nullptr, rts->styles_overrides);
+            }
+        }
+
         if (count != rts->m_styles.GetCount())
         {
             return E_INVALIDARG;
@@ -807,19 +822,15 @@ HRESULT XySubFilter::SetCurStyles( const SubStyle sub_style[], int count )
             ASSERT(style);
             if (sub_style[i].style)
             {
-                if (rts->m_ass_context.m_assloaded)
-                    detect_style_changes(style, static_cast<STSStyle *>(sub_style[i].style), sub_style[i].name, styles_overrides);
+                if (rts->m_ass_context.m_assloaded) {
+                    if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE])
+                        detect_style_changes(style, static_cast<STSStyle *>(sub_style[i].style), sub_style[i].name, rts->reserved_styles);
+                    else
+                        detect_style_changes(style, static_cast<STSStyle *>(sub_style[i].style), sub_style[i].name, rts->styles_overrides);
+                }
                 *style = *static_cast<STSStyle *>(sub_style[i].style);
                 changed = true;
             }
-        }
-        if (rts->m_ass_context.m_assloaded && styles_overrides.size()) {
-            std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
-            for (size_t i = 0; i < styles_overrides.size(); ++i)
-                tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
-            tmp[styles_overrides.size()] = NULL;
-            ass_set_style_overrides(rts->m_ass_context.m_ass.get(), tmp.get());
-            ass_process_force_style(rts->m_ass_context.m_track.get());
         }
         if (changed) {
             hr = OnOptionChanged(BIN2_CUR_STYLES);
@@ -941,20 +952,6 @@ STDMETHODIMP XySubFilter::put_TextSettings(STSStyle* pDefStyle)
 {
     XY_LOG_INFO(pDefStyle);
     HRESULT hr = DirectVobSubImpl::put_TextSettings(pDefStyle);
-
-    CRenderedTextSubtitle *pRTS = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream);
-
-    if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS && pRTS->m_ass_context.m_assloaded) {
-        std::vector<CStringA> styles_overrides;
-        detect_style_changes(&m_defStyle, pDefStyle, nullptr, styles_overrides);
-
-        std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
-        for (size_t i = 0; i < styles_overrides.size(); ++i)
-            tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
-        tmp[styles_overrides.size()] = NULL;
-        ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
-        ass_process_force_style(pRTS->m_ass_context.m_track.get());
-    }
 
     if(hr == NOERROR)
     {

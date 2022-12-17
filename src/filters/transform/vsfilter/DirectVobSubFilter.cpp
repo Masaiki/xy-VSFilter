@@ -2329,14 +2329,15 @@ HRESULT CDirectVobSubFilter::SetCurStyles( const SubStyle sub_style[], int count
 {
     HRESULT hr = NOERROR;
     CAutoLock cAutoLock(&m_csFilter);
+    sub_style += 1;
     ISubStream *curSubStream = NULL;
     if (m_nSubtitleId!=-1)
     {
         curSubStream = reinterpret_cast<ISubStream *>(m_nSubtitleId);
     }
-    if (dynamic_cast<CRenderedTextSubtitle*>(curSubStream)!=NULL)
+    CRenderedTextSubtitle *rts;
+    if (rts = dynamic_cast<CRenderedTextSubtitle*>(curSubStream))
     {
-        CRenderedTextSubtitle * rts = dynamic_cast<CRenderedTextSubtitle*>(curSubStream);
         if (count != rts->m_styles.GetCount())
         {
             return E_INVALIDARG;

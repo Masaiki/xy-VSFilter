@@ -110,15 +110,15 @@ HRESULT GetSubStyles(IXyOptions *filter, DirectVobSubXyOptions::SubStyle* *style
     {
         return hr;
     }
-    *style = NewSubStyles(*count);
+    *style = NewSubStyles(*count+1);
     if (!*style)
     {
         return E_FAIL;
     }
-    hr = filter->XyGetBin2(DirectVobSubXyOptions::BIN2_CUR_STYLES, *style, *count);
+    hr = filter->XyGetBin2(DirectVobSubXyOptions::BIN2_CUR_STYLES, *style+1, *count);
     if (hr != S_OK)
     {
-        DeleteSubStyles(*style, *count);
+        DeleteSubStyles(*style, *count+1);
         *style = NULL;
         *count = 0;
     }
@@ -155,7 +155,7 @@ void EditStyle(HWND hWnd, IXyOptions *filter, /* in-out */STSStyle* default_styl
     CHECK_N_LOG(hr, "Failed to get styles."<<XY_LOG_VAR_2_STR(hr));
     CStyleEditorPPage* pages = NULL;
     CPropertySheet dlg(_T("Styles"), CWnd::FromHandle(hWnd));
-    hr = CreateSubStyleEditDialog(*default_style, styles, style_count, dlg, &pages);
+    hr = CreateSubStyleEditDialog(*default_style, styles+1, style_count, dlg, &pages);
     if (FAILED(hr))
     {
         MessageBoxW(hWnd,
@@ -163,23 +163,24 @@ void EditStyle(HWND hWnd, IXyOptions *filter, /* in-out */STSStyle* default_styl
             L"Fatal",
             MB_OK | MB_ICONERROR | MB_APPLMODAL
             );
-        DeleteSubStyles(styles, style_count);
+        DeleteSubStyles(styles, style_count+1);
         return;
     }
     if(dlg.DoModal() == IDOK)
     {
         *default_style = pages[0].m_stss;
+        *static_cast<STSStyle *>(styles[0].style) = pages[0].m_stss;
         if (style_count>0)
         {
             for (int i=0;i<style_count;i++)
             {
-                *static_cast<STSStyle*>(styles[i].style) = pages[i+1].m_stss;
+                *static_cast<STSStyle*>(styles[i+1].style) = pages[i+1].m_stss;
             }
             hr = filter->XySetBin(DirectVobSubXyOptions::BIN2_CUR_STYLES, styles, style_count);
             CHECK_N_LOG(hr, "Failed to set option "<<XY_LOG_VAR_2_STR(DirectVobSubXyOptions::BIN2_CUR_STYLES));
         }
     }
-    DeleteSubStyles(styles, style_count);
+    DeleteSubStyles(styles, style_count+1);
     delete []pages;
     return;
 }
