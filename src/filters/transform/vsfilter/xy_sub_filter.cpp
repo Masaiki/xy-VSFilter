@@ -813,7 +813,6 @@ HRESULT XySubFilter::SetCurStyles( const SubStyle sub_style[], int count )
                 return E_FAIL;
             }
         }
-        std::vector<CStringA> styles_overrides;
         bool changed = false;
         for (int i=0;i<count;i++)
         {
@@ -1990,10 +1989,10 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
 
                 std::vector<CStringA> styles_overrides;
 
-                if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]) {
+                if (pRTS->styles_overrides.size()) {
                     styles_overrides.swap(pRTS->styles_overrides);
                 }
-                else {
+                else if (!m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]) {
                     styles_overrides.swap(pRTS->reserved_styles);
                 }
 
