@@ -301,6 +301,8 @@ public:
     bool m_vsfilter_paused;
     std::unordered_map<int, int> read_order_to_event_index;
     CCritSec csSample;
+    std::vector<CStringA> reserved_styles;
+    std::vector<CStringA> styles_overrides;
 };
 
 extern BYTE   CharSetList[];

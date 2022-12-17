@@ -723,15 +723,14 @@ STDMETHODIMP XySubFilter::XySetBool(unsigned field, bool      value)
             CRenderedTextSubtitle *pRTS = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream);
             if (pRTS && pRTS->m_ass_context.m_assloaded) {
                 if (value) {
-                    std::vector<CStringA> styles_overrides;
-                    detect_style_changes(nullptr, &m_defStyle, nullptr, styles_overrides);
+                    pRTS->reserved_styles.clear();
+                    POSITION pos = pRTS->m_styles.GetStartPosition();
+                    while (pos) {
+                        CSTSStyleMap::CPair *pair = pRTS->m_styles.GetNext(pos);
+                        detect_style_changes(&m_defStyle, pair->m_value, pair->m_key.GetString(), pRTS->reserved_styles);
+                    }
 
-                    std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
-                    for (size_t i = 0; i < styles_overrides.size(); ++i)
-                        tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
-                    tmp[styles_overrides.size()] = NULL;
-                    ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
-                    ass_process_force_style(pRTS->m_ass_context.m_track.get());
+                    detect_style_changes(nullptr, &m_defStyle, nullptr, pRTS->styles_overrides);
                 }
             }
         }
@@ -1978,16 +1977,37 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
                 XY_LOG_ERROR("Failed to set default style");
             }
             pRTS->SetForceDefaultStyle(m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]);
-            if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE] && pRTS->m_ass_context.m_assloaded) {
-                std::vector<CStringA> styles_overrides;
-                detect_style_changes(nullptr, &m_defStyle, nullptr, styles_overrides);
+            if (pRTS->m_ass_context.m_assloaded) {
+                if (pSubStream != m_curSubStream) {
+                    if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]) {
+                        pRTS->reserved_styles.clear();
+                        POSITION pos = pRTS->m_styles.GetStartPosition();
+                        while (pos) {
+                            CSTSStyleMap::CPair *pair = pRTS->m_styles.GetNext(pos);
+                            detect_style_changes(&m_defStyle, pair->m_value, pair->m_key.GetString(), pRTS->reserved_styles);
+                        }
 
-                std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
-                for (size_t i = 0; i < styles_overrides.size(); ++i)
-                    tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
-                tmp[styles_overrides.size()] = NULL;
-                ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
-                ass_process_force_style(pRTS->m_ass_context.m_track.get());
+                        detect_style_changes(nullptr, &m_defStyle, nullptr, pRTS->styles_overrides);
+                    }
+                }
+
+                std::vector<CStringA> styles_overrides;
+
+                if (m_xy_bool_opt[BOOL_FORCE_DEFAULT_STYLE]) {
+                    styles_overrides.swap(pRTS->styles_overrides);
+                }
+                else {
+                    styles_overrides.swap(pRTS->reserved_styles);
+                }
+
+                if (styles_overrides.size()) {
+                    std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
+                    for (size_t i = 0; i < styles_overrides.size(); ++i)
+                        tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
+                    tmp[styles_overrides.size()] = NULL;
+                    ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
+                    ass_process_force_style(pRTS->m_ass_context.m_track.get());
+                }
             }
 
             pRTS->m_ePARCompensationType = CSimpleTextSubtitle::EPCTDisabled;
