@@ -106,21 +106,20 @@ HRESULT GetSubStyles(IXyOptions *filter, DirectVobSubXyOptions::SubStyle* *style
     ASSERT(style && count);
     *style = NULL;
     HRESULT hr = filter->XyGetInt(DirectVobSubXyOptions::INT_CUR_STYLES_COUNT, count);
-    if (hr != S_OK || *count==0)
-    {
-        return hr;
-    }
     *style = NewSubStyles(*count+1);
     if (!*style)
     {
         return E_FAIL;
     }
-    hr = filter->XyGetBin2(DirectVobSubXyOptions::BIN2_CUR_STYLES, *style+1, *count);
-    if (hr != S_OK)
+    if (*count)
     {
-        DeleteSubStyles(*style, *count+1);
-        *style = NULL;
-        *count = 0;
+        hr = filter->XyGetBin2(DirectVobSubXyOptions::BIN2_CUR_STYLES, *style + 1, *count);
+        if (hr != S_OK)
+        {
+            DeleteSubStyles(*style, *count + 1);
+            *style = NULL;
+            *count = 0;
+        }
     }
     return hr;
 }
