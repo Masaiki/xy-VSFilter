@@ -1369,8 +1369,8 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
             {
                 CAutoLock cAutoLock(&m_csFilter);
 
-                CSimpleTextSubtitle *sts = dynamic_cast<CSimpleTextSubtitle *>(m_curSubStream);
-                if (!sts || !sts->m_ass_context.m_assloaded)
+                CRenderedTextSubtitle* rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
+                if (!rts || !rts->m_ass_context.m_assloaded)
                     break;
 
                 hr = UpdateParamFromConsumer();
@@ -1378,19 +1378,19 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
                 ASSERT(m_consumer);
 
-                if (!sts->m_ass_context.m_assfontloaded) {
-                    sts->m_ass_context.LoadASSFont(sts->m_pPin, sts->m_pGraph);
-                    sts->m_ass_context.m_assfontloaded = true;
+                if (!rts->m_ass_context.m_assfontloaded) {
+                    rts->m_ass_context.LoadASSFont(rts->m_pPin, rts->m_pGraph);
+                    rts->m_ass_context.m_assfontloaded = true;
                 }
 
-                ass_set_storage_size(sts->m_ass_context.m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
-                ass_set_frame_size(sts->m_ass_context.m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Width(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Height());
+                ass_set_storage_size(rts->m_ass_context.m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
+                ass_set_frame_size(rts->m_ass_context.m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Width(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Height());
 
                 REFERENCE_TIME subtitleStart = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
                 REFERENCE_TIME subtitleStop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
 
                 int changed = 1;
-                ASS_Image *image = ass_render_frame(sts->m_ass_context.m_renderer.get(), sts->m_ass_context.m_track.get(), subtitleStart / 10000, &changed);
+                ASS_Image *image = ass_render_frame(rts->m_ass_context.m_renderer.get(), rts->m_ass_context.m_track.get(), subtitleStart / 10000, &changed);
                 if (!changed && m_last_frame) {
                     sub_render_frame = m_last_frame;
                 }
@@ -1401,7 +1401,8 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
                     m_last_frame = sub_render_frame;
                 }
 
-                sts->m_vsfilter_paused = true;
+                m_xy_bool_opt[BOOL_IS_MOVABLE] = (!rts) || ((rts->IsMovable()) && ((rts->IsSimple()) || (m_xy_bool_opt[BOOL_ALLOW_MOVING])));
+                rts->m_vsfilter_paused = true;
             }
             CAutoLock cAutoLock(&m_csConsumer);
             hr = m_consumer->DeliverFrame(start, stop, context, sub_render_frame);
