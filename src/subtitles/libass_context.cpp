@@ -52,6 +52,8 @@ bool ASS_Context::LoadASSFile(CString path)
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
 
+    ass_set_extract_fonts(m_ass.get(), 1);
+
     size_t bufsize = 0;
     FILE *fp = _wfopen(path.GetString(), L"rb");
     auto buf = read_file_bytes(fp, &bufsize);
@@ -76,6 +78,8 @@ bool ASS_Context::LoadASSTrack(char *data, int size)
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
     m_track = decltype(m_track)(ass_new_track(m_ass.get()));
+
+    ass_set_extract_fonts(m_ass.get(), 1);
 
     if (!m_track) return false;
 
