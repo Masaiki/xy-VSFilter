@@ -241,7 +241,7 @@ void SubFrame::Flatten(ASS_Image *image)
             {
                 auto dst = reinterpret_cast<uint8_t *>(m_pixels.get() + (i->dst_y + y - pixelsPoint.y) * pixelsSize.cx + (i->dst_x - pixelsPoint.x));
                 auto alpha = i->bitmap + y * i->stride;
-                packed_pix_mix_sse2(dst, alpha, i->w, (i->color >> 8) | (~(i->color) << 24));
+                packed_pix_mix_sse2(dst, alpha, i->w, (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000);
             }
         }
     }
