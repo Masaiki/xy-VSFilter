@@ -1013,7 +1013,8 @@ STDMETHODIMP XySubFilter::Count(DWORD* pcStreams)
     if(SUCCEEDED(get_LanguageCount(&nLangs)))
         (*pcStreams) += nLangs;
 
-    (*pcStreams) += 2; // enable disable force_default_style
+    if(nLangs > 0)
+        (*pcStreams) += 2; // enable disable force_default_style
 
     //fix me: support subtitle flipping
     //(*pcStreams) += 2; // normal flipped
