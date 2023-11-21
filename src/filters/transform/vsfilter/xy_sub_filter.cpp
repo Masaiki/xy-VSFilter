@@ -866,7 +866,18 @@ STDMETHODIMP XySubFilter::get_LanguageName(int iLanguage, WCHAR** ppName)
 
             if(i < pSubStream->GetStreamCount())
             {
-                pSubStream->GetStreamInfo(i, ppName, NULL);
+                WCHAR* subName;
+                pSubStream->GetStreamInfo(i, &subName, NULL);
+                CStringW name = subName;
+                CoTaskMemFree(subName);
+                name = name.Left(name.ReverseFind('.'));
+                name = name.ReverseFind('.') == -1 ? _T("und") : name.Mid(name.ReverseFind('.')+1);
+
+                *ppName = (WCHAR*)CoTaskMemAlloc((name.GetLength() + 1) * sizeof(WCHAR));
+                if (!(*ppName))
+                    return E_OUTOFMEMORY;
+                wcscpy(*ppName, name);
+
                 hr = NOERROR;
                 break;
             }
@@ -1132,38 +1143,75 @@ STDMETHODIMP XySubFilter::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFlag
 
     if(plcid) *plcid = 0;
 
-    if(pdwGroup)
+    bool under_mpc_hc = (theApp.m_AppName.MakeLower().Find(_T("mpc-hc"), 0) == 0);
+
+    CStringW suffix;
+
+    if(under_mpc_hc)
     {
-        *pdwGroup = GROUP_NUM_BASE;
-        if(i == -1)
-        {
-            *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_VISIBILITY_CMD;
-        }
-        else if(i >= 0 && i < nLangs)
+        if(pdwGroup) *pdwGroup = 2;
+
+        if(i >= 0 && i < nLangs)
         {
             bool isEmbedded = false;
             hr = GetIsEmbeddedSubStream(i, &isEmbedded);
             ASSERT(SUCCEEDED(hr));
             if(isEmbedded)
             {
-                *pdwGroup = GROUP_NUM_BASE & ~(FLAG_CMD | FLAG_EXTERNAL_SUB);
+                suffix = _T("[Embedded (MPC-HC)]");
             }
             else
             {
-                *pdwGroup = (GROUP_NUM_BASE & ~FLAG_CMD) | FLAG_EXTERNAL_SUB;
+                WCHAR* subName = NULL;
+                suffix = _T("[External]");
+                hr = GetSubStreamName(i, &subName);
+                if(FAILED(hr))
+                {
+                    CHECK_N_LOG(hr, "Failed to get option");
+                }
+                else
+                {
+                    suffix.Format(_T("%s %s"), suffix.GetString(), subName);
+                }
+                if(subName) CoTaskMemFree(subName);
             }
         }
-        else if(i == nLangs)
+    }
+    else 
+    {
+        if(pdwGroup)
         {
-            *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_VISIBILITY_CMD;
-        }
-        else if(i == nLangs+1)
-        {
-            *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_PICTURE_CMD;
-        }
-        else if(i == nLangs+2)
-        {
-            *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_PICTURE_CMD;
+            *pdwGroup = GROUP_NUM_BASE;
+            if(i == -1)
+            {
+                *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_VISIBILITY_CMD;
+            }
+            else if(i >= 0 && i < nLangs)
+            {
+                bool isEmbedded = false;
+                hr = GetIsEmbeddedSubStream(i, &isEmbedded);
+                ASSERT(SUCCEEDED(hr));
+                if(isEmbedded)
+                {
+                    *pdwGroup = GROUP_NUM_BASE & ~(FLAG_CMD | FLAG_EXTERNAL_SUB);
+                }
+                else
+                {
+                    *pdwGroup = (GROUP_NUM_BASE & ~FLAG_CMD) | FLAG_EXTERNAL_SUB;
+                }
+            }
+            else if(i == nLangs)
+            {
+                *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_VISIBILITY_CMD;
+            }
+            else if(i == nLangs+1)
+            {
+                *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_PICTURE_CMD;
+            }
+            else if(i == nLangs+2)
+            {
+                *pdwGroup = GROUP_NUM_BASE | FLAG_CMD | FLAG_PICTURE_CMD;
+            }
         }
     }
 
@@ -1175,8 +1223,15 @@ STDMETHODIMP XySubFilter::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFlag
         if(i == -1) str = ResStr(IDS_M_SHOWSUBTITLES);
         else if(i >= 0 && i < nLangs)
         {
-            hr = get_LanguageName(i, ppszName);
-            CHECK_N_LOG(hr, "Failed to get option");
+            if(under_mpc_hc)
+            {
+                str = suffix;
+            }
+            else 
+            {
+                hr = get_LanguageName(i, ppszName);
+                CHECK_N_LOG(hr, "Failed to get option");
+            }
         }
         else if(i == nLangs)
         {
@@ -2533,6 +2588,35 @@ HRESULT XySubFilter::GetIsEmbeddedSubStream( int iSelected, bool *fIsEmbedded )
         {
             hr = NOERROR;
             *fIsEmbedded = isEmbedded;
+            break;
+        }
+
+        i -= pSubStream->GetStreamCount();
+    }
+    return hr;
+}
+
+HRESULT XySubFilter::GetSubStreamName(int iSelected, WCHAR** ppName)
+{
+    CAutoLock cAutolock(&m_csFilter);
+
+    HRESULT hr = E_INVALIDARG;
+    if (!ppName)
+    {
+        return S_FALSE;
+    }
+
+    int i = iSelected;
+
+    POSITION pos = m_pSubStreams.GetHeadPosition();
+    POSITION pos2 = m_fIsSubStreamEmbeded.GetHeadPosition();
+    while (i >= 0 && pos)
+    {
+        CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+        if (i < pSubStream->GetStreamCount())
+        {
+            hr = NOERROR;
+            pSubStream->GetStreamInfo(i, ppName, NULL);
             break;
         }
 
