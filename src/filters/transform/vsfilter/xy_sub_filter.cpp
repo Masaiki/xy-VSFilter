@@ -1111,7 +1111,7 @@ STDMETHODIMP XySubFilter::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFlag
 
     int nLangs = 0;
     hr = get_LanguageCount(&nLangs);
-    CHECK_N_LOG(hr, "Failed to get option");
+    CHECK_N_LOG(hr, "Failed to get language count.");
 
     if(!(lIndex >= 0 && lIndex < nLangs+2 /* +2 fix me: support subtitle flipping */))
         return E_INVALIDARG;
@@ -1146,11 +1146,11 @@ STDMETHODIMP XySubFilter::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFlag
 
     bool under_mpc_hc = (theApp.m_AppName.MakeLower().Find(_T("mpc-hc"), 0) == 0);
 
-    CStringW suffix;
+    CStringW subStreamName;
 
     if(under_mpc_hc)
     {
-        if(pdwGroup) *pdwGroup = 2;
+        if(pdwGroup) *pdwGroup = FLAG_EXTERNAL_SUB;
 
         if(i >= 0 && i < nLangs)
         {
@@ -1159,20 +1159,20 @@ STDMETHODIMP XySubFilter::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFlag
             ASSERT(SUCCEEDED(hr));
             if(isEmbedded)
             {
-                suffix = _T("[Embedded (MPC-HC)]");
+                subStreamName = _T("[Embedded (MPC-HC)]");
             }
             else
             {
                 WCHAR* subName = NULL;
-                suffix = _T("[External]");
+                subStreamName = _T("[External]");
                 hr = GetSubStreamName(i, &subName);
                 if(FAILED(hr))
                 {
-                    CHECK_N_LOG(hr, "Failed to get option");
+                    CHECK_N_LOG(hr, "Failed to get substream name.");
                 }
                 else
                 {
-                    suffix.Format(_T("%s %s"), suffix.GetString(), subName);
+                    subStreamName.Format(_T("%s %s"), subStreamName.GetString(), subName);
                 }
                 if(subName) CoTaskMemFree(subName);
             }
@@ -1226,12 +1226,12 @@ STDMETHODIMP XySubFilter::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFlag
         {
             if(under_mpc_hc)
             {
-                str = suffix;
+                str = subStreamName;
             }
             else 
             {
                 hr = get_LanguageName(i, ppszName);
-                CHECK_N_LOG(hr, "Failed to get option");
+                CHECK_N_LOG(hr, "Failed to get language name.");
             }
         }
         else if(i == nLangs)
@@ -2610,7 +2610,6 @@ HRESULT XySubFilter::GetSubStreamName(int iSelected, WCHAR** ppName)
     int i = iSelected;
 
     POSITION pos = m_pSubStreams.GetHeadPosition();
-    POSITION pos2 = m_fIsSubStreamEmbeded.GetHeadPosition();
     while (i >= 0 && pos)
     {
         CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
