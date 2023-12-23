@@ -98,6 +98,7 @@ private:
     HRESULT CheckInputType(const CMediaType* pmt);
 
     HRESULT GetIsEmbeddedSubStream(int iSelected, bool *fIsEmbedded);
+    HRESULT GetSubStreamName(int iSelected, WCHAR** ppName);
 
     bool LoadExternalSubtitle(IFilterGraph* pGraph);
 

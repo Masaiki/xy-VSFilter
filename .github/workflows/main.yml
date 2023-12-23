@@ -19,7 +19,7 @@ jobs:
       - name: install nasm
         shell: cmd
         run: |
-          git clone https://github.com/ShiftMediaProject/VSNASM.git
+          git clone https://github.com/ShiftMediaProject/VSNASM.git --branch 0.9
           .\VSNASM\install_script.bat
       - name: install yasm
         shell: cmd
