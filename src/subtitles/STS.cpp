@@ -1972,7 +1972,6 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_eYCbCrRange          = YCbCrRange_AUTO;
     m_fForcedDefaultStyle  = false;
     m_defaultStyle.charSet = DEFAULT_CHARSET;
-    m_vsfilter_paused      = true;
     m_ass_context          = {};
 }
 

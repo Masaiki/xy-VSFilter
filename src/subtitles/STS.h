@@ -27,6 +27,7 @@
 #include "GFN.h"
 #include "libass_context.h"
 #include <unordered_map>
+#include "XySubRenderIntf.h"
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
 
@@ -298,11 +299,11 @@ public:
     IPin* m_pPin;
     IFilterGraph *m_pGraph;
     ASS_Context m_ass_context;
-    bool m_vsfilter_paused;
     std::unordered_map<int, int> read_order_to_event_index;
     CCritSec csSample;
     std::vector<CStringA> reserved_styles;
     std::vector<CStringA> styles_overrides;
+    CComPtr<IXySubRenderFrame> m_last_frame;
 };
 
 extern BYTE   CharSetList[];

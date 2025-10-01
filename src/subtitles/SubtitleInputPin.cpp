@@ -265,8 +265,8 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
                         m_pRTS->read_order_to_event_index[p_event->ReadOrder] = i;
                     }
                 }
+                return S_OK;
             }
-            if (m_pRTS->m_vsfilter_paused) return S_OK;
             CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
             if(!str.IsEmpty())
             {

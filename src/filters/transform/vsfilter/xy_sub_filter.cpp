@@ -1418,53 +1418,6 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
     HRESULT hr;
 
-    if (!m_xy_bool_opt[BOOL_VS_ASS_RENDERING]) {
-        do {
-            CComPtr<ISubRenderFrame> sub_render_frame;
-            {
-                CAutoLock cAutoLock(&m_csFilter);
-
-                CRenderedTextSubtitle* rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
-                if (!rts || !rts->m_ass_context.m_assloaded)
-                    break;
-
-                hr = UpdateParamFromConsumer();
-                if (FAILED(hr)) return hr;
-
-                ASSERT(m_consumer);
-
-                if (!rts->m_ass_context.m_assfontloaded) {
-                    rts->m_ass_context.LoadASSFont(rts->m_pPin, rts->m_pGraph);
-                    rts->m_ass_context.m_assfontloaded = true;
-                }
-
-                ass_set_storage_size(rts->m_ass_context.m_renderer.get(), m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cx, m_xy_size_opt[SIZE_ORIGINAL_VIDEO].cy);
-                ass_set_frame_size(rts->m_ass_context.m_renderer.get(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Width(), m_xy_rect_opt[RECT_SUBTITLE_TARGET].Height());
-
-                REFERENCE_TIME subtitleStart = (start - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
-                REFERENCE_TIME subtitleStop = (stop - 10000i64 * m_SubtitleDelay) * m_SubtitleSpeedMul / m_SubtitleSpeedDiv;
-
-                int changed = 1;
-                ASS_Image *image = ass_render_frame(rts->m_ass_context.m_renderer.get(), rts->m_ass_context.m_track.get(), subtitleStart / 10000, &changed);
-                if (!changed && m_last_frame) {
-                    sub_render_frame = m_last_frame;
-                }
-                else
-                {
-                    m_consumerLastId++;
-                    sub_render_frame = new SubFrame(m_xy_rect_opt[RECT_SUBTITLE_TARGET], m_consumerLastId, image);
-                    m_last_frame = sub_render_frame;
-                }
-
-                m_xy_bool_opt[BOOL_IS_MOVABLE] = (!rts) || ((rts->IsMovable()) && ((rts->IsSimple()) || (m_xy_bool_opt[BOOL_ALLOW_MOVING])));
-                rts->m_vsfilter_paused = true;
-            }
-            CAutoLock cAutoLock(&m_csConsumer);
-            hr = m_consumer->DeliverFrame(start, stop, context, sub_render_frame);
-            return hr;
-        } while (0);
-    }
-
     CComPtr<IXySubRenderFrame> sub_render_frame;
     {
         CAutoLock cAutoLock(&m_csFilter);
@@ -1525,7 +1478,6 @@ STDMETHODIMP XySubFilter::RequestFrame( REFERENCE_TIME start, REFERENCE_TIME sto
 
             CRenderedTextSubtitle * rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
             m_xy_bool_opt[BOOL_IS_MOVABLE] = (!rts) || ((rts->IsMovable()) && ((rts->IsSimple()) || (m_xy_bool_opt[BOOL_ALLOW_MOVING])));
-            if (rts) rts->m_vsfilter_paused = false;
         }
     }
     CAutoLock cAutoLock(&m_csConsumer);
@@ -2096,7 +2048,6 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
             playres = pRTS->m_dstScreenSize;
             m_xy_bool_opt[BOOL_IS_BITMAP] = false;
             m_xy_bool_opt[BOOL_IS_MOVABLE] = ((pRTS->IsMovable()) && ((pRTS->IsSimple()) || (m_xy_bool_opt[BOOL_ALLOW_MOVING])));
-            m_last_frame = nullptr;
         }
         else if(clsid == __uuidof(HdmvSubtitleProvider) || clsid == __uuidof(SupFileSubtitleProvider))
         {

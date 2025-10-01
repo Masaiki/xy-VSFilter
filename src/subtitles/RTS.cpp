@@ -28,6 +28,7 @@
 #include "subpixel_position_controler.h"
 #include "xy_overlay_paint_machine.h"
 #include "xy_clipper_paint_machine.h"
+#include "../subpic/color_conv_table.h"
 
 #if ENABLE_XY_LOG_TEXT_PARSER
 #  define TRACE_PARSER(msg) XY_LOG_TRACE(msg)
@@ -3046,6 +3047,9 @@ STDMETHODIMP CRenderedTextSubtitle::NonDelegatingQueryInterface(REFIID riid, voi
 STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetStartPosition(REFERENCE_TIME rt, double fps)
 {
     m_fps = fps;
+	if (m_ass_context.m_assloaded) {
+		return (POSITION)rt;
+	}
 
     int iSegment;
     rt /= 10000i64;
@@ -3059,6 +3063,10 @@ STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetStartPosition(REFERENCE_TIME r
 
 STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetNext(POSITION pos)
 {
+	if (m_ass_context.m_assloaded) {
+		REFERENCE_TIME rt = (REFERENCE_TIME)pos;
+		return (POSITION)(rt + 1);
+	}
     int iSegment = (int)pos;
     const STSSegment *stss = GetSegment(iSegment);
     while(stss && stss->subs.GetCount() == 0) {
@@ -3070,17 +3078,31 @@ STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetNext(POSITION pos)
 
 STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStart(POSITION pos, double fps)
 {
+	if (m_ass_context.m_assloaded) {
+		REFERENCE_TIME rt = (REFERENCE_TIME)pos;
+		return rt;
+	}
     return(10000i64 * TranslateSegmentStart((int)pos-1, fps));
 }
 
 STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStop(POSITION pos, double fps)
 {
+	if (m_ass_context.m_assloaded) {
+		REFERENCE_TIME rt = (REFERENCE_TIME)pos;
+		return rt + 1;
+	}
 	return(10000i64 * TranslateSegmentEnd((int)pos-1, fps));
 }
 
 //@start, @stop: -1 if segment not found; @stop may < @start if subIndex exceed uppper bound
 STDMETHODIMP_(VOID) CRenderedTextSubtitle::GetStartStop(POSITION pos, double fps, /*out*/REFERENCE_TIME &start, /*out*/REFERENCE_TIME &stop)
 {
+	if (m_ass_context.m_assloaded) {
+		REFERENCE_TIME rt = (REFERENCE_TIME)pos;
+		start = rt;
+		stop = rt + 1;
+		return;
+	}
     int iSegment = (int)pos-1;
     int tempStart, tempEnd;
     TranslateSegmentStartEnd(iSegment, fps, tempStart, tempEnd);
@@ -3090,6 +3112,9 @@ STDMETHODIMP_(VOID) CRenderedTextSubtitle::GetStartStop(POSITION pos, double fps
 
 STDMETHODIMP_(bool) CRenderedTextSubtitle::IsAnimated(POSITION pos)
 {
+    if (m_ass_context.m_assloaded) {
+        return true;
+    }
     unsigned int iSegment = (int)pos-1;
     if(iSegment<m_segments.GetCount())
         return m_segments[iSegment].animated;
@@ -3335,6 +3360,8 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx(SubPicDesc& spd, REFERENCE_TIME rt,
     return (!rectList.IsEmpty()) ? S_OK : S_FALSE;
 }
 
+#define div_255_fast_v2(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
+
 STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame, int spd_type,
     const RECT& video_rect, const RECT& subtitle_target_rect,
     const SIZE& original_video_size,
@@ -3402,6 +3429,114 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 
         render_frame_creater->SetOutputRect(cvideo_rect);
         render_frame_creater->SetClipRect(subtitle_target_rect);
+    }
+
+    if (m_ass_context.m_assloaded) {
+        if (!m_ass_context.m_assfontloaded) {
+            m_ass_context.LoadASSFont(m_pPin, m_pGraph);
+            m_ass_context.m_assfontloaded = true;
+        }
+
+        ass_set_storage_size(m_ass_context.m_renderer.get(), original_video_size.cx, original_video_size.cy);
+        ass_set_frame_size(m_ass_context.m_renderer.get(), subtitle_target_rect.right-subtitle_target_rect.left, subtitle_target_rect.bottom-subtitle_target_rect.top);
+
+        int changed = 0;
+        ASS_Image *img = ass_render_frame(m_ass_context.m_renderer.get(), m_ass_context.m_track.get(), rt / 10000, &changed);
+
+        if (!changed && m_last_frame) {
+            (*subRenderFrame = m_last_frame)->AddRef();
+            return S_OK;
+        }
+
+        RECT clip_rect = {};
+        for (auto i = img; i != nullptr; i = i->next)
+        {
+            RECT rect1 = clip_rect;
+            RECT rect2 = { i->dst_x, i->dst_y, i->dst_x + i->w, i->dst_y + i->h };
+            UnionRect(&clip_rect, &rect1, &rect2);
+        }
+
+		auto rect_width = clip_rect.right - clip_rect.left;
+		auto rect_height = clip_rect.bottom - clip_rect.top;
+        if (color_space == XY_CS_AYUV_PLANAR) {
+            if (clip_rect.left & 1) {
+                --clip_rect.left;
+                ++rect_width;
+            }
+            if (clip_rect.top & 1) {
+                --clip_rect.top;
+                ++rect_height;
+            }
+        }
+		clip_rect = RECT{ clip_rect.left, clip_rect.top, clip_rect.left + (rect_width + (rect_width & 1)),  clip_rect.top + (rect_height + (rect_height & 1)) };
+
+        XySubRenderFrameCreater *render_frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
+        XySubRenderFrame *sub_render_frame = render_frame_creater->NewXySubRenderFrame(1);
+        XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(clip_rect);
+        sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
+		sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
+
+        switch (color_space)
+        {
+        case XY_CS_ARGB_F:
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+            for (auto i = img; i != nullptr; i = i->next) {
+                uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                uint8_t *imageColorPtr = reinterpret_cast<uint8_t *>(&argb);
+                const uint8_t &imageColorA = *(imageColorPtr + 3), &imageColorR = *(imageColorPtr + 2), &imageColorG = *(imageColorPtr + 1), &imageColorB = *(imageColorPtr);
+
+                for (int y = 0; y < i->h; ++y)
+                {
+                    for (int x = 0; x < i->w; ++x)
+                    {
+                        uint8_t *destPtr = reinterpret_cast<uint8_t *>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x + x - clip_rect.left) * 4);
+                        uint8_t &destA = *(destPtr + 3), &destR = *(destPtr + 2), &destG = *(destPtr + 1), &destB = *(destPtr);
+
+                        uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * imageColorA);
+                        uint8_t compA = ~srcA;
+
+                        destA = srcA + div_255_fast_v2(destA * compA);
+                        destR = div_255_fast_v2(imageColorR * srcA + destR * compA);
+                        destG = div_255_fast_v2(imageColorG * srcA + destG * compA);
+                        destB = div_255_fast_v2(imageColorB * srcA + destB * compA);
+                    }
+                }
+            }
+            break;
+        case XY_CS_AYUV_PLANAR:
+            for (auto i = img; i != nullptr; i = i->next) {
+                uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                uint32_t ayuv = ColorConvTable::Argb2Ayuv(argb);
+                uint8_t *imageColorPtr = reinterpret_cast<uint8_t *>(&ayuv);
+                const uint8_t &imageColorA = *(imageColorPtr + 3), &imageColorY = *(imageColorPtr + 2), &imageColorU = *(imageColorPtr + 1), &imageColorV = *(imageColorPtr + 0);
+
+                for (int y = 0; y < i->h; ++y)
+                {
+                    for (int x = 0; x < i->w; ++x)
+                    {
+                        int offset = (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x + x - clip_rect.left);
+                        uint8_t &destA = *(tmp->plans[0] + offset), &destY = *(tmp->plans[1] + offset), &destU = *(tmp->plans[2] + offset), &destV = *(tmp->plans[3] + offset);
+
+                        uint8_t srcA = div_255_fast_v2(i->bitmap[y * i->stride + x] * imageColorA);
+                        uint8_t compA = ~srcA;
+
+                        destA = (srcA + div_255_fast_v2((destA ^ 0xFF) * compA)) ^ 0xFF;
+                        destY = div_255_fast_v2(imageColorY * srcA + destY * compA);
+                        destU = div_255_fast_v2(imageColorU * srcA + destU * compA);
+                        destV = div_255_fast_v2(imageColorV * srcA + destV * compA);
+                    }
+                }
+            }
+            break;
+        case XY_CS_ARGB:
+        case XY_CS_AYUV:
+        case XY_CS_AUYV:
+            break;
+        }
+		m_last_frame = sub_render_frame;
+        (*subRenderFrame = sub_render_frame)->AddRef();
+
+        return S_OK;
     }
 
     TRACE_RENDERER_REQUEST("Begin ParseScript");
