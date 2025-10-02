@@ -3458,7 +3458,11 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 
 		auto rect_width = clip_rect.right - clip_rect.left;
 		auto rect_height = clip_rect.bottom - clip_rect.top;
-        if (color_space == XY_CS_AYUV_PLANAR) {
+        switch (color_space)
+        {
+        case XY_CS_AYUV_PLANAR:
+        case XY_CS_AYUV:
+        case XY_CS_AUYV:
             if (clip_rect.left & 1) {
                 --clip_rect.left;
                 ++rect_width;
@@ -3467,6 +3471,10 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
                 --clip_rect.top;
                 ++rect_height;
             }
+            break;
+        case XY_CS_ARGB_F:
+        case XY_CS_ARGB:
+            break;
         }
 		clip_rect = RECT{ clip_rect.left, clip_rect.top, clip_rect.left + (rect_width + (rect_width & 1)),  clip_rect.top + (rect_height + (rect_height & 1)) };
 
@@ -3474,7 +3482,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         XySubRenderFrame *sub_render_frame = render_frame_creater->NewXySubRenderFrame(1);
         XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(clip_rect);
         sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
-		sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
+        sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
 
         switch (color_space)
         {
