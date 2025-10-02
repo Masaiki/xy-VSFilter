@@ -601,14 +601,14 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
         break;
     case BOOL_VS_ASS_RENDERING:
         for(int i = 0; i < m_pSubtitleInputPin.GetCount(); i++)
-            m_pSubtitleInputPin[i]->m_load_with_libass = false;
+            m_pSubtitleInputPin[i]->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
         POSITION pos = m_pSubStreams.GetHeadPosition();
         while(pos)
         {
             CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
             auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
             if (rts) {
-                rts->m_load_with_libass = false;
+                rts->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
             }
         }
         break;
