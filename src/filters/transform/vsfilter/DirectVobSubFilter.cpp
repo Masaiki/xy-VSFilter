@@ -97,9 +97,18 @@ CDirectVobSubFilter::CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUI
     m_tbid.graph = NULL;
     m_tbid.fRunOnce = false;
     m_tbid.fShowIcon = (theApp.m_AppName.Find(_T("zplayer"), 0) < 0 || m_xy_bool_opt[BOOL_ENABLE_ZP_ICON]);
+    m_tbid.use_legacy_vsfilter = [&](bool trigger) mutable {
+        bool& use_legacy_vsfilter = m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+        if (trigger) {
+            XySetBool(BOOL_VS_ASS_RENDERING, !use_legacy_vsfilter);
+        }
+        return use_legacy_vsfilter;
+    };
 
     HRESULT hr = S_OK;
-    m_pTextInput.Add(new CTextInputPin(this, m_pLock, &m_csSubLock, &hr));
+    auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
+    pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+    m_pTextInput.Add(pin);
     ASSERT(SUCCEEDED(hr));
 
     m_frd.ThreadStartedEvent.Create(0, FALSE, FALSE, 0);
@@ -1547,6 +1556,7 @@ bool CDirectVobSubFilter::Open()
 //            CAutoTiming t(TEXT("CRenderedTextSubtitle::Open"), 0);
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(new CRenderedTextSubtitle(&m_csSubLock));
+            pRTS && (pRTS->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING]);
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
                 pSubStream = pRTS.Detach();
@@ -1838,7 +1848,9 @@ void CDirectVobSubFilter::AddSubStream(ISubStream* pSubStream)
 	if(len == 0)
 	{
 		HRESULT hr = S_OK;
-		m_pTextInput.Add(new CTextInputPin(this, m_pLock, &m_csSubLock, &hr));
+        auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
+        pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+		m_pTextInput.Add(pin);
 	}
 }
 
@@ -2236,6 +2248,19 @@ HRESULT CDirectVobSubFilter::OnOptionChanged( unsigned field )
     case BIN2_TEXT_SETTINGS:
     case BIN2_SUBTITLE_TIMING:
         InvalidateSubtitle();
+        break;
+    case BOOL_VS_ASS_RENDERING:
+        for(int i = 0; i < m_pTextInput.GetCount(); i++)
+            m_pTextInput[i]->m_load_with_libass = false;
+        POSITION pos = m_pSubStreams.GetHeadPosition();
+        while(pos)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+            if (rts) {
+                rts->m_load_with_libass = false;
+            }
+        }
         break;
     }
 

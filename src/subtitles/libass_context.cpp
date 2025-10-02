@@ -45,7 +45,6 @@ static const char *detect_bom(const char *buf, const size_t bufsize) {
 bool ASS_Context::LoadASSFile(CString path)
 {
     UnloadASS();
-    m_assfontloaded = false;
 
     if (path.IsEmpty()) return false;
 
@@ -73,7 +72,6 @@ bool ASS_Context::LoadASSFile(CString path)
 bool ASS_Context::LoadASSTrack(char *data, int size)
 {
     UnloadASS();
-    m_assfontloaded = false;
 
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
@@ -94,6 +92,7 @@ bool ASS_Context::LoadASSTrack(char *data, int size)
 void ASS_Context::UnloadASS()
 {
     m_assloaded = false;
+    m_assfontloaded = false;
     if (m_track) m_track.reset();
     if (m_renderer) m_renderer.reset();
     if (m_ass) m_ass.reset();

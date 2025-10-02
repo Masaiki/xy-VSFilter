@@ -82,4 +82,6 @@ public:
     STDMETHODIMP EndOfStream(void);
 
     ISubStream* GetSubStream();
+    
+    bool m_load_with_libass;
 };

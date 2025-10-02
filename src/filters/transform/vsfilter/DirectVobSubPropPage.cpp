@@ -981,6 +981,8 @@ CDVSBasePPage(NAME("DirectVobSub More Property Page"), pUnk, IDD_DVSMOREPAGE, ID
     BindControl(IDC_COMBO_LAYOUT_SIZE_OPT, m_combo_layout_size_opt);
     BindControl(IDC_SPIN_LAYOUT_SIZE_X, m_layout_size_x);
     BindControl(IDC_SPIN_LAYOUT_SIZE_Y, m_layout_size_y);
+
+    BindControl(IDC_CHECKBOX_VS_ASS_RENDERING, m_vsassrendering);
 }
 
 bool CDVSMorePPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -1075,6 +1077,9 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSubXy->XySetSize(DirectVobSubXyOptions::SIZE_USER_SPECIFIED_LAYOUT_SIZE, m_layout_size);
         CHECK_N_LOG(hr, "Failed to set option");
+
+        hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, m_fVSAssRendering);
+        CHECK_N_LOG(hr, "Failed to set option");
     }
     else
     {
@@ -1092,6 +1097,9 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
         hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_LAYOUT_SIZE_OPT, &m_layout_size_opt);
         CHECK_N_LOG(hr, "Failed to get option");
         hr = m_pDirectVobSubXy->XyGetSize(DirectVobSubXyOptions::SIZE_USER_SPECIFIED_LAYOUT_SIZE, &m_layout_size);
+        CHECK_N_LOG(hr, "Failed to get option");
+
+        hr = m_pDirectVobSubXy->XyGetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, &m_fVSAssRendering);
         CHECK_N_LOG(hr, "Failed to get option");
     }
 }
@@ -1124,6 +1132,8 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
         }
         m_layout_size.cx = m_layout_size_x.GetPos32();
         m_layout_size.cy = m_layout_size_y.GetPos32();
+
+        m_fVSAssRendering = !!m_vsassrendering.GetCheck();
     }
     else
     {
@@ -1179,6 +1189,8 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
         m_layout_size_x.SetPos32(m_layout_size.cx);
         m_layout_size_y.SetRange32(1, 12800);
         m_layout_size_y.SetPos32(m_layout_size.cy);
+
+        m_vsassrendering.SetCheck(m_fVSAssRendering);
     }
 }
 

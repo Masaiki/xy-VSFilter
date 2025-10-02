@@ -1973,6 +1973,7 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_fForcedDefaultStyle  = false;
     m_defaultStyle.charSet = DEFAULT_CHARSET;
     m_ass_context          = {};
+    m_load_with_libass     = false;
 }
 
 CSimpleTextSubtitle::~CSimpleTextSubtitle()
@@ -2727,7 +2728,7 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
     }
 
     const wchar_t *ext = PathFindExtensionW(fn);
-    if (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0 || name == _T("CSRI memory subtitles"))
+    if (m_load_with_libass && (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0 || name == _T("CSRI memory subtitles")))
     {
         m_ass_context.LoadASSFile(f.GetFilePath());
     }

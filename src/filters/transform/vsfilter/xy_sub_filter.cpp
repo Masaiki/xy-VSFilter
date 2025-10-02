@@ -234,7 +234,9 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     m_video_yuv_matrix_decided_by_sub = ColorConvTable::NONE;
     m_video_yuv_range_decided_by_sub = ColorConvTable::RANGE_NONE;
 
-    m_pSubtitleInputPin.Add(DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, phr));
+    auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, phr);
+    pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+    m_pSubtitleInputPin.Add(pin);
     ASSERT(SUCCEEDED(*phr));
     if(phr && FAILED(*phr)) return;
 
@@ -246,7 +248,7 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     m_tbid.use_legacy_vsfilter = [&](bool trigger) mutable {
         bool &use_legacy_vsfilter = m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
         if (trigger) {
-            use_legacy_vsfilter = !use_legacy_vsfilter;
+            XySetBool(BOOL_VS_ASS_RENDERING, !use_legacy_vsfilter);
         }
         return use_legacy_vsfilter;
     };
@@ -596,6 +598,19 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
     case BIN2_CUR_STYLES:
         UpdateSubtitle(false);
         m_context_id++;
+        break;
+    case BOOL_VS_ASS_RENDERING:
+        for(int i = 0; i < m_pSubtitleInputPin.GetCount(); i++)
+            m_pSubtitleInputPin[i]->m_load_with_libass = false;
+        POSITION pos = m_pSubStreams.GetHeadPosition();
+        while(pos)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+            if (rts) {
+                rts->m_load_with_libass = false;
+            }
+        }
         break;
     }
 
@@ -1863,6 +1878,7 @@ bool XySubFilter::Open()
             //            CAutoTiming t(TEXT("CRenderedTextSubtitle::Open"), 0);
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
+            pRTS && (pRTS->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING]);
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
                 pSubStream = pRTS.Detach();
@@ -2479,7 +2495,9 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
     if(len == 0)
     {
         HRESULT hr = S_OK;
-        m_pSubtitleInputPin.Add(DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, &hr));
+        auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, &hr);
+        pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+        m_pSubtitleInputPin.Add(pin);
     }
     UpdateSubtitle(false);
 }
