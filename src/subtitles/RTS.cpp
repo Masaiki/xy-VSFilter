@@ -3802,7 +3802,35 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             break;
         case XY_CS_AYUV:
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+            for (auto i = img; i != nullptr; i = i->next) {
+                uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                uint32_t ayuv = ColorConvTable::Argb2Ayuv(argb);
+                for (int y = 0; y < i->h; ++y)
+                {
+                    auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
+                    auto alpha = i->bitmap + y * i->stride;
+                    packed_pix_mix_sse2(dst, alpha, i->w, ayuv);
+                }
+            }
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+            break;
         case XY_CS_AUYV:
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+            for (auto i = img; i != nullptr; i = i->next) {
+                uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                uint32_t ayuv = ColorConvTable::Argb2Ayuv(argb);
+#define AYUV_2_AUYV(ayuv) ((ayuv&0xff00)<<8)|((ayuv&0xff0000)>>8)|(ayuv&0xff0000ff)
+				uint32_t auyv = AYUV_2_AUYV(ayuv);
+#undef AYUV_2_AUYV
+                for (int y = 0; y < i->h; ++y)
+                {
+                    auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
+                    auto alpha = i->bitmap + y * i->stride;
+                    packed_pix_mix_sse2(dst, alpha, i->w, auyv);
+                }
+            }
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             break;
         }
         m_last_frame = sub_render_frame;
