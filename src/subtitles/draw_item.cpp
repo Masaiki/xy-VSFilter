@@ -544,8 +544,6 @@ void GroupedDrawItems::Draw( SharedPtrXyBitmap *bitmap, int *bitmap_identity_num
         XyColorSpace color_space;
         HRESULT hr = XySubRenderFrameCreater::GetDefaultCreater()->GetColorSpace(&color_space);
         ASSERT(SUCCEEDED(hr));
-        if (color_space==XY_CS_ARGB_F)
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
 #ifdef XY_DBG_SHOW_BITMAP_BOX_IN_COLOR
         if (color_space==XY_CS_ARGB_F||color_space==XY_CS_ARGB)//not support plannar format yet
         {

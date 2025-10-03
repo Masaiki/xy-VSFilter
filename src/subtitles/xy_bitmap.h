@@ -27,7 +27,7 @@ public:
     }
     ~XyBitmap();
 
-    static XyBitmap *CreateBitmap(const CRect& target_rect, MemLayout layout);
+    static XyBitmap *CreateBitmap(const CRect& target_rect, MemLayout layout, bool alpha_flipped = true);
 
     static void FlipAlphaValue( LPVOID pixels, int w, int h, int pitch );
     static void AlphaBltPack(SubPicDesc& spd, POINT pos, SIZE size, LPCVOID pixels, int pitch);
@@ -35,7 +35,7 @@ public:
 
     static void BltPack( SubPicDesc& spd, POINT pos, SIZE size, LPCVOID pixels, int pitch );
 private:
-    static void ClearBitmap(XyBitmap *bitmap);
+    static void ClearBitmap(XyBitmap *bitmap, bool alpha_flipped = true);
 };
 
 class XySubRenderFrame: public CUnknown, public IXySubRenderFrame

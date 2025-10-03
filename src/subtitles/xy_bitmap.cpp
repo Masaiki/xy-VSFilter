@@ -40,7 +40,7 @@ XyBitmap::~XyBitmap()
     xy_free(bits);
 }
 
-XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout )
+XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout, bool alpha_flipped )
 {
     XyBitmap *result = DEBUG_NEW XyBitmap();
     if (result==NULL)
@@ -75,17 +75,17 @@ XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout )
         result->bits = NULL;
         break;
     }
-    ClearBitmap(result);
+    ClearBitmap(result, alpha_flipped);
     return result;
 }
 
-void XyBitmap::ClearBitmap( XyBitmap *bitmap )
+void XyBitmap::ClearBitmap( XyBitmap *bitmap, bool alpha_flipped)
 {
     if (!bitmap)
         return;
     if (bitmap->type==XyBitmap::PLANNA)
     {
-        memset(bitmap->plans[0], 0xFF, bitmap->h * bitmap->pitch);
+        memset(bitmap->plans[0], alpha_flipped ? 0xFF : 0x00, bitmap->h * bitmap->pitch);
         memset(bitmap->plans[1], 0, bitmap->h * bitmap->pitch * 3);//assuming the other 2 plans lied right after plan 1
     }
     else
@@ -93,7 +93,7 @@ void XyBitmap::ClearBitmap( XyBitmap *bitmap )
         BYTE * p = bitmap->plans[0];
         for (int i=0;i<bitmap->h;i++, p+=bitmap->pitch)
         {
-            memsetd(p, 0xFF000000, bitmap->w*4);
+            memsetd(p, alpha_flipped ? 0xFF000000 : 0x00000000, bitmap->w*4);
         }        
     }
 }
@@ -477,7 +477,7 @@ XySubRenderFrame* XySubRenderFrameCreater::NewXySubRenderFrame( UINT bitmap_coun
 
 XyBitmap* XySubRenderFrameCreater::CreateBitmap( const RECT& target_rect )
 {
-    return XyBitmap::CreateBitmap(target_rect, m_bitmap_layout);
+    return XyBitmap::CreateBitmap(target_rect, m_bitmap_layout, m_xy_color_space != XY_CS_ARGB_F);
 }
 
 DWORD XySubRenderFrameCreater::TransColor( DWORD argb )

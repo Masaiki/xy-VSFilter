@@ -3757,7 +3757,6 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         switch (color_space)
         {
         case XY_CS_ARGB_F:
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
                 for (int y = 0; y < i->h; ++y)
@@ -3788,6 +3787,18 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             }
             break;
         case XY_CS_ARGB:
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+            for (auto i = img; i != nullptr; i = i->next) {
+                uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                for (int y = 0; y < i->h; ++y)
+                {
+                    auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
+                    auto alpha = i->bitmap + y * i->stride;
+                    packed_pix_mix_sse2(dst, alpha, i->w, argb);
+                }
+            }
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+            break;
         case XY_CS_AYUV:
         case XY_CS_AUYV:
             break;
