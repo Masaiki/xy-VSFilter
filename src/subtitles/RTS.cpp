@@ -3720,6 +3720,14 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             return S_OK;
         }
 
+        if (!img) {
+            XySubRenderFrame* sub_render_frame = render_frame_creater->NewXySubRenderFrame(0);
+            m_last_frame = sub_render_frame;
+            (*subRenderFrame = sub_render_frame)->AddRef();
+
+            return S_OK;
+        }
+
         RECT clip_rect = {};
         for (auto i = img; i != nullptr; i = i->next)
         {
