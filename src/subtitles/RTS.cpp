@@ -3360,6 +3360,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx(SubPicDesc& spd, REFERENCE_TIME rt,
     return (!rectList.IsEmpty()) ? S_OK : S_FALSE;
 }
 
+#define div_255_fast_v2(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
 static __forceinline void ayuv_planar_mix_c(
     BYTE *dst_a,
     BYTE *dst_y,
@@ -3378,15 +3379,16 @@ static __forceinline void ayuv_planar_mix_c(
     {
         uint8_t &destA = *(dst_a + x), &destY = *(dst_y + x), &destU = *(dst_u + x), &destV = *(dst_v + x);
 
-        const int srcA = ((alpha[x] + 1) * colorA) >> 8;
-        const int compA = 0x100 - srcA;
+        uint8_t srcA = div_255_fast_v2(alpha[x] * colorA);
+        uint8_t compA = ~srcA;
 
-        destA = (srcA + (((destA ^ 0xFF) * compA + 0x80) >> 8)) ^ 0xFF;
-        destY = (colorY * srcA + destY * compA + 0x80) >> 8;
-        destU = (colorU * srcA + destU * compA + 0x80) >> 8;
-        destV = (colorV * srcA + destV * compA + 0x80) >> 8;
+        destA = (srcA + div_255_fast_v2((destA ^ 0xFF) * compA)) ^ 0xFF;
+        destY = div_255_fast_v2(colorY * srcA + destY * compA);
+        destU = div_255_fast_v2(colorU * srcA + destU * compA);
+        destV = div_255_fast_v2(colorV * srcA + destV * compA);
     }
 }
+#undef div_255_fast_v2
 
 #include <emmintrin.h>
 
