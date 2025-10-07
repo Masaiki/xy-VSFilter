@@ -3767,6 +3767,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         switch (color_space)
         {
         case XY_CS_ARGB_F:
+            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
                 for (int y = 0; y < i->h; ++y)
