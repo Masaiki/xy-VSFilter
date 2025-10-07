@@ -111,6 +111,8 @@ private:
 
     CStringW DumpProviderInfo();
     CStringW DumpConsumerInfo();
+    
+    HRESULT ConfigureCsriRenderer(const CStringW& path);
 private:
     class CFileReloaderData
     {
@@ -161,6 +163,9 @@ private:
     bool m_workaround_mpc_hc;//enable workaround for MPC-HC to prevent be removed from the graph
 
     bool m_disconnect_entered;
+
+    std::shared_ptr<CSRI_Loader> m_csri_loader;
+    CStringW m_loaded_csri_lib_path;
 
     CStringW m_filter_info_string;
 

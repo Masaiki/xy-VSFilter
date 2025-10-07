@@ -3703,6 +3703,46 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         render_frame_creater->SetClipRect(subtitle_target_rect);
     }
 
+	if (true && m_csri_context.m_loader && m_csri_context.m_loader->is_loaded() && m_csri_context.m_csri_loaded && (color_space == XY_CS_ARGB || XY_CS_ARGB_F)) {
+		csri_fmt fmt = {
+			CSRI_F_BGR_,
+			subtitle_target_rect.right - subtitle_target_rect.left,
+			subtitle_target_rect.bottom - subtitle_target_rect.top,
+		};
+		m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt);
+		auto xy_sub_render_frame = XySubRenderFrameCreater::GetDefaultCreater()->NewXySubRenderFrame(1);
+		XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(subtitle_target_rect);
+		xy_sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
+		xy_sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
+		csri_frame frame = {
+			fmt.pixfmt,
+			{
+				tmp->plans[0],
+				nullptr,
+				nullptr,
+				nullptr,
+			},
+			{
+				tmp->pitch,
+				0,
+				0,
+				0,
+			},
+		};
+		switch (color_space)
+		{
+		case XY_CS_ARGB:
+			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+			break;
+		case XY_CS_ARGB_F:
+			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+			XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+			break;
+		}
+		(*subRenderFrame = xy_sub_render_frame)->AddRef();
+		return S_OK;
+	}
+
     if (m_load_with_libass && m_ass_context.m_assloaded) {
         if (!m_ass_context.m_assfontloaded) {
             m_ass_context.LoadASSFont(m_pPin, m_pGraph);

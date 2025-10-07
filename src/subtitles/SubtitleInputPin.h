@@ -22,6 +22,7 @@
 #pragma once
 
 #include "..\subpic\ISubPic.h"
+#include "csri_loader.h"
 
 //
 // CSubtitleInputPinHelper
@@ -84,4 +85,5 @@ public:
     ISubStream* GetSubStream();
     
     bool m_load_with_libass;
+    std::shared_ptr<CSRI_Loader> m_csri_loader;
 };

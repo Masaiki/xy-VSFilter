@@ -108,6 +108,12 @@
     <ClCompile Include="libass_context.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="csri_loader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="csri_context.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CCDecoder.h">
@@ -213,6 +219,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="libass_context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="csri_loader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="csri_context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sk_csri_ext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

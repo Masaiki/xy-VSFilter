@@ -234,8 +234,12 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     m_video_yuv_matrix_decided_by_sub = ColorConvTable::NONE;
     m_video_yuv_range_decided_by_sub = ColorConvTable::RANGE_NONE;
 
+    m_csri_loader = std::make_shared<CSRI_Loader>();
+    ConfigureCsriRenderer(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
+
     auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, phr);
     pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+    pin->m_csri_loader = m_csri_loader;
     m_pSubtitleInputPin.Add(pin);
     ASSERT(SUCCEEDED(*phr));
     if(phr && FAILED(*phr)) return;
@@ -290,6 +294,8 @@ XySubFilter::~XySubFilter()
 
     m_sub_provider = NULL;
     ::DeleteSystray(&m_hSystrayThread, &m_tbid);
+    m_csri_loader->unload();
+
     _ASSERTE(_CrtCheckMemory());
 }
 
@@ -519,6 +525,17 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
             }
         }
         m_context_id++;
+        break;
+    case STRING_CSRI_LIB_PATH:
+        ConfigureCsriRenderer(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
+        for (POSITION pos = m_pSubStreams.GetHeadPosition(); pos;)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle *>(pSubStream.p);
+            if (rts) {
+                rts->m_csri_context.csri_unload();
+            }
+        }
         break;
     case BOOL_OVERRIDE_PLACEMENT:
     case SIZE_PLACEMENT_PERC:
@@ -1879,6 +1896,7 @@ bool XySubFilter::Open()
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
             pRTS && (pRTS->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING]);
+            pRTS && (pRTS->m_csri_context.m_loader = m_csri_loader);
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
                 pSubStream = pRTS.Detach();
@@ -2497,6 +2515,7 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
         HRESULT hr = S_OK;
         auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, &hr);
         pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+        pin->m_csri_loader = m_csri_loader;
         m_pSubtitleInputPin.Add(pin);
     }
     UpdateSubtitle(false);
@@ -2901,4 +2920,35 @@ CStringW XySubFilter::DumpConsumerInfo()
         m_xy_str_opt[STRING_CONNECTED_CONSUMER], m_xy_str_opt[STRING_CONSUMER_VERSION],
         m_xy_str_opt[STRING_CONSUMER_YUV_MATRIX], m_xy_int_opt[INT_CONSUMER_SUPPORTED_LEVELS]);
     return strTemp;
+}
+
+HRESULT XySubFilter::ConfigureCsriRenderer(const CStringW& path)
+{
+    CAutoLock cAutolock(&m_csFilter);
+
+    if (!m_csri_loader) {
+        return E_FAIL;
+    }
+
+    CStringW normalized(path);
+    normalized.Trim();
+
+    if (normalized.CompareNoCase(m_loaded_csri_lib_path) == 0) {
+        return S_OK;
+    }
+
+    if (normalized.IsEmpty()) {
+        XY_LOG_INFO(L"CSRI renderer unloaded (previous: " << m_loaded_csri_lib_path.GetString() << L")");
+        m_csri_loader->unload();
+        m_loaded_csri_lib_path.Empty();
+        return S_OK;
+    }
+
+    if (m_csri_loader->load(normalized)) {
+        m_loaded_csri_lib_path = normalized;
+        XY_LOG_INFO(L"CSRI renderer loaded from " << normalized.GetString());
+        return S_OK;
+    }
+
+    return E_FAIL;
 }

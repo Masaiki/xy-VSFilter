@@ -414,6 +414,10 @@ BEGIN
     CONTROL         "We&b",IDC_WEBLOAD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,149,148,28,12
     CONTROL         "&Embedded",IDC_EMBLOAD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,183,148,47,12
     CONTROL         "Force Default",IDC_CHECKBOX_FORCE_DEFAULT_STYLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,107,55,12
+    GROUPBOX        "CSRI Renderer",IDC_STATIC,7,174,233,48
+    EDITTEXT        IDC_CSRI_PATH_EDIT,17,188,145,14,ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON      "Browse...",IDC_CSRI_BROWSE,168,188,60,14
+    PUSHBUTTON      "Reset",IDC_CSRI_RESET,168,206,60,14
 END
 
 IDD_XY_SUB_FILTER_MOREPAGE DIALOGEX 0, 0, 247, 297
@@ -777,6 +781,7 @@ BEGIN
     IDS_RG_PGS_COLOR_TYPE               "pgs_color_type"
     IDS_RP_MAX_BITMAP_COUNT             "max_bitmap_count"
     IDS_RG_RGB_CORRECTION               "rgb_correction"
+    IDS_RG_CSRI_LIB_PATH               "csri_lib_path"
     IDS_RG_RGB_OUTPUT_LEVEL             "rgb_output_level"
     IDS_RG_RENDER_TO_ORIGINAL_VIDEO_SIZE "render_to_original_video_size"
     IDS_RG_SUPPORTED_VERSION "supported_version"
@@ -820,6 +825,7 @@ BEGIN
     IDS_RG_PGS_COLOR_TYPE               "PGS_COLOR_TYPE"
     IDS_RP_MAX_BITMAP_COUNT             "MAX_BITMAP_COUNT"
     IDS_RG_RGB_CORRECTION               "RGB_CORRECTION"
+    IDS_RG_CSRI_LIB_PATH               "CSRI_LIB_PATH"
     IDS_RG_SUPPORTED_VERSION "Supported Version"
     IDS_RG_VERSION          "Version"
 #endif

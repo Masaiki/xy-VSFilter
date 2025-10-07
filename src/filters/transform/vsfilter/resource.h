@@ -213,6 +213,9 @@
 #define IDS_RP_MAX_CACHE_SIZE_MB        338
 #define IDC_CHECKBOX_RENDER_TO_ORIGINAL_VIDEO_SIZE 341
 #define IDC_EDIT_CACHE_SIZE             342
+#define IDC_CSRI_PATH_EDIT              344
+#define IDC_CSRI_BROWSE                 345
+#define IDC_CSRI_RESET                  346
 #define IDC_CACHE_OPTIONS               401
 #define IDC_LABLE_PATH_CACHE            402
 #define IDC_LABLE_OVERLAY_CACHE         403
@@ -244,6 +247,7 @@
 #define IDS_RG_ALLOWMOVING              1070
 #define IDC_CHECKBOX_ALLOW_MOVING       1071
 #define IDS_RG_VSASSRENDERING           1072
+#define IDS_RG_CSRI_LIB_PATH            1074
 #define IDC_CHECKBOX_VS_ASS_RENDERING   1073
 
 // Next default values for new objects
@@ -252,7 +256,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        339
 #define _APS_NEXT_COMMAND_VALUE         32770
-#define _APS_NEXT_CONTROL_VALUE         344
+#define _APS_NEXT_CONTROL_VALUE         347
 #define _APS_NEXT_SYMED_VALUE           210
 #endif
 #endif

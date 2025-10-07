@@ -1685,6 +1685,9 @@ CXySubFilterMainPPage::CXySubFilterMainPPage(LPUNKNOWN pUnk, HRESULT* phr)
     BindControl(IDC_EXTLOAD, m_extload);
     BindControl(IDC_WEBLOAD, m_webload);
     BindControl(IDC_EMBLOAD, m_embload);
+    BindControl(IDC_CSRI_PATH_EDIT, m_csriPathEdit);
+    BindControl(IDC_CSRI_BROWSE, m_csriBrowseButton);
+    BindControl(IDC_CSRI_RESET, m_csriResetButton);
 }
 
 CXySubFilterMainPPage::~CXySubFilterMainPPage()
@@ -1740,6 +1743,24 @@ bool CXySubFilterMainPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                     {
                         AFX_MANAGE_STATE(AfxGetStaticModuleState());
                         EditStyle(m_hwnd, m_pDirectVobSubXy, &m_defStyle);
+                        return(true);
+                    }
+                    else if(LOWORD(wParam) == IDC_CSRI_BROWSE)
+                    {
+                        AFX_MANAGE_STATE(AfxGetStaticModuleState());
+                        CFileDialog fd(TRUE, _T("dll"), m_csriDllPath, OFN_EXPLORER | OFN_ENABLESIZING | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST,
+                            _T("Dynamic Libraries (*.dll)|*.dll|All files (*.*)|*.*||"), CDialog::FromHandle(m_Dlg), 0);
+                        if(fd.DoModal() == IDOK)
+                        {
+							m_csriPathEdit.SetWindowText(fd.GetPathName());
+                            m_csriResetButton.EnableWindow(!fd.GetPathName().IsEmpty());
+                        }
+                        return(true);
+                    }
+                    else if(LOWORD(wParam) == IDC_CSRI_RESET)
+                    {
+                        m_csriPathEdit.SetWindowText(CString());
+                        m_csriResetButton.EnableWindow(false);
                         return(true);
                     }
                 }
@@ -1801,6 +1822,8 @@ void CXySubFilterMainPPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_FORCE_DEFAULT_STYLE, m_fForceDefaultStyle);
         CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetString(DirectVobSubXyOptions::STRING_CSRI_LIB_PATH, m_csriDllPath.GetBuffer(), m_csriDllPath.GetLength());
+        CHECK_N_LOG(hr, "Failed to set option");
     }
     else
     {
@@ -1830,6 +1853,13 @@ void CXySubFilterMainPPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to get option");
         hr = m_pDirectVobSubXy->XyGetBool(DirectVobSubXyOptions::BOOL_FORCE_DEFAULT_STYLE, &m_fForceDefaultStyle);
         CHECK_N_LOG(hr, "Failed to get option");
+        LPWSTR csriPath = nullptr;
+        hr = m_pDirectVobSubXy->XyGetString(DirectVobSubXyOptions::STRING_CSRI_LIB_PATH, &csriPath, nullptr);
+        if (SUCCEEDED(hr)) {
+            m_csriDllPath = csriPath;
+            LocalFree(csriPath);
+        }
+        CHECK_N_LOG(hr, "Failed to get option");
     }
 }
 
@@ -1852,6 +1882,7 @@ void CXySubFilterMainPPage::UpdateControlData(bool fSave)
         m_fForceDefaultStyle = !!m_force_default_style.GetCheck();
         m_fOnlyShowForcedVobSubs = !!m_forcedsubs.GetCheck();
         m_fHideTrayIcon = !!m_hide_tray_icon.GetCheck();
+        m_csriPathEdit.GetWindowText(m_csriDllPath);
 
         if(m_load.GetCurSel() >= 0) m_LoadLevel = m_load.GetItemData(m_load.GetCurSel());
         m_fExternalLoad = !!m_extload.GetCheck();
@@ -1888,6 +1919,8 @@ void CXySubFilterMainPPage::UpdateControlData(bool fSave)
         m_extload.EnableWindow(m_load.GetCurSel() == 1);
         m_webload.EnableWindow(m_load.GetCurSel() == 1);
         m_embload.EnableWindow(m_load.GetCurSel() == 1);
+        m_csriPathEdit.SetWindowText(m_csriDllPath);
+        m_csriResetButton.EnableWindow(!m_csriDllPath.IsEmpty());
     }
 }
 

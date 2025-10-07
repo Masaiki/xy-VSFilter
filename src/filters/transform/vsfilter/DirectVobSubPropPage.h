@@ -275,6 +275,9 @@ class CXySubFilterMainPPage : public CDVSBasePPage
     CButton m_hide_tray_icon;
     CComboBox m_load;
     CButton m_extload, m_webload, m_embload;
+    CEdit m_csriPathEdit;
+    CButton m_csriBrowseButton, m_csriResetButton;
+    CStringW m_csriDllPath;
 protected:
     virtual bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
     virtual void UpdateControlData(bool fSave);

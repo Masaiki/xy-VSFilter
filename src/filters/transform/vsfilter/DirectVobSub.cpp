@@ -1236,6 +1236,7 @@ CDirectVobSub::CDirectVobSub( const Option *options, CCritSec * pLock )
     //fix me: CStringw = CString
     m_xy_str_opt[STRING_LOAD_EXT_LIST] = 
         GetCompatibleProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOAD_EXT_LIST), _T("ass;ssa;srt;idx;sup;txt;usf;xss;ssf;smi;psb;rt;sub"));
+    m_xy_str_opt[STRING_CSRI_LIB_PATH] = CT2W(theApp.GetProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_CSRI_LIB_PATH), _T("")));
 
     CString str_pgs_yuv_setting = theApp.GetProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_PGS_COLOR_TYPE), _T("GUESS.GUESS"));
     if (str_pgs_yuv_setting.Left(2).CompareNoCase(_T("TV"))==0)
@@ -1389,6 +1390,7 @@ STDMETHODIMP CDirectVobSub::UpdateRegistry()
     theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_RGB_CORRECTION), str_rgb_correction_setting);
 
     theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOAD_EXT_LIST), m_xy_str_opt[STRING_LOAD_EXT_LIST]);//fix me:m_xy_str_opt[] is wide char string
+    theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_CSRI_LIB_PATH), CW2T(m_xy_str_opt[STRING_CSRI_LIB_PATH]));
 
     CString str_pgs_yuv_type = m_xy_str_opt[STRING_PGS_YUV_RANGE] + _T(".") + m_xy_str_opt[STRING_PGS_YUV_MATRIX];
     theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_PGS_COLOR_TYPE), str_pgs_yuv_type);
@@ -1600,6 +1602,7 @@ CDVS4XySubFilter::CDVS4XySubFilter( const Option *options, CCritSec * pLock )
     //fix me: CStringw = CString
     m_xy_str_opt[STRING_LOAD_EXT_LIST] = 
         GetCompatibleProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOAD_EXT_LIST), _T("ass;ssa;srt;idx;sup;txt;usf;xss;ssf;smi;psb;rt;sub"));
+    m_xy_str_opt[STRING_CSRI_LIB_PATH] = theApp.GetProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_CSRI_LIB_PATH), _T(""));
 
     CString str_pgs_yuv_setting = theApp.GetProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_PGS_COLOR_TYPE), _T("GUESS.GUESS"));
     if (str_pgs_yuv_setting.Left(2).CompareNoCase(_T("TV"))==0)
@@ -1793,6 +1796,7 @@ STDMETHODIMP CDVS4XySubFilter::UpdateRegistry()
     theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_RGB_CORRECTION), str_rgb_correction_setting);
 
     theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_LOAD_EXT_LIST), m_xy_str_opt[STRING_LOAD_EXT_LIST]);//fix me:m_xy_str_opt[] is wide char string
+    theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_CSRI_LIB_PATH), CW2T(m_xy_str_opt[STRING_CSRI_LIB_PATH]));
 
     CString str_pgs_yuv_type = m_xy_str_opt[STRING_PGS_YUV_RANGE] + _T(".") + m_xy_str_opt[STRING_PGS_YUV_MATRIX];
     theApp.WriteProfileString(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_PGS_COLOR_TYPE), str_pgs_yuv_type);

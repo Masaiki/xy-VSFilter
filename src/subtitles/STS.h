@@ -26,6 +26,7 @@
 #include "TextFile.h"
 #include "GFN.h"
 #include "libass_context.h"
+#include "csri_context.h"
 #include <unordered_map>
 #include "XySubRenderIntf.h"
 
@@ -300,6 +301,7 @@ public:
     IFilterGraph *m_pGraph;
     ASS_Context m_ass_context;
     bool m_load_with_libass;
+    CSRI_Context m_csri_context;
     std::vector<CStringA> reserved_styles;
     std::vector<CStringA> styles_overrides;
     CComPtr<IXySubRenderFrame> m_last_frame;
