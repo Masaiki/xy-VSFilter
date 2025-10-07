@@ -97,17 +97,20 @@ CDirectVobSubFilter::CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUI
     m_tbid.graph = NULL;
     m_tbid.fRunOnce = false;
     m_tbid.fShowIcon = (theApp.m_AppName.Find(_T("zplayer"), 0) < 0 || m_xy_bool_opt[BOOL_ENABLE_ZP_ICON]);
-    m_tbid.use_legacy_vsfilter = [&](bool trigger) mutable {
-        bool& use_legacy_vsfilter = m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
-        if (trigger) {
-            XySetBool(BOOL_VS_ASS_RENDERING, !use_legacy_vsfilter);
-        }
-        return use_legacy_vsfilter;
+    m_tbid.get_backend = [&]() {
+        auto backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+        m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(backend);
+        return backend;
     };
+    m_tbid.set_backend = [&](SubtitleRenderBackend backend) {
+        XySetInt(INT_SUBTITLE_RENDER_BACKEND, static_cast<int>(NormalizeBackend(static_cast<int>(backend))));
+    };
+
+    m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
 
     HRESULT hr = S_OK;
     auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
-    pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+    pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
     m_pTextInput.Add(pin);
     ASSERT(SUCCEEDED(hr));
 
@@ -1556,7 +1559,7 @@ bool CDirectVobSubFilter::Open()
 //            CAutoTiming t(TEXT("CRenderedTextSubtitle::Open"), 0);
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(new CRenderedTextSubtitle(&m_csSubLock));
-            pRTS && (pRTS->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING]);
+            pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
                 pSubStream = pRTS.Detach();
@@ -1849,7 +1852,7 @@ void CDirectVobSubFilter::AddSubStream(ISubStream* pSubStream)
 	{
 		HRESULT hr = S_OK;
         auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
-        pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+        pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
 		m_pTextInput.Add(pin);
 	}
 }
@@ -2249,19 +2252,23 @@ HRESULT CDirectVobSubFilter::OnOptionChanged( unsigned field )
     case BIN2_SUBTITLE_TIMING:
         InvalidateSubtitle();
         break;
-    case BOOL_VS_ASS_RENDERING:
+    case INT_SUBTITLE_RENDER_BACKEND:
+    {
+        const auto backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+        m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(backend);
         for(int i = 0; i < m_pTextInput.GetCount(); i++)
-            m_pTextInput[i]->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+            m_pTextInput[i]->m_render_backend = backend;
         POSITION pos = m_pSubStreams.GetHeadPosition();
         while(pos)
         {
             CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
             auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
             if (rts) {
-                rts->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+                rts->m_render_backend = backend;
             }
         }
         break;
+    }
     }
 
     return hr;

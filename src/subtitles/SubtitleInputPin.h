@@ -23,6 +23,7 @@
 
 #include "..\subpic\ISubPic.h"
 #include "csri_loader.h"
+#include "SubtitleRenderBackend.h"
 
 //
 // CSubtitleInputPinHelper
@@ -84,6 +85,6 @@ public:
 
     ISubStream* GetSubStream();
     
-    bool m_load_with_libass;
+    SubtitleRenderBackend m_render_backend;
     std::shared_ptr<CSRI_Loader> m_csri_loader;
 };

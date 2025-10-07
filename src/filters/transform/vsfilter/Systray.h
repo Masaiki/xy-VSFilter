@@ -24,6 +24,8 @@
 #include <atlsync.h>
 #include <functional>
 
+#include "../../../subtitles/SubtitleRenderBackend.h"
+
 typedef struct
 {
     HWND hSystrayWnd;
@@ -31,7 +33,8 @@ typedef struct
     IDirectVobSub2* dvs;
     bool fRunOnce, fShowIcon;
     ATL::CEvent WndCreatedEvent;
-    std::function<bool(bool)> use_legacy_vsfilter;
+    std::function<SubtitleRenderBackend(void)> get_backend;
+    std::function<void(SubtitleRenderBackend)> set_backend;
 } SystrayIconData;
 
 extern DWORD CALLBACK SystrayThreadProc(void* pParam);

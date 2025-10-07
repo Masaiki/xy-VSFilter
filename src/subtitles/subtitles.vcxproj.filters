@@ -230,5 +230,8 @@
     <ClInclude Include="sk_csri_ext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SubtitleRenderBackend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

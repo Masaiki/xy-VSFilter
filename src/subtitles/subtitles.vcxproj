@@ -139,6 +139,7 @@
     <ClInclude Include="STS.h" />
     <ClInclude Include="subpixel_position_controler.h" />
     <ClInclude Include="SubtitleInputPin.h" />
+    <ClInclude Include="SubtitleRenderBackend.h" />
     <ClInclude Include="TextFile.h" />
     <ClInclude Include="USFSubtitles.h" />
     <ClInclude Include="VobSubFile.h" />

@@ -3047,7 +3047,8 @@ STDMETHODIMP CRenderedTextSubtitle::NonDelegatingQueryInterface(REFIID riid, voi
 STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetStartPosition(REFERENCE_TIME rt, double fps)
 {
     m_fps = fps;
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
+        (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
         return (POSITION)rt;
     }
 
@@ -3063,7 +3064,8 @@ STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetStartPosition(REFERENCE_TIME r
 
 STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetNext(POSITION pos)
 {
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
+        (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
         REFERENCE_TIME rt = (REFERENCE_TIME)pos;
         return (POSITION)(rt + 1);
     }
@@ -3078,7 +3080,8 @@ STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetNext(POSITION pos)
 
 STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStart(POSITION pos, double fps)
 {
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
+        (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
         REFERENCE_TIME rt = (REFERENCE_TIME)pos;
         return rt;
     }
@@ -3087,7 +3090,8 @@ STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStart(POSITION pos, doub
 
 STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStop(POSITION pos, double fps)
 {
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
+        (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
         REFERENCE_TIME rt = (REFERENCE_TIME)pos;
         return rt + 1;
     }
@@ -3097,7 +3101,8 @@ STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStop(POSITION pos, doubl
 //@start, @stop: -1 if segment not found; @stop may < @start if subIndex exceed uppper bound
 STDMETHODIMP_(VOID) CRenderedTextSubtitle::GetStartStop(POSITION pos, double fps, /*out*/REFERENCE_TIME &start, /*out*/REFERENCE_TIME &stop)
 {
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
+        (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
         REFERENCE_TIME rt = (REFERENCE_TIME)pos;
         start = rt;
         stop = rt + 1;
@@ -3112,7 +3117,8 @@ STDMETHODIMP_(VOID) CRenderedTextSubtitle::GetStartStop(POSITION pos, double fps
 
 STDMETHODIMP_(bool) CRenderedTextSubtitle::IsAnimated(POSITION pos)
 {
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
+        (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
         return true;
     }
     unsigned int iSegment = (int)pos-1;
@@ -3703,7 +3709,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         render_frame_creater->SetClipRect(subtitle_target_rect);
     }
 
-	if (true && m_csri_context.m_loader && m_csri_context.m_loader->is_loaded() && m_csri_context.m_csri_loaded && (color_space == XY_CS_ARGB || XY_CS_ARGB_F)) {
+	if (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded && (color_space == XY_CS_ARGB || XY_CS_ARGB_F)) {
 		csri_fmt fmt = {
 			CSRI_F_BGR_,
 			subtitle_target_rect.right - subtitle_target_rect.left,
@@ -3743,7 +3749,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 		return S_OK;
 	}
 
-    if (m_load_with_libass && m_ass_context.m_assloaded) {
+    if (m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) {
         if (!m_ass_context.m_assfontloaded) {
             m_ass_context.LoadASSFont(m_pPin, m_pGraph);
             m_ass_context.m_assfontloaded = true;

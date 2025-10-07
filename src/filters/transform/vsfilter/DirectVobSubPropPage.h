@@ -264,11 +264,13 @@ class CXySubFilterMainPPage : public CDVSBasePPage
     bool m_fForceDefaultStyle;
     bool m_fOnlyShowForcedVobSubs;
     CSimpleTextSubtitle::EPARCompensationType m_ePARCompensationType;
+    int m_backend;
     int m_LoadLevel;
     bool m_fExternalLoad, m_fWebLoad, m_fEmbeddedLoad;
 
     CEdit m_fnedit;
     CComboBox m_langs;
+    CComboBox m_backendCombo;
     CButton m_oplacement;
     CSpinButtonCtrl m_subposx, m_subposy;
     CButton m_styles, m_force_default_style, m_forcedsubs;
@@ -297,14 +299,13 @@ class CXySubFilterMorePPage : public CDVSBasePPage
     int m_yuv_matrix, m_yuv_range, m_rgb_level;
     SIZE m_layout_size;
 
-    bool m_fHideSubtitles, m_fAllowMoving, m_fReloaderDisabled, m_fVSAssRendering;
+    bool m_fHideSubtitles, m_fAllowMoving, m_fReloaderDisabled;
     bool m_render_to_original_video_size;
 
     int  m_cache_size, m_auto_cache_size;
 
     CButton m_hidesub, m_allowmoving, m_autoreload, m_instupd;
 
-    CButton m_vsassrendering;
 
     CSpinButtonCtrl m_path_cache, m_scanline_cache, m_overlay_no_blur_cache, m_overlay_cache;
 

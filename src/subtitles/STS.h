@@ -29,6 +29,7 @@
 #include "csri_context.h"
 #include <unordered_map>
 #include "XySubRenderIntf.h"
+#include "SubtitleRenderBackend.h"
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
 
@@ -300,8 +301,8 @@ public:
     IPin* m_pPin;
     IFilterGraph *m_pGraph;
     ASS_Context m_ass_context;
-    bool m_load_with_libass;
     CSRI_Context m_csri_context;
+    SubtitleRenderBackend m_render_backend;
     std::vector<CStringA> reserved_styles;
     std::vector<CStringA> styles_overrides;
     CComPtr<IXySubRenderFrame> m_last_frame;

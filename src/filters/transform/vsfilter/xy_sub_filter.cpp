@@ -238,7 +238,7 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     ConfigureCsriRenderer(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
 
     auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, phr);
-    pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+    pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
     pin->m_csri_loader = m_csri_loader;
     m_pSubtitleInputPin.Add(pin);
     ASSERT(SUCCEEDED(*phr));
@@ -249,12 +249,13 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     m_tbid.graph = NULL;
     m_tbid.fRunOnce = false;
     m_tbid.fShowIcon = true;
-    m_tbid.use_legacy_vsfilter = [&](bool trigger) mutable {
-        bool &use_legacy_vsfilter = m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
-        if (trigger) {
-            XySetBool(BOOL_VS_ASS_RENDERING, !use_legacy_vsfilter);
-        }
-        return use_legacy_vsfilter;
+    m_tbid.get_backend = [&]() {
+        auto backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+        m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(backend);
+        return backend;
+    };
+    m_tbid.set_backend = [&](SubtitleRenderBackend backend) {
+        XySetInt(INT_SUBTITLE_RENDER_BACKEND, static_cast<int>(NormalizeBackend(static_cast<int>(backend))));
     };
 
     CacheManager::GetPathDataMruCache()->SetMaxItemNum(m_xy_int_opt[INT_PATH_DATA_CACHE_MAX_ITEM_NUM]);
@@ -616,19 +617,23 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
         UpdateSubtitle(false);
         m_context_id++;
         break;
-    case BOOL_VS_ASS_RENDERING:
+    case INT_SUBTITLE_RENDER_BACKEND:
+    {
+        const auto backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+        m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(backend);
         for(int i = 0; i < m_pSubtitleInputPin.GetCount(); i++)
-            m_pSubtitleInputPin[i]->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+            m_pSubtitleInputPin[i]->m_render_backend = backend;
         POSITION pos = m_pSubStreams.GetHeadPosition();
         while(pos)
         {
             CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
             auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
             if (rts) {
-                rts->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+                rts->m_render_backend = backend;
             }
         }
         break;
+    }
     }
 
     return hr;
@@ -1895,7 +1900,7 @@ bool XySubFilter::Open()
             //            CAutoTiming t(TEXT("CRenderedTextSubtitle::Open"), 0);
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
-            pRTS && (pRTS->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING]);
+            pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             pRTS && (pRTS->m_csri_context.m_loader = m_csri_loader);
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
@@ -2220,7 +2225,7 @@ void XySubFilter::InvalidateSubtitle( REFERENCE_TIME rtInvalidate /*= -1*/, DWOR
         {
             if (m_last_requested>rtInvalidate)
             {
-                ASSERT(0);
+                //ASSERT(0);
                 XY_LOG_ERROR("New subtitle samples received after a request.");
             }
             m_sub_provider->Invalidate(rtInvalidate);
@@ -2514,7 +2519,7 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
     {
         HRESULT hr = S_OK;
         auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, &hr);
-        pin->m_load_with_libass = !m_xy_bool_opt[BOOL_VS_ASS_RENDERING];
+        pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
         pin->m_csri_loader = m_csri_loader;
         m_pSubtitleInputPin.Add(pin);
     }

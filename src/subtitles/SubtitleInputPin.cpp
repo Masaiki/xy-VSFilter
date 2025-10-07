@@ -283,12 +283,14 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
         }
         else if(m_mt.subtype == MEDIASUBTYPE_SSA || m_mt.subtype == MEDIASUBTYPE_ASS || m_mt.subtype == MEDIASUBTYPE_ASS2)
         {
-            if (m_pRTS->m_ass_context.m_assloaded) {
+            if (m_pRTS->m_ass_context.m_assloaded && m_pRTS->m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS) {
                 ass_process_chunk(m_pRTS->m_ass_context.m_track.get(), (char *)pData, len, tStart / 10000, (tStop - tStart) / 10000);
+                return S_OK;
             }
-            if (m_pRTS->m_csri_context.m_loader && m_pRTS->m_csri_context.m_loader->is_loaded() && m_pRTS->m_csri_context.m_csri_loaded) {
+            if (m_pRTS->m_csri_context.m_csri_loaded && m_pRTS->m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI) {
                 const enum sk_csri_subtype csri_subtype = sk_csri_subtype_from_guid_subtype(m_mt.subtype);
                 m_pRTS->m_csri_context.process_data(pData, len, tStart / 1e7, tStop / 1e7, csri_subtype);
+                return S_OK;
             }
             CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
             if(!str.IsEmpty())
@@ -459,7 +461,7 @@ CSubtitleInputPin::CSubtitleInputPin(CBaseFilter* pFilter, CCritSec* pLock, CCri
     : CBaseInputPin(NAME("CSubtitleInputPin"), pFilter, pLock, phr, L"Input")
     , m_pSubLock(pSubLock)
     , m_helper(NULL)
-    , m_load_with_libass(false)
+    , m_render_backend(SUBTITLE_RENDER_BACKEND_LIBASS)
 {
     m_bCanReconnectWhenActive = TRUE;
 }
@@ -501,7 +503,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
     {
         XY_LOG_INFO("Create CTextSubtitleInputPinHepler");
         CRenderedTextSubtitle* pRTS = DEBUG_NEW CRenderedTextSubtitle(m_pSubLock);
-        pRTS && (pRTS->m_load_with_libass = m_load_with_libass);
+        pRTS && (pRTS->m_render_backend = m_render_backend);
         pRTS->m_name = CString(GetPinName(pReceivePin)) + _T(" (embeded)");
         pRTS->m_dstScreenSize = CSize(384, 288);
         ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);
@@ -546,7 +548,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
         {
             XY_LOG_INFO("Create CTextSubtitleInputPinHepler");
             CRenderedTextSubtitle* pRTS = DEBUG_NEW CRenderedTextSubtitle(m_pSubLock);
-            pRTS && (pRTS->m_load_with_libass = m_load_with_libass);
+            pRTS && (pRTS->m_render_backend = m_render_backend);
             pRTS->m_name = name;
             pRTS->m_lcid = lcid;
             pRTS->m_dstScreenSize = CSize(384, 288);
@@ -569,7 +571,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
 
             pRTS->m_pPin = pReceivePin;
             pRTS->m_pGraph = GetGraphFromFilter(m_pFilter);
-            if (mt.subtype != MEDIASUBTYPE_UTF8 && pRTS->m_load_with_libass) {
+            if (mt.subtype != MEDIASUBTYPE_UTF8) {
                 pRTS->m_ass_context.LoadASSTrack(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
             }
             if (mt.subtype != MEDIASUBTYPE_UTF8 && m_csri_loader->is_loaded()) {

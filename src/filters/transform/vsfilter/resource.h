@@ -249,6 +249,8 @@
 #define IDS_RG_VSASSRENDERING           1072
 #define IDS_RG_CSRI_LIB_PATH            1074
 #define IDC_CHECKBOX_VS_ASS_RENDERING   1073
+#define IDS_RG_SUBTITLE_BACKEND         1075
+#define IDC_COMBO_RENDER_BACKEND        1076
 
 // Next default values for new objects
 // 

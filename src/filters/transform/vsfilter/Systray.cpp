@@ -22,6 +22,7 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "DirectVobSubFilter.h"
+#include "IDirectVobSubXy.h"
 #include "../../../DSUtil/DSUtil.h"
 
 // hWnd == INVALID_HANDLE_VALUE - get name, hWnd != INVALID_HANDLE_VALUE - show ppage
@@ -307,9 +308,30 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 				delete [] str;
 			}
 
-			if (m_tbid->use_legacy_vsfilter) {
+			const UINT BACKEND_MENU_BASE = 1u << 19;
+			if (m_tbid->get_backend && m_tbid->set_backend) {
+				const auto current_backend = m_tbid->get_backend();
+				struct BackendMenuEntry {
+					SubtitleRenderBackend value;
+					LPCWSTR label;
+				};
+				const BackendMenuEntry backend_entries[] = {
+					{ SUBTITLE_RENDER_BACKEND_LIBASS, L"libass backend (default)" },
+					{ SUBTITLE_RENDER_BACKEND_VSFILTER, L"VSFilter backend (legacy)" },
+#ifdef XY_SUB_FILTER_DLL
+					{ SUBTITLE_RENDER_BACKEND_CSRI, L"CSRI backend (experimental)" },
+#endif
+				};
 				popup.AppendMenu(MF_SEPARATOR);
-				popup.AppendMenu(MF_ENABLED | MF_STRING | (m_tbid->use_legacy_vsfilter(false) ? MF_CHECKED : MF_UNCHECKED), (1 << 18), L"use legacy VSFilter implementation");
+				for (const auto& entry : backend_entries) {
+					UINT flags = MF_ENABLED | MF_STRING;
+					if (current_backend == entry.value) {
+						flags |= MF_CHECKED;
+					} else {
+						flags |= MF_UNCHECKED;
+					}
+					popup.AppendMenu(flags, BACKEND_MENU_BASE | static_cast<UINT>(entry.value), entry.label);
+				}
 			}
 
 			SetForegroundWindow();
@@ -332,8 +354,11 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 
 				CallPPage(m_tbid->graph, id&0xff, hWnd);
 			}
-			else if (id & (1 << 18)) {
-				m_tbid->use_legacy_vsfilter(true);
+			else if ((id & BACKEND_MENU_BASE) == BACKEND_MENU_BASE) {
+				if (m_tbid->set_backend) {
+					auto backend = static_cast<SubtitleRenderBackend>(id & 0xff);
+					m_tbid->set_backend(backend);
+				}
 			}
 		}
 		break; 
