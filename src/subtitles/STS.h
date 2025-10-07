@@ -300,8 +300,6 @@ public:
     IFilterGraph *m_pGraph;
     ASS_Context m_ass_context;
     bool m_load_with_libass;
-    std::unordered_map<int, int> read_order_to_event_index;
-    CCritSec csSample;
     std::vector<CStringA> reserved_styles;
     std::vector<CStringA> styles_overrides;
     CComPtr<IXySubRenderFrame> m_last_frame;

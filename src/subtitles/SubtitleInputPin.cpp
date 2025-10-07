@@ -146,6 +146,9 @@ STDMETHODIMP CTextSubtitleInputPinHepler::NewSegment( REFERENCE_TIME tStart, REF
 {
     m_pRTS->RemoveAllEntries();
     m_pRTS->CreateSegments();
+    if (m_pRTS->m_ass_context.m_assloaded) {
+        ass_flush_events(m_pRTS->m_ass_context.m_track.get());
+    }
     return __super::NewSegment(tStart,tStop,dRate);
 }
 
@@ -250,21 +253,7 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
         else if(m_mt.subtype == MEDIASUBTYPE_SSA || m_mt.subtype == MEDIASUBTYPE_ASS || m_mt.subtype == MEDIASUBTYPE_ASS2)
         {
             if (m_pRTS->m_ass_context.m_assloaded) {
-                CAutoLock cAutoLock(&(m_pRTS->csSample));
-                int read_order;
-                std::unordered_map<int, int>::iterator found;
-                if (sscanf((char *)pData, "%d", &read_order) == 1 && (found = m_pRTS->read_order_to_event_index.find(read_order)) != m_pRTS->read_order_to_event_index.end()) {
-                    auto p_event = m_pRTS->m_ass_context.m_track->events + found->second;
-                    p_event->Start = tStart / 10000;
-                    p_event->Duration = (tStop - tStart) / 10000;
-                }
-                else {
-                    ass_process_chunk(m_pRTS->m_ass_context.m_track.get(), (char *)pData, len, tStart / 10000, (tStop - tStart) / 10000);
-                    for (int i = m_pRTS->read_order_to_event_index.size(); i < m_pRTS->m_ass_context.m_track->n_events; ++i) {
-                        auto p_event = m_pRTS->m_ass_context.m_track->events + i;
-                        m_pRTS->read_order_to_event_index[p_event->ReadOrder] = i;
-                    }
-                }
+                ass_process_chunk(m_pRTS->m_ass_context.m_track.get(), (char *)pData, len, tStart / 10000, (tStop - tStart) / 10000);
                 if (m_pRTS->m_load_with_libass) return S_OK;
             }
             CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();
