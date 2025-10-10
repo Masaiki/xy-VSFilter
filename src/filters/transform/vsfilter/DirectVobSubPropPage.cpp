@@ -1829,7 +1829,7 @@ void CXySubFilterMainPPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSubXy->XySetString(DirectVobSubXyOptions::STRING_CSRI_LIB_PATH, m_csriDllPath.GetBuffer(), m_csriDllPath.GetLength());
         CHECK_N_LOG(hr, "Failed to set option");
-        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, static_cast<int>(m_backend));
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, m_backend);
         CHECK_N_LOG(hr, "Failed to set option");
     }
     else
