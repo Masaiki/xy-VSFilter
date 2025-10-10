@@ -574,7 +574,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
             if (mt.subtype != MEDIASUBTYPE_UTF8) {
                 pRTS->m_ass_context.LoadASSTrack(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
             }
-            if (mt.subtype != MEDIASUBTYPE_UTF8 && m_csri_loader->is_loaded()) {
+            if (mt.subtype != MEDIASUBTYPE_UTF8 && m_csri_loader && m_csri_loader->is_loaded()) {
                 pRTS->m_csri_context.m_loader = m_csri_loader;
                 pRTS->m_csri_context.csri_load_memory(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
             }

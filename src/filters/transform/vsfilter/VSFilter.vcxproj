@@ -92,6 +92,7 @@
   <ItemGroup>
     <ClInclude Include="CAutoTiming.h" />
     <ClInclude Include="csri.h" />
+    <ClInclude Include="csri_wrapper.h" />
     <ClInclude Include="DirectVobSub.h" />
     <ClInclude Include="DirectVobSubFilter.h" />
     <ClInclude Include="DirectVobSubPropPage.h" />

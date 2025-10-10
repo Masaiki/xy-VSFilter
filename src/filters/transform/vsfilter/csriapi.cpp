@@ -27,9 +27,7 @@
 #include "..\..\..\subtitles\RTS.h"
 #include "..\..\..\subtitles\SSF.h"
 
-#define CSRIAPI extern "C" __declspec(dllexport)
-#define CSRI_OWN_HANDLES
-typedef const char *csri_rend;
+#include "csri_wrapper.h"
 extern "C" struct csri_vsfilter_inst {
 	CRenderedTextSubtitle *rts;
 	CCritSec *cs;
@@ -39,9 +37,7 @@ extern "C" struct csri_vsfilter_inst {
 	enum csri_pixfmt pixfmt;
 	size_t readorder;
 };
-typedef struct csri_vsfilter_inst csri_inst;
-#include "csri.h"
-static csri_rend csri_vsfilter = "vsfilter";
+static const char *csri_vsfilter = "vsfilter";
 
 
 CSRIAPI csri_inst *csri_open_file(csri_rend *renderer, const char *filename, struct csri_openflag *flags)
@@ -57,7 +53,7 @@ CSRIAPI csri_inst *csri_open_file(csri_rend *renderer, const char *filename, str
 	namebuf = new wchar_t[namesize];
 	MultiByteToWideChar(CP_UTF8, 0, filename, -1, namebuf, namesize);
 
-	csri_inst *inst = new csri_inst();
+	csri_vsfilter_inst *inst = new csri_vsfilter_inst();
 	inst->cs = new CCritSec();
 	inst->rts = new CRenderedTextSubtitle(inst->cs);
 	if (inst->rts->Open(CString(namebuf), DEFAULT_CHARSET)) {
@@ -79,7 +75,7 @@ CSRIAPI csri_inst *csri_open_mem(csri_rend *renderer, const void *data, size_t l
     AMTRACE((TEXT(__FUNCTION__),0));
 	// This is actually less effecient than opening a file, since this first writes the memory data to a temp file,
 	// then opens that file and parses from that.
-	csri_inst *inst = new csri_inst();
+	csri_vsfilter_inst *inst = new csri_vsfilter_inst();
 
 	inst->cs = new CCritSec();
 	inst->rts = new CRenderedTextSubtitle(inst->cs);
@@ -99,15 +95,19 @@ CSRIAPI void csri_close(csri_inst *inst)
 {
 	if (!inst) return;
 
-	delete inst->rts;
-	delete inst->cs;
-	delete inst;
+	csri_vsfilter_inst *vsf_inst = (csri_vsfilter_inst *)inst;
+
+	delete vsf_inst->rts;
+	delete vsf_inst->cs;
+	delete vsf_inst;
 }
 
 
 CSRIAPI int csri_request_fmt(csri_inst *inst, const struct csri_fmt *fmt)
 {
 	if (!inst) return -1;
+
+	csri_vsfilter_inst *vsf_inst = (csri_vsfilter_inst *)inst;
 
 	if (!fmt->width || !fmt->height)
 		return -1;
@@ -118,43 +118,45 @@ CSRIAPI int csri_request_fmt(csri_inst *inst, const struct csri_fmt *fmt)
 		case CSRI_F_BGR:
 		case CSRI_F_YUY2:
 		case CSRI_F_YV12:
-			inst->pixfmt = fmt->pixfmt;
+			vsf_inst->pixfmt = fmt->pixfmt;
 			break;
 
 		default:
 			return -1;
 	}
-	inst->screen_res = CSize(fmt->width, fmt->height);
-	inst->video_rect = CRect(0, 0, fmt->width, fmt->height);
+	vsf_inst->screen_res = CSize(fmt->width, fmt->height);
+	vsf_inst->video_rect = CRect(0, 0, fmt->width, fmt->height);
 	return 0;
 }
 
 
 CSRIAPI void csri_render(csri_inst *inst, struct csri_frame *frame, double time)
 {
+	csri_vsfilter_inst *vsf_inst = (csri_vsfilter_inst *)inst;
+
 	const double arbitrary_framerate = 25.0;
 	SubPicDesc spd;
-	spd.w = inst->screen_res.cx;
-	spd.h = inst->screen_res.cy;
-	switch (inst->pixfmt) {
-		case CSRI_F_BGR_:
-			spd.type = MSP_RGBA;
-			spd.bpp = 32;
-			spd.bits = frame->planes[0];
-			spd.pitch = frame->strides[0];
-			break;
+	spd.w = vsf_inst->screen_res.cx;
+	spd.h = vsf_inst->screen_res.cy;
+	switch (vsf_inst->pixfmt) {
+	case CSRI_F_BGR_:
+		spd.type = MSP_RGBA;
+		spd.bpp = 32;
+		spd.bits = frame->planes[0];
+		spd.pitch = frame->strides[0];
+		break;
 
-		default:
-            ASSERT(0);
-            CString msg;
-            msg.Format(_T("Anything other then RGB32 is NOT supported!"));
-            MessageBox(NULL, msg, _T("Warning"), MB_OKCANCEL|MB_ICONWARNING);
-            int o = 0; o=o/o;
-			return;
+	default:
+		ASSERT(0);
+		CString msg;
+		msg.Format(_T("Anything other then RGB32 is NOT supported!"));
+		MessageBox(NULL, msg, _T("Warning"), MB_OKCANCEL | MB_ICONWARNING);
+		int o = 0; o = o / o;
+		return;
 	}
-	spd.vidrect = inst->video_rect;
+	spd.vidrect = vsf_inst->video_rect;
 
-	inst->rts->Render(spd, (REFERENCE_TIME)(time*10000000), arbitrary_framerate, inst->video_rect);
+	vsf_inst->rts->Render(spd, (REFERENCE_TIME)(time*10000000), arbitrary_framerate, vsf_inst->video_rect);
 }
 
 

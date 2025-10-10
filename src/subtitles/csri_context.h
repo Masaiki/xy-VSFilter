@@ -1,6 +1,6 @@
 #pragma once
 #include "csri_loader.h"
-#include "csri.h"
+#include "csri_wrapper.h"
 #include "sk_csri_ext.h"
 #include <atlstr.h>
 #include <memory>

@@ -1,5 +1,5 @@
 #pragma once
-#include "csri.h"
+#include "csri_wrapper.h"
 #include "sk_csri_ext.h"
 #include <atlstr.h>
 

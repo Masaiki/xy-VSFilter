@@ -1080,7 +1080,7 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
         hr = m_pDirectVobSubXy->XySetSize(DirectVobSubXyOptions::SIZE_USER_SPECIFIED_LAYOUT_SIZE, m_layout_size);
         CHECK_N_LOG(hr, "Failed to set option");
 
-        hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, m_fVSAssRendering);
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, m_fVSAssRendering ? SUBTITLE_RENDER_BACKEND_VSFILTER : SUBTITLE_RENDER_BACKEND_LIBASS);
         CHECK_N_LOG(hr, "Failed to set option");
     }
     else
@@ -1101,7 +1101,9 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
         hr = m_pDirectVobSubXy->XyGetSize(DirectVobSubXyOptions::SIZE_USER_SPECIFIED_LAYOUT_SIZE, &m_layout_size);
         CHECK_N_LOG(hr, "Failed to get option");
 
-        hr = m_pDirectVobSubXy->XyGetBool(DirectVobSubXyOptions::BOOL_VS_ASS_RENDERING, &m_fVSAssRendering);
+        int backend;
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, &backend);
+		m_fVSAssRendering = (backend == SUBTITLE_RENDER_BACKEND_VSFILTER);
         CHECK_N_LOG(hr, "Failed to get option");
     }
 }

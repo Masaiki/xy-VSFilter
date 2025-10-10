@@ -145,6 +145,9 @@
     <ClInclude Include="XyOptionsImpl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="csri_wrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="VSFilter.def">
