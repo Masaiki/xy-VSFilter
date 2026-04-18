@@ -203,7 +203,7 @@ void VDFlushThunkMemory(void *p, size_t len) {
 
 ///////////////////////////////////////////////////////////////////////////
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) && !defined(_M_ARM64EC)
 	extern "C" void VDMethodToFunctionThunk64();
 #else
 	extern "C" void VDMethodToFunctionThunk32();
@@ -259,7 +259,7 @@ VDFunctionThunk *VDCreateFunctionThunkFromMethod(void *method, void *pThis, size
 	}
 
 	return (VDFunctionThunk *)pThunk;
-#elif defined(_M_AMD64)
+#elif defined(_M_AMD64) && !defined(_M_ARM64EC)
 	void *pThunk = VDAllocateThunkMemory(44);
 	if (!pThunk)
 		return NULL;
@@ -299,7 +299,7 @@ void VDDestroyFunctionThunk(VDFunctionThunk *pFnThunk) {
 #if defined(_M_IX86)
 	VDASSERT(((const uint8 *)pFnThunk)[0] == 0xB9 || ((const uint8 *)pFnThunk)[0] == 0xE8);
 	VDFreeThunkMemory(pFnThunk, 16);
-#elif defined(_M_AMD64)
+#elif defined(_M_AMD64) && !defined(_M_ARM64EC)
 	VDFreeThunkMemory(pFnThunk, 44);
 #else
 	VDASSERT(false);

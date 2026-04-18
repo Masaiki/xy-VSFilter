@@ -337,7 +337,7 @@ void VDMemset128(void *dst, const void *src0, size_t count) {
 void VDMemsetPointer(void *dst, const void *value, size_t count) {
 #if defined(VD_CPU_X86) || defined(VD_CPU_ARM)
 	VDMemset32(dst, (uint32)(size_t)value, count);
-#elif defined(VD_CPU_AMD64)
+#elif defined(VD_CPU_AMD64) || defined(VD_CPU_ARM64EC)
 	VDMemset64(dst, (uint64)(size_t)value, count);
 #else
 	#error Unknown pointer size

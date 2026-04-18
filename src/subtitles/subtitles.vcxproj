@@ -17,6 +17,14 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64EC">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64EC">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>subtitles</ProjectName>
@@ -40,8 +48,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>$(KIT_SHARED_IncludePath);$(UM_IncludePath);$(VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)src\filters\transform\vsfilter;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)include\;$(SolutionDir)include\unrar\;$(SolutionDir)src\thirdparty\;$(IncludePath)</IncludePath>
-    <IncludePath Condition="'$(VisualStudioVersion)'&gt;'10.0'">$(SolutionDir)msvc\include\;$(WindowsSdkDir)include\shared;$(WindowsSdkDir)include\um;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
+    <IncludePath>$(VcpkgIncludeDir);$(KIT_SHARED_IncludePath);$(UM_IncludePath);$(VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)src\filters\transform\vsfilter;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)include\;$(SolutionDir)include\unrar\;$(SolutionDir)src\thirdparty\;$(IncludePath)</IncludePath>
+    <IncludePath Condition="'$(VisualStudioVersion)'&gt;'10.0'">$(VcpkgIncludeDir);$(SolutionDir)msvc\include\;$(WindowsSdkDir)include\shared;$(WindowsSdkDir)include\um;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -67,6 +75,13 @@
       <AdditionalDependencies>$(SolutionDir)lib\libacof64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64EC'">
+    <ClCompile>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64EC'">
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BaseSub.cpp" />
     <ClCompile Include="cache_manager.cpp" />
@@ -79,7 +94,8 @@
     <ClCompile Include="hdmv_subtitle_provider.cpp" />
     <ClCompile Include="libass_context.cpp" />
     <ClCompile Include="Rasterizer.cpp">
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput Condition="'$(Platform)'!='ARM64EC'">AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput Condition="'$(Platform)'=='ARM64EC'">NoListing</AssemblerOutput>
     </ClCompile>
     <ClCompile Include="RealTextParser.cpp" />
     <ClCompile Include="RenderedHdmvSubtitle.cpp" />
@@ -87,7 +103,8 @@
       <AssemblerOutput Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <ClCompile Include="SSF.cpp">
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput Condition="'$(Platform)'!='ARM64EC'">AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput Condition="'$(Platform)'=='ARM64EC'">NoListing</AssemblerOutput>
     </ClCompile>
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>

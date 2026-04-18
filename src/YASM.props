@@ -27,6 +27,11 @@
       <Platform>win64</Platform>
     </YASM>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Platform)'=='ARM64EC'">
+    <YASM>
+      <Platform>win64</Platform>
+    </YASM>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug' Or '$(Configuration)'=='Debug Filter'">
     <YASM>
       <Debug>True</Debug>

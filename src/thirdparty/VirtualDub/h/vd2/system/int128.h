@@ -31,7 +31,7 @@
 struct vdint128;
 struct vduint128;
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) && !defined(_M_ARM64EC)
 	extern "C" __int64 _mul128(__int64 x, __int64 y, __int64 *hiresult);
 	extern "C" unsigned __int64 _umul128(unsigned __int64 x, unsigned __int64 y, unsigned __int64 *hiresult);
 	extern "C" unsigned __int64 __shiftleft128(unsigned __int64 low, unsigned __int64 high, unsigned char shift);
@@ -166,7 +166,7 @@ public:
 		return q[1] < 0 ? -*this : *this;
 	}
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) && !defined(_M_ARM64EC)
 	void setSquare(sint64 v) {
 		const vdint128 v128(v);
 		operator=(v128*v128);
@@ -316,7 +316,7 @@ public:
 		return operator=(operator>>(count));
 	}
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) && !defined(_M_ARM64EC)
 	const vduint128 operator<<(int count) const {
 		vduint128 t;
 
@@ -360,7 +360,7 @@ inline vduint128::vduint128(const vdint128& x) {
 	q[1] = x.q[1];
 }
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) && !defined(_M_ARM64EC)
 	inline vduint128 VDUMul64x64To128(uint64 x, uint64 y) {
 		vduint128 result;
 		result.q[0] = _umul128(x, y, &result.q[1]);

@@ -79,7 +79,9 @@
 #ifndef VD_CPU_DETECTED
 	#define VD_CPU_DETECTED
 
-	#if defined(_M_AMD64)
+	#if defined(_M_ARM64EC)
+		#define VD_CPU_ARM64EC	1
+	#elif defined(_M_AMD64)
 		#define VD_CPU_AMD64	1
 	#elif defined(_M_IX86) || defined(__i386__)
 		#define VD_CPU_X86		1
@@ -114,7 +116,7 @@
 	typedef sint16				int16;
 	typedef sint8				int8;
 
-	#ifdef _M_AMD64
+	#if defined(_M_AMD64) || defined(_M_ARM64EC)
 		typedef sint64 sintptr;
 		typedef uint64 uintptr;
 	#else
@@ -347,7 +349,7 @@ extern void VDDebugPrint(const char *format, ...);
 #else
 
 	#if defined(_MSC_VER)
-		#ifndef _M_AMD64
+		#if !defined(_M_AMD64) && !defined(_M_ARM64EC)
 			#define VDASSERT(exp)		__assume(!!(exp))
 			#define VDASSERTPTR(exp)	__assume(!!(exp))
 		#else

@@ -31,7 +31,7 @@
 #include <vd2/system/VDString.h>
 
 inline bool VDIsWindowsNT() {
-#ifdef _M_AMD64
+#if defined(_M_AMD64) || defined(_M_ARM64EC)
 	return true;
 #else
 	static bool is_nt = !(GetVersion() & 0x80000000);
@@ -47,7 +47,7 @@ inline bool VDIsAtLeastVistaW32() {
 // useful constants missing from the Platform SDK
 
 enum {
-#ifdef _M_AMD64
+#if defined(_M_AMD64) || defined(_M_ARM64EC)
 	MENUITEMINFO_SIZE_VERSION_400A = sizeof(MENUITEMINFOA),
 	MENUITEMINFO_SIZE_VERSION_400W = sizeof(MENUITEMINFOW)
 #else

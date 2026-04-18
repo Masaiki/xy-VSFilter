@@ -786,6 +786,15 @@ static void Bilinear(unsigned char *buf, int w, int h, int stride, int x_factor,
 
 extern "C" void* memsetSSE2(void* dest, int c, size_t count);
 
+static inline void ZeroOverlayBuffer(void* dest, size_t count)
+{
+#if defined(_M_ARM64EC)
+    memset(dest, 0, count);
+#else
+    memsetSSE2(dest, 0, count);
+#endif
+}
+
 bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int ysub, SharedPtrOverlay overlay)
 {
     using namespace ::boost::flyweights;
@@ -830,7 +839,7 @@ bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int y
         return false;
     }
     overlay->mBody.reset(body, xy_free);
-    memsetSSE2(body, 0, overlay->mOverlayPitch * overlay->mOverlayHeight);
+    ZeroOverlayBuffer(body, overlay->mOverlayPitch * overlay->mOverlayHeight);
     BYTE* border = NULL;
     if (!overlay->mfWideOutlineEmpty)
     {
@@ -840,7 +849,7 @@ bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int y
             return false;
         }
         overlay->mBorder.reset(border, xy_free);
-        memsetSSE2(border, 0, overlay->mOverlayPitch * overlay->mOverlayHeight);
+        ZeroOverlayBuffer(border, overlay->mOverlayPitch * overlay->mOverlayHeight);
     }
 
     // Are we doing a border?

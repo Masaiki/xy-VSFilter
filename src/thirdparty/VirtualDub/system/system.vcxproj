@@ -17,6 +17,14 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64EC">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64EC">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>system</ProjectName>
@@ -50,6 +58,12 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_x64);$(CommonExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64EC'">
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_ARM64);$(CommonExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64EC'">
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_ARM64);$(CommonExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -182,22 +196,22 @@
   </ItemGroup>
   <ItemGroup>
     <YASM Include="source\a_memory.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_thunk.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a64_cpuaccel.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a64_fraction.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a64_int128.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a64_thunk.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

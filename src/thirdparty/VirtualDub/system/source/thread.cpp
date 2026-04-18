@@ -173,7 +173,7 @@ void *VDThread::ThreadLocation() const {
 	GetThreadContext(mhThread, &ctx);
 	ResumeThread(mhThread);
 
-#if defined(VD_CPU_AMD64)
+#if defined(VD_CPU_AMD64) || defined(VD_CPU_ARM64EC)
 	return (void *)ctx.Rip;
 #elif defined(VD_CPU_X86)
 	return (void *)ctx.Eip;

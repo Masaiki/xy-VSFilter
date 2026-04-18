@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <IncludePath>$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\thirdparty\VirtualDub\h\;$(SolutionDir)include\;$(SolutionDir)msvc\include\;$(IncludePath)</IncludePath>
+    <IncludePath>$(VcpkgIncludeDir);$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\thirdparty\VirtualDub\h\;$(SolutionDir)include\;$(SolutionDir)msvc\include\;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(LibraryPath)</LibraryPath>
     <OutDir>$(OutDir)$(Configuration)\</OutDir>
     <TargetExt>.dll</TargetExt>
@@ -13,11 +13,11 @@
       <AdditionalOptions Condition="'$(Configuration)|$(VisualStudioVersion)'=='Release|16.0' Or '$(Configuration)|$(VisualStudioVersion)'=='Release|17.0'">/Gw /Qfast_transcendentals %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib;$(OutDir)..</AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplus_staticDU.lib;KasumiD.lib;systemD.lib;unrarD.lib;Mfuuid.lib;libassd.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug' And '$(VisualStudioVersion)'&gt;'11.0'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplus_staticDU.lib;KasumiD.lib;systemD.lib;unrarD.lib;dwmapi.lib;Mfuuid.lib;libassd.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus_staticRU.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;Mfuuid.lib;libass.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release' And '$(VisualStudioVersion)'&gt;'11.0'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus_staticRU.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;dwmapi.lib;Mfuuid.lib;libass.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VcpkgDebugLibDir);$(VcpkgLibDir);$(SolutionDir)lib;$(OutDir)..</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplus_staticDU.lib;KasumiD.lib;systemD.lib;unrarD.lib;Mfuuid.lib;$(LibassDebugLibraryName)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug' And '$(VisualStudioVersion)'&gt;'11.0'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplus_staticDU.lib;KasumiD.lib;systemD.lib;unrarD.lib;dwmapi.lib;Mfuuid.lib;$(LibassDebugLibraryName)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus_staticRU.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;Mfuuid.lib;$(LibassLibraryName)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release' And '$(VisualStudioVersion)'&gt;'11.0'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus_staticRU.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;dwmapi.lib;Mfuuid.lib;$(LibassLibraryName)</AdditionalDependencies>
       <RegisterOutput>false</RegisterOutput>
     </Link>
     <ResourceCompile>

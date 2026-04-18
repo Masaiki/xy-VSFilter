@@ -443,7 +443,7 @@ bool VDPatchModuleImportTableW32(HMODULE hmod, const char *srcModule, const char
 
 		switch(*(short *)((char *)pHeader + IMAGE_SIZEOF_FILE_HEADER)) {
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) || defined(_M_ARM64EC)
 		case IMAGE_NT_OPTIONAL_HDR64_MAGIC:
 			{
 				const IMAGE_OPTIONAL_HEADER64 *pOpt = (IMAGE_OPTIONAL_HEADER64 *)((const char *)pHeader + sizeof(IMAGE_FILE_HEADER));
@@ -564,7 +564,7 @@ bool VDPatchModuleExportTableW32(HMODULE hmod, const char *name, void *pCompareV
 
 		switch(*(short *)((char *)pHeader + IMAGE_SIZEOF_FILE_HEADER)) {
 
-#ifdef _M_AMD64
+#if defined(_M_AMD64) || defined(_M_ARM64EC)
 		case IMAGE_NT_OPTIONAL_HDR64_MAGIC:
 			{
 				const IMAGE_OPTIONAL_HEADER64 *pOpt = (IMAGE_OPTIONAL_HEADER64 *)((const char *)pHeader + sizeof(IMAGE_FILE_HEADER));

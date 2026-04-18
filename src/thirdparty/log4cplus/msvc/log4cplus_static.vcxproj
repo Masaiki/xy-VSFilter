@@ -17,6 +17,14 @@
       <Configuration>Release Unicode</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug Unicode|ARM64EC">
+      <Configuration>Debug Unicode</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release Unicode|ARM64EC">
+      <Configuration>Release Unicode</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>log4cplus_static</ProjectName>

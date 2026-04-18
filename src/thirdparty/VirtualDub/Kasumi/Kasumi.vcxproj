@@ -17,6 +17,14 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64EC">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64EC">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64EC</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectName>Kasumi</ProjectName>
@@ -50,6 +58,12 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_x64);$(CommonExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64EC'">
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_ARM64);$(CommonExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64EC'">
+    <ExecutablePath>$(VCInstallDir);$(VC_ExecutablePath_ARM64);$(CommonExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -92,27 +106,27 @@
     <ClCompile Include="source\uberblit_resample_special.cpp" />
     <ClCompile Include="source\uberblit_swizzle.cpp" />
     <ClCompile Include="source\uberblit_swizzle_x86.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\uberblit_v210.cpp" />
     <ClCompile Include="source\uberblit_ycbcr_generic.cpp" />
     <ClCompile Include="source\uberblit_ycbcr_x86.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\blt_spanutils_x86.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\blt_x86.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\resample_stages_x86.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\uberblit_resample_special_x86.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="source\resample_stages_x64.cpp">
-      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -158,43 +172,43 @@
   </ItemGroup>
   <ItemGroup>
     <YASM Include="source\a_bltrgb.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_bltrgb2yuv_mmx.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_bltrgb_mmx.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_bltyuv2rgb_sse2.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_resample_mmx.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_resample_sse41.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_spanutils_isse.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_stretchrgb_mmx.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_stretchrgb_point.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_triblt_mmx.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_triblt_scalar.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a_triblt_sse2.asm">
-      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
     <YASM Include="source\a64_resample.asm64">
-      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='ARM64EC'">true</ExcludedFromBuild>
     </YASM>
   </ItemGroup>
   <ItemGroup>

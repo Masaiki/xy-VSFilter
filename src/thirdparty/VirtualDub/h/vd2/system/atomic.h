@@ -66,7 +66,7 @@
 
 inline void *VDAtomicCompareExchangePointer(void *volatile *pp, void *p, void *compare) {
 #if defined(VD_COMPILER_MSVC)
-	#ifdef _M_AMD64
+	#if defined(_M_AMD64) || defined(_M_ARM64EC)
 		return _InterlockedCompareExchangePointer(pp, p, compare);
 	#else
 		return (void *)(sintptr)_InterlockedCompareExchange((volatile long *)(volatile sintptr *)pp, (long)(sintptr)p, (long)(sintptr)compare);
@@ -350,7 +350,7 @@ public:
 	/// Atomic pointer exchange.
 	T *xchg(T* p) {
 		#if defined(VD_COMPILER_MSVC)
-			#ifdef _M_AMD64
+			#if defined(_M_AMD64) || defined(_M_ARM64EC)
 				return ptr == p ? p : (T *)_InterlockedExchangePointer((void *volatile *)&ptr, p);
 			#else
 				return ptr == p ? p : (T *)_InterlockedExchange((volatile long *)&ptr, (long)p);
@@ -362,7 +362,7 @@ public:
 
 	T *compareExchange(T *newValue, T *oldValue) {
 		#if defined(VD_COMPILER_MSVC)
-			#ifdef _M_AMD64
+			#if defined(_M_AMD64) || defined(_M_ARM64EC)
 				return (T *)_InterlockedCompareExchangePointer((void *volatile *)&ptr, (void *)newValue, (void *)oldValue);
 			#else
 				return (T *)_InterlockedCompareExchange((volatile long *)&ptr, (long)(size_t)newValue, (long)(size_t)oldValue);
