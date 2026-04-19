@@ -39,4 +39,10 @@
       <Profile>false</Profile>
     </Link>
   </ItemDefinitionGroup>
+  <Target Name="CopyVcpkgRuntimeDlls" AfterTargets="Build" Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgRuntimeBinDir)'!='' and Exists('$(VcpkgRuntimeBinDir)')">
+    <ItemGroup>
+      <VcpkgRuntimeDll Include="$(VcpkgRuntimeBinDir)\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VcpkgRuntimeDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
