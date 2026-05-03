@@ -9,25 +9,26 @@
     <TargetName Condition="'$(Configuration)'=='Debug Unicode'">$(ProjectName)DU</TargetName>
     <LinkIncremental Condition="'$(Configuration)'=='Debug'">true</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)'=='Release'">false</LinkIncremental>
-    <UseVcpkgLibass Condition="'$(UseVcpkgLibass)'=='' and '$(Platform)'=='ARM64EC'">true</UseVcpkgLibass>
-    <LibassLibraryName Condition="'$(LibassLibraryName)'==''">libass.lib</LibassLibraryName>
-    <LibassDebugLibraryName Condition="'$(LibassDebugLibraryName)'==''">libassd.lib</LibassDebugLibraryName>
+    <LibassLibraryName Condition="'$(LibassLibraryName)'==''">ass.lib</LibassLibraryName>
+    <LibassDebugLibraryName Condition="'$(LibassDebugLibraryName)'==''">ass.lib</LibassDebugLibraryName>
     <VcpkgRoot Condition="'$(VcpkgRoot)'=='' and '$(VCPKG_ROOT)'!=''">$(VCPKG_ROOT)</VcpkgRoot>
     <VcpkgRoot Condition="'$(VcpkgRoot)'!=''">$([System.String]::Copy('$(VcpkgRoot)').Trim())</VcpkgRoot>
-    <VcpkgRoot Condition="'$(VcpkgRoot)'=='' and Exists('D:\\Code\\vcpkg')">D:\Code\vcpkg</VcpkgRoot>
-    <LibassLibraryName Condition="'$(UseVcpkgLibass)'=='true'">ass.lib</LibassLibraryName>
-    <LibassDebugLibraryName Condition="'$(UseVcpkgLibass)'=='true'">ass.lib</LibassDebugLibraryName>
+    <VcpkgTriplet Condition="'$(VcpkgTriplet)'=='' and '$(Platform)'=='Win32'">x86-windows-static</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(VcpkgTriplet)'=='' and '$(Platform)'=='x64'">x64-windows-static</VcpkgTriplet>
     <VcpkgTriplet Condition="'$(VcpkgTriplet)'=='' and '$(Platform)'=='ARM64EC'">arm64ec-windows</VcpkgTriplet>
     <VcpkgInstalledDir Condition="'$(VcpkgInstalledDir)'=='' and '$(VcpkgRoot)'!=''">$(VcpkgRoot)\installed</VcpkgInstalledDir>
-    <VcpkgIncludeDir Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgIncludeDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\include</VcpkgIncludeDir>
-    <VcpkgLibDir Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\lib</VcpkgLibDir>
-    <VcpkgDebugLibDir Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgDebugLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\lib</VcpkgDebugLibDir>
-    <VcpkgBinDir Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\bin</VcpkgBinDir>
-    <VcpkgDebugBinDir Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgDebugBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\bin</VcpkgDebugBinDir>
-    <VcpkgRuntimeBinDir Condition="'$(UseVcpkgLibass)'=='true' and '$(Configuration)'=='Debug'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
-    <VcpkgRuntimeBinDir Condition="'$(UseVcpkgLibass)'=='true' and '$(Configuration)'=='Debug Unicode'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
-    <VcpkgRuntimeBinDir Condition="'$(UseVcpkgLibass)'=='true' and '$(VcpkgRuntimeBinDir)'==''">$(VcpkgBinDir)</VcpkgRuntimeBinDir>
+    <VcpkgIncludeDir Condition="'$(VcpkgIncludeDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\include</VcpkgIncludeDir>
+    <VcpkgLibDir Condition="'$(VcpkgLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\lib</VcpkgLibDir>
+    <VcpkgDebugLibDir Condition="'$(VcpkgDebugLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\lib</VcpkgDebugLibDir>
+    <VcpkgBinDir Condition="'$(VcpkgBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\bin</VcpkgBinDir>
+    <VcpkgDebugBinDir Condition="'$(VcpkgDebugBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\bin</VcpkgDebugBinDir>
+    <VcpkgRuntimeBinDir Condition="'$(Configuration)'=='Debug'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
+    <VcpkgRuntimeBinDir Condition="'$(Configuration)'=='Debug Unicode'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
+    <VcpkgRuntimeBinDir Condition="'$(VcpkgRuntimeBinDir)'==''">$(VcpkgBinDir)</VcpkgRuntimeBinDir>
   </PropertyGroup>
+  <Target Name="ValidateVcpkgLibass" BeforeTargets="PrepareForBuild" Condition="'$(VcpkgInstalledDir)'=='' Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\ass\ass.h')">
+    <Error Text="vcpkg libass was not found. Set VCPKG_ROOT, pass /p:VcpkgRoot=..., or run 'vcpkg integrate install', then install libass for $(VcpkgTriplet)." />
+  </Target>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalOptions>/w34706 %(AdditionalOptions)</AdditionalOptions>

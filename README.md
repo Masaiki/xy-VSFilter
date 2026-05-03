@@ -15,24 +15,19 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
 ## How to compile
 1. Clone or download release from https://github.com/ShiftMediaProject/VSYASM and https://github.com/ShiftMediaProject/VSNASM, and run install_script.bat as administrator.
 2. Clone the repo and run `git submodule update --init --recursive --remote` in the folder.
-3. In Visual Studio, manully set the Runtime Library of libass and its dependencies to "/MT" for Release and "/MTd" for Debug. See [here](https://docs.microsoft.com/en-us/cpp/build/reference/md-mt-ld-use-run-time-library?view=msvc-170) for more.
-4. Build project xy_sub_filter.
-
-### ARM64EC
-`ARM64EC` is supported through a dedicated solution/platform configuration.
-
-1. Open `VSFilter.sln` with Visual Studio 2022.
-2. Select `ARM64EC` as the platform.
-3. Install `libass` with vcpkg for an ARM64EC triplet, for example:
+3. Install `libass` with `vcpkg` for the platform you want to build. For example:
    ```
+   vcpkg install libass:x86-windows-static
+   vcpkg install libass:x64-windows-static
    vcpkg install libass:arm64ec-windows
    ```
-4. Set `VCPKG_ROOT` in your environment before building, or pass `VcpkgRoot` as an MSBuild property.
+4. Make vcpkg discoverable before building. Set `VCPKG_ROOT`, pass `VcpkgRoot` as an MSBuild property, or run `vcpkg integrate install`.
+5. Open `VSFilter.sln` with Visual Studio 2022 and build the target you want.
 
 Notes:
-- `ARM64EC` builds default to `UseVcpkgLibass=true`, so the solution will no longer try to build SMP's `libass` project for that platform.
-- The default triplet is `arm64ec-windows`, which links against vcpkg's dynamic `libass`. If you prefer another triplet, override `VcpkgTriplet`.
-- When using a dynamic triplet, remember to deploy `libass.dll` and any dependent DLLs together with the built filter.
+- The project uses `vcpkg` for `libass`; the solution no longer builds the `SMP` libass dependency chain.
+- The default triplets are `x86-windows-static`, `x64-windows-static`, and `arm64ec-windows`. If you prefer another triplet, override `VcpkgTriplet`.
+- `Win32` and `x64` use static triplets by default. When using a dynamic triplet, such as the default `ARM64EC` triplet, remember to deploy `libass.dll` and any dependent DLLs together with the built filter.
 
 ## Note
 This project (XySubFilter with libass) is a **variant** of XySubFilter, which uses [libass](https://github.com/libass/libass) to render **SSA/ASS**, so
