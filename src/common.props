@@ -20,6 +20,8 @@
     <VcpkgIncludeDir Condition="'$(VcpkgIncludeDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\include</VcpkgIncludeDir>
     <VcpkgLibDir Condition="'$(VcpkgLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\lib</VcpkgLibDir>
     <VcpkgDebugLibDir Condition="'$(VcpkgDebugLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\lib</VcpkgDebugLibDir>
+    <VcpkgLibraryDirectories Condition="'$(VcpkgLibraryDirectories)'=='' and ('$(Configuration)'=='Debug' Or '$(Configuration)'=='Debug Unicode')">$(VcpkgDebugLibDir);$(VcpkgLibDir)</VcpkgLibraryDirectories>
+    <VcpkgLibraryDirectories Condition="'$(VcpkgLibraryDirectories)'==''">$(VcpkgLibDir)</VcpkgLibraryDirectories>
     <VcpkgBinDir Condition="'$(VcpkgBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\bin</VcpkgBinDir>
     <VcpkgDebugBinDir Condition="'$(VcpkgDebugBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\bin</VcpkgDebugBinDir>
     <VcpkgRuntimeBinDir Condition="'$(Configuration)'=='Debug'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
