@@ -28,7 +28,6 @@
 
 #include <initguid.h>
 #include "..\..\include\moreuuids.h"
-#include "sk_csri_ext.h"
 
 // our first format id
 #define __GAB1__ "GAB1"
@@ -58,35 +57,6 @@
 # define TRACE_SAMPLE_TIMING(msg)
 #endif
 
-static enum sk_csri_subtype sk_csri_subtype_from_guid_subtype(const GUID &subtype)
-{
-    if (subtype == MEDIASUBTYPE_UTF8) {
-        return SK_CSRI_SUBTYPE_UTF8;
-    }
-    if (subtype == MEDIASUBTYPE_SSA) {
-        return SK_CSRI_SUBTYPE_SSA;
-    }
-    if (subtype == MEDIASUBTYPE_ASS) {
-        return SK_CSRI_SUBTYPE_ASS;
-    }
-    if (subtype == MEDIASUBTYPE_ASS2) {
-        return SK_CSRI_SUBTYPE_ASS2;
-    }
-    if (subtype == MEDIASUBTYPE_SSF) {
-        return SK_CSRI_SUBTYPE_SSF;
-    }
-    if (subtype == MEDIASUBTYPE_VOBSUB) {
-        return SK_CSRI_SUBTYPE_VOBSUB;
-    }
-    if (subtype == MEDIASUBTYPE_HDMVSUB) {
-        return SK_CSRI_SUBTYPE_HDMV;
-    }
-    if (subtype == MEDIASUBTYPE_DVB_SUBTITLES) {
-        return SK_CSRI_SUBTYPE_DVB;
-    }
-
-    return SK_CSRI_SUBTYPE_UNKNOWN;
-}
 
 //
 // CSubtitleInputPinHelperImpl
@@ -179,6 +149,9 @@ STDMETHODIMP CTextSubtitleInputPinHepler::NewSegment( REFERENCE_TIME tStart, REF
     m_pRTS->CreateSegments();
     if (m_pRTS->m_ass_context.m_assloaded) {
         ass_flush_events(m_pRTS->m_ass_context.m_track.get());
+    }
+    if (m_pRTS->m_csri_context.m_csri_loaded) {
+        m_pRTS->m_csri_context.discard(1);
     }
     return __super::NewSegment(tStart,tStop,dRate);
 }
@@ -288,8 +261,7 @@ STDMETHODIMP CTextSubtitleInputPinHepler::Receive( IMediaSample* pSample )
                 return S_OK;
             }
             if (m_pRTS->m_csri_context.m_csri_loaded && m_pRTS->m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI) {
-                const enum sk_csri_subtype csri_subtype = sk_csri_subtype_from_guid_subtype(m_mt.subtype);
-                m_pRTS->m_csri_context.process_data(pData, len, tStart / 1e7, tStop / 1e7, csri_subtype);
+                m_pRTS->m_csri_context.push_packet(pData, len, tStart / 1e7, tStop / 1e7);
                 return S_OK;
             }
             CStringW str = UTF8To16(CStringA((LPCSTR)pData, len)).Trim();

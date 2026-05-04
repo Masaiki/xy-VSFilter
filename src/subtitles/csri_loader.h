@@ -1,6 +1,6 @@
 #pragma once
 #include "csri_wrapper.h"
-#include "sk_csri_ext.h"
+#include "csri/stream.h"
 #include <atlstr.h>
 
 class CSRI_Loader
@@ -12,7 +12,7 @@ public:
 	bool load(const CStringW & lib_path);
 	void unload();
 	bool is_loaded() const { return m_hModule != nullptr; }
-	const struct sk_csri_ext_impl *get_sk_csri_ext_impl(csri_rend *renderer) const;
+	const struct csri_stream_ext *get_csri_stream_ext(csri_rend *renderer) const;
 
 	// CSRI function pointers
 	csri_rend *(*csri_renderer_byname)(const char *name, const char *specific);

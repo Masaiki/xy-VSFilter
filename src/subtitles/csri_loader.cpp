@@ -58,13 +58,13 @@ void CSRI_Loader::unload()
 	csri_query_ext = nullptr;
 }
 
-const struct sk_csri_ext_impl *CSRI_Loader::get_sk_csri_ext_impl(csri_rend *renderer) const
+const struct csri_stream_ext *CSRI_Loader::get_csri_stream_ext(csri_rend *renderer) const
 {
 	if (!renderer || !csri_query_ext) {
 		return nullptr;
 	}
 
-	return (const struct sk_csri_ext_impl *)csri_query_ext(renderer, SK_CSRI_EXT_ID);
+	return (const struct csri_stream_ext *)csri_query_ext(renderer, CSRI_EXT_STREAM_ASS);
 }
 
 void CSRI_Loader::init_function_pointers()
