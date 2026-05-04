@@ -28,8 +28,8 @@
     <VcpkgRuntimeBinDir Condition="'$(Configuration)'=='Debug Unicode'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
     <VcpkgRuntimeBinDir Condition="'$(VcpkgRuntimeBinDir)'==''">$(VcpkgBinDir)</VcpkgRuntimeBinDir>
   </PropertyGroup>
-  <Target Name="ValidateVcpkgLibass" BeforeTargets="PrepareForBuild" Condition="'$(VcpkgInstalledDir)'=='' Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\ass\ass.h')">
-    <Error Text="vcpkg libass was not found. Set VCPKG_ROOT, pass /p:VcpkgRoot=..., or run 'vcpkg integrate install', then install libass for $(VcpkgTriplet)." />
+  <Target Name="ValidateVcpkgDependencies" BeforeTargets="PrepareForBuild" Condition="'$(VcpkgInstalledDir)'=='' Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\ass\ass.h') Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\boost\shared_ptr.hpp') Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\boost\flyweight.hpp') Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\log4cplus\logger.h')">
+    <Error Text="vcpkg dependencies were not found. Set VCPKG_ROOT, pass /p:VcpkgRoot=..., or run 'vcpkg integrate install', then install libass, boost, and log4cplus[unicode] for $(VcpkgTriplet)." />
   </Target>
   <ItemDefinitionGroup>
     <ClCompile>

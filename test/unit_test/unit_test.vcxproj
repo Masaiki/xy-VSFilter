@@ -55,18 +55,22 @@
   <PropertyGroup>
     <OutDir>$(OutDir)$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
-    <IncludePath>$(SolutionDir)src\thirdparty\gtest\include;$(SolutionDir)src\subtitles;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\subpic\;$(SolutionDir)src\filters\transform\vsfilter\;$(IncludePath)</IncludePath>
+    <IncludePath>$(VcpkgIncludeDir);$(SolutionDir)src\subtitles;$(SolutionDir)src\subpic\;$(SolutionDir)src\filters\transform\vsfilter\;$(IncludePath)</IncludePath>
   </PropertyGroup>
+  <Target Name="ValidateVcpkgGtest" BeforeTargets="PrepareForBuild" Condition="'$(VcpkgInstalledDir)'=='' Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\gtest\gtest.h')">
+    <Error Text="vcpkg gtest was not found. Set VCPKG_ROOT, pass /p:VcpkgRoot=..., or run 'vcpkg integrate install', then install gtest for $(VcpkgTriplet)." />
+  </Target>
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalLibraryDirectories>$(OutDir);$(OutDir)..</AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">gtestDU.lib;subtitlesD.lib;subpicD.lib;strmbaseD.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">gtestRU.lib;subtitlesR.lib;subpicR.lib;strmbaseR.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VcpkgLibraryDirectories);$(OutDir);$(OutDir)..</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">gtest.lib;subtitlesD.lib;subpicD.lib;strmbaseD.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">gtest.lib;subtitlesR.lib;subpicR.lib;strmbaseR.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
     <ClCompile>
       <PreprocessorDefinitions Condition="'$(VisualStudioVersion)'&gt;'10.0'">_VARIADIC_MAX=10;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <LanguageStandard Condition="'$(VisualStudioVersion)'&gt;'14.0'">stdcpp17</LanguageStandard>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">

@@ -15,17 +15,17 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
 ## How to compile
 1. Clone or download release from https://github.com/ShiftMediaProject/VSYASM and https://github.com/ShiftMediaProject/VSNASM, and run install_script.bat as administrator.
 2. Clone the repo and run `git submodule update --init --recursive --remote` in the folder.
-3. Install `libass` with `vcpkg` for the platform you want to build. For example:
+3. Install the vcpkg dependencies for the platform you want to build. For example:
    ```
-   vcpkg install libass:x86-windows-static
-   vcpkg install libass:x64-windows-static
-   vcpkg install libass:arm64ec-windows
+   vcpkg install libass boost gtest "log4cplus[unicode]" --triplet x86-windows-static
+   vcpkg install libass boost gtest "log4cplus[unicode]" --triplet x64-windows-static
+   vcpkg install libass boost gtest "log4cplus[unicode]" --triplet arm64ec-windows
    ```
 4. Make vcpkg discoverable before building. Set `VCPKG_ROOT`, pass `VcpkgRoot` as an MSBuild property, or run `vcpkg integrate install`.
 5. Open `VSFilter.sln` with Visual Studio 2022 and build the target you want.
 
 Notes:
-- The project uses `vcpkg` for `libass`; the solution no longer builds the `SMP` libass dependency chain.
+- The project uses `vcpkg` for `libass`, Boost, GoogleTest, and log4cplus; the solution no longer builds the `SMP` libass dependency chain or the bundled gtest/log4cplus projects.
 - The default triplets are `x86-windows-static`, `x64-windows-static`, and `arm64ec-windows`. If you prefer another triplet, override `VcpkgTriplet`.
 - `Win32` and `x64` use static triplets by default. When using a dynamic triplet, such as the default `ARM64EC` triplet, remember to deploy `libass.dll` and any dependent DLLs together with the built filter.
 
