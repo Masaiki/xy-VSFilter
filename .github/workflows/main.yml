@@ -5,22 +5,19 @@ on: [push]
 jobs:
   build-win:
     runs-on: windows-2022
+    env:
+      VCPKG_ROOT: C:\vcpkg
     strategy:
       matrix:
         include:
         - platform: 'Win32'
+          vcpkg_triplet: 'x86-windows-static'
         - platform: 'x64'
+          vcpkg_triplet: 'x64-windows-static'
+        - platform: 'ARM64EC'
+          vcpkg_triplet: 'arm64ec-windows'
     steps:
       - uses: actions/checkout@v4
-      - name: install submodules
-        shell: cmd
-        run: |
-          git submodule update --init --recursive --remote
-      - name: install nasm
-        shell: cmd
-        run: |
-          git clone https://github.com/ShiftMediaProject/VSNASM.git
-          .\VSNASM\install_script.bat
       - name: Install VS2010 Redistributable (for vsyasm)
         run: choco install vcredist2010 -y
       - name: install yasm
@@ -28,18 +25,18 @@ jobs:
         run: |
           git clone https://github.com/ShiftMediaProject/VSYASM.git
           .\VSYASM\install_script.bat
-      - name: force /MT build
-        shell: bash
-        run: |
-          sed -i -e 's|<ClCompile>|&<RuntimeLibrary>MultiThreaded</RuntimeLibrary>|g' SMP/*/SMP/*.vcxproj
+      - name: install libass
+        run: '& "$env:VCPKG_ROOT\vcpkg.exe" install libass:${{ matrix.vcpkg_triplet }}'
       - name: add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
       - name: build
         run: MSBuild.exe VSFilter.sln /t:xy_sub_filter:Rebuild /p:WindowsTargetPlatformVersion=10.0 /p:PlatformToolset=v143 /m /p:Configuration=Release /p:Platform=${{matrix.platform}}
       - name: copy
         run: |
-          cmake -E copy bin\lib_17.0\${{matrix.platform}}\Release\XySubFilter.dll dist\${{matrix.platform}}\XySubFilter.dll
-          cmake -E copy scripts\Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat && cmake -E copy scripts\Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
+          New-Item -ItemType Directory -Force -Path dist\${{matrix.platform}}
+          Copy-Item bin\lib_17.0\${{matrix.platform}}\Release\*.dll dist\${{matrix.platform}}\
+          Copy-Item scripts\Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat
+          Copy-Item scripts\Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
       - name: upload
         uses: actions/upload-artifact@v4
         with:
