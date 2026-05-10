@@ -7,9 +7,10 @@ bool CSRI_Context::csri_load_file(CString path)
     csri_unload();
     if (path.IsEmpty()) return false;
 
-    if (!m_loader->is_loaded()) {
+    if (!m_loader || !m_loader->is_loaded()) {
          return false;
     }
+    m_deleter.loader = m_loader.get();
 
     m_renderer = m_loader->csri_renderer_default();
     if (!m_renderer) return false;
@@ -27,9 +28,10 @@ bool CSRI_Context::csri_load_memory(char *data, int size)
     csri_unload();
     if (size <= 0 || !data) return false;
 
-    if (!m_loader->is_loaded()) {
+    if (!m_loader || !m_loader->is_loaded()) {
         return false;
     }
+    m_deleter.loader = m_loader.get();
 
     m_renderer = m_loader->csri_renderer_default();
     if (!m_renderer) return false;

@@ -2732,7 +2732,7 @@ bool CSimpleTextSubtitle::Open(CString fn, int CharSet, CString name)
     if (lstrcmpi(ext, L".ass") == 0 || lstrcmpi(ext, L".ssa") == 0 || name == _T("CSRI memory subtitles"))
     {
         m_ass_context.LoadASSFile(f.GetFilePath());
-        if (m_csri_context.m_loader->is_loaded()) {
+        if (m_csri_context.m_loader && m_csri_context.m_loader->is_loaded()) {
             m_csri_context.csri_load_file(fn);
         }
     }
