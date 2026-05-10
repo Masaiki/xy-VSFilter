@@ -3711,7 +3711,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 
 	if (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded && (color_space == XY_CS_ARGB || color_space == XY_CS_ARGB_F)) {
 		csri_fmt fmt = {
-			CSRI_F_BGR_,
+			CSRI_F_BGRA,
 			subtitle_target_rect.right - subtitle_target_rect.left,
 			subtitle_target_rect.bottom - subtitle_target_rect.top,
 		};
