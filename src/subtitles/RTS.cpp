@@ -21,6 +21,7 @@
 
 #include "stdafx.h"
 #include <math.h>
+#include <stdint.h>
 #include <time.h>
 #include "RTS.h"
 #include "draw_item.h"
@@ -3049,7 +3050,13 @@ STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetStartPosition(REFERENCE_TIME r
     m_fps = fps;
     if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
         (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
-        return (POSITION)rt;
+        // POSITION is pointer-sized. If it cannot hold a full REFERENCE_TIME,
+        // store milliseconds instead. Add one so zero remains the NULL sentinel.
+#if UINTPTR_MAX < INT64_MAX
+        return (POSITION)(DWORD_PTR)(rt / 10000i64 + 1);
+#else
+        return (POSITION)(DWORD_PTR)(rt + 1);
+#endif
     }
 
     int iSegment;
@@ -3066,8 +3073,7 @@ STDMETHODIMP_(POSITION) CRenderedTextSubtitle::GetNext(POSITION pos)
 {
     if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
         (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
-        REFERENCE_TIME rt = (REFERENCE_TIME)pos;
-        return (POSITION)(rt + 1);
+        return NULL;
     }
     int iSegment = (int)pos;
     const STSSegment *stss = GetSegment(iSegment);
@@ -3082,8 +3088,11 @@ STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStart(POSITION pos, doub
 {
     if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
         (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
-        REFERENCE_TIME rt = (REFERENCE_TIME)pos;
-        return rt;
+#if UINTPTR_MAX < INT64_MAX
+        return ((REFERENCE_TIME)(DWORD_PTR)pos - 1) * 10000i64;
+#else
+        return (REFERENCE_TIME)(DWORD_PTR)pos - 1;
+#endif
     }
     return(10000i64 * TranslateSegmentStart((int)pos-1, fps));
 }
@@ -3092,8 +3101,11 @@ STDMETHODIMP_(REFERENCE_TIME) CRenderedTextSubtitle::GetStop(POSITION pos, doubl
 {
     if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
         (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
-        REFERENCE_TIME rt = (REFERENCE_TIME)pos;
-        return rt + 1;
+#if UINTPTR_MAX < INT64_MAX
+        return ((REFERENCE_TIME)(DWORD_PTR)pos - 1) * 10000i64 + 10000i64;
+#else
+        return (REFERENCE_TIME)(DWORD_PTR)pos;
+#endif
     }
     return(10000i64 * TranslateSegmentEnd((int)pos-1, fps));
 }
@@ -3103,9 +3115,13 @@ STDMETHODIMP_(VOID) CRenderedTextSubtitle::GetStartStop(POSITION pos, double fps
 {
     if ((m_render_backend == SUBTITLE_RENDER_BACKEND_LIBASS && m_ass_context.m_assloaded) || 
         (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded)) {
-        REFERENCE_TIME rt = (REFERENCE_TIME)pos;
-        start = rt;
-        stop = rt + 1;
+#if UINTPTR_MAX < INT64_MAX
+        start = ((REFERENCE_TIME)(DWORD_PTR)pos - 1) * 10000i64;
+        stop = start + 10000i64;
+#else
+        start = (REFERENCE_TIME)(DWORD_PTR)pos - 1;
+        stop = start + 1;
+#endif
         return;
     }
     int iSegment = (int)pos-1;
