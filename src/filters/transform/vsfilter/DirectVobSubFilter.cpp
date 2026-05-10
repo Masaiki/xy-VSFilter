@@ -102,6 +102,9 @@ CDirectVobSubFilter::CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUI
         m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(backend);
         return backend;
     };
+    m_tbid.get_actual_backend = [&]() {
+        return GetActualSubtitleRenderBackend();
+    };
     m_tbid.set_backend = [&](SubtitleRenderBackend backend) {
         XySetInt(INT_SUBTITLE_RENDER_BACKEND, static_cast<int>(NormalizeBackend(static_cast<int>(backend))));
     };
@@ -2304,11 +2307,36 @@ HRESULT CDirectVobSubFilter::DoGetField(unsigned field, void *value)
             }
         }
         break;
+    case INT_ACTUAL_SUBTITLE_RENDER_BACKEND:
+        *(int*)value = static_cast<int>(GetActualSubtitleRenderBackend());
+        break;
     default:
         hr = DirectVobSubImpl::DoGetField(field, value);
         break;
     }
     return hr;
+}
+
+SubtitleRenderBackend CDirectVobSubFilter::GetActualSubtitleRenderBackend()
+{
+    CAutoLock cAutoLock(&m_csFilter);
+
+    ISubStream *pSubStream = nullptr;
+    if (m_nSubtitleId != static_cast<DWORD_PTR>(-1)) {
+        pSubStream = reinterpret_cast<ISubStream *>(m_nSubtitleId);
+    }
+
+    auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream);
+    if (!rts) {
+        return SUBTITLE_RENDER_BACKEND_VSFILTER;
+    }
+
+    const auto configured_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+    if (configured_backend == SUBTITLE_RENDER_BACKEND_LIBASS && rts->m_ass_context.m_assloaded) {
+        return SUBTITLE_RENDER_BACKEND_LIBASS;
+    }
+
+    return SUBTITLE_RENDER_BACKEND_VSFILTER;
 }
 
 //

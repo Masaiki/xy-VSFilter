@@ -254,6 +254,9 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
         m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(backend);
         return backend;
     };
+    m_tbid.get_actual_backend = [&]() {
+        return GetActualSubtitleRenderBackend();
+    };
     m_tbid.set_backend = [&](SubtitleRenderBackend backend) {
         XySetInt(INT_SUBTITLE_RENDER_BACKEND, static_cast<int>(NormalizeBackend(static_cast<int>(backend))));
     };
@@ -528,7 +531,7 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
         m_context_id++;
         break;
     case STRING_CSRI_LIB_PATH:
-        ConfigureCsriRenderer(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
+        hr = ConfigureCsriRenderer(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
         for (POSITION pos = m_pSubStreams.GetHeadPosition(); pos;)
         {
             CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
@@ -696,11 +699,34 @@ HRESULT XySubFilter::DoGetField( unsigned field, void *value )
             }
         }
         break;
+    case INT_ACTUAL_SUBTITLE_RENDER_BACKEND:
+        *(int*)value = static_cast<int>(GetActualSubtitleRenderBackend());
+        break;
     default:
         hr = DirectVobSubImpl::DoGetField(field, value);
         break;
     }
     return hr;
+}
+
+SubtitleRenderBackend XySubFilter::GetActualSubtitleRenderBackend()
+{
+    CAutoLock cAutoLock(&m_csFilter);
+
+    const auto configured_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+    auto rts = dynamic_cast<CRenderedTextSubtitle*>(m_curSubStream);
+    if (!rts) {
+        return SUBTITLE_RENDER_BACKEND_VSFILTER;
+    }
+
+    if (configured_backend == SUBTITLE_RENDER_BACKEND_CSRI && rts->m_csri_context.m_csri_loaded) {
+        return SUBTITLE_RENDER_BACKEND_CSRI;
+    }
+    if (configured_backend == SUBTITLE_RENDER_BACKEND_LIBASS && rts->m_ass_context.m_assloaded) {
+        return SUBTITLE_RENDER_BACKEND_LIBASS;
+    }
+
+    return SUBTITLE_RENDER_BACKEND_VSFILTER;
 }
 
 //

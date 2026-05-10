@@ -311,9 +311,21 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 			const UINT BACKEND_MENU_BASE = 1u << 19;
 			if (m_tbid->get_backend && m_tbid->set_backend) {
 				const auto current_backend = m_tbid->get_backend();
+				const auto actual_backend = m_tbid->get_actual_backend ? m_tbid->get_actual_backend() : current_backend;
 				struct BackendMenuEntry {
 					SubtitleRenderBackend value;
 					LPCWSTR label;
+				};
+				auto GetBackendLabel = [](SubtitleRenderBackend backend) -> LPCTSTR {
+					switch (backend) {
+					case SUBTITLE_RENDER_BACKEND_LIBASS:
+						return _T("libass");
+					case SUBTITLE_RENDER_BACKEND_CSRI:
+						return _T("CSRI");
+					case SUBTITLE_RENDER_BACKEND_VSFILTER:
+					default:
+						return _T("VSFilter");
+					}
 				};
 				const BackendMenuEntry backend_entries[] = {
 					{ SUBTITLE_RENDER_BACKEND_LIBASS, L"libass backend (default)" },
@@ -323,6 +335,9 @@ LRESULT CSystrayWindow::OnNotifyIcon(WPARAM wParam, LPARAM lParam)
 #endif
 				};
 				popup.AppendMenu(MF_SEPARATOR);
+				CString actual_backend_label;
+				actual_backend_label.Format(_T("Actual backend: %s"), GetBackendLabel(actual_backend));
+				popup.AppendMenu(MF_DISABLED | MF_STRING, 0, actual_backend_label);
 				for (const auto& entry : backend_entries) {
 					UINT flags = MF_ENABLED | MF_STRING;
 					if (current_backend == entry.value) {

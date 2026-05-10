@@ -251,6 +251,7 @@
 #define IDC_CHECKBOX_VS_ASS_RENDERING   1073
 #define IDS_RG_SUBTITLE_BACKEND         1075
 #define IDC_COMBO_RENDER_BACKEND        1076
+#define IDC_ACTUAL_RENDER_BACKEND       1077
 
 // Next default values for new objects
 // 

@@ -278,6 +278,7 @@ class CXySubFilterMainPPage : public CDVSBasePPage
     CComboBox m_load;
     CButton m_extload, m_webload, m_embload;
     CEdit m_csriPathEdit;
+    CStatic m_actualBackendLabel;
     CButton m_csriBrowseButton, m_csriResetButton;
     CStringW m_csriDllPath;
 protected:

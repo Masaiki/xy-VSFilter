@@ -1693,6 +1693,7 @@ CXySubFilterMainPPage::CXySubFilterMainPPage(LPUNKNOWN pUnk, HRESULT* phr)
     BindControl(IDC_CSRI_BROWSE, m_csriBrowseButton);
     BindControl(IDC_CSRI_RESET, m_csriResetButton);
     BindControl(IDC_COMBO_RENDER_BACKEND, m_backendCombo);
+    BindControl(IDC_ACTUAL_RENDER_BACKEND, m_actualBackendLabel);
 }
 
 CXySubFilterMainPPage::~CXySubFilterMainPPage()
@@ -1829,6 +1830,11 @@ void CXySubFilterMainPPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSubXy->XySetString(DirectVobSubXyOptions::STRING_CSRI_LIB_PATH, m_csriDllPath.GetBuffer(), m_csriDllPath.GetLength());
         CHECK_N_LOG(hr, "Failed to set option");
+        if (FAILED(hr) && !m_csriDllPath.IsEmpty()) {
+            CStringW msg;
+            msg.Format(L"Failed to load CSRI renderer:\n%ls", m_csriDllPath.GetString());
+            AfxMessageBox(msg, MB_ICONWARNING | MB_OK);
+        }
         hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, m_backend);
         CHECK_N_LOG(hr, "Failed to set option");
     }
@@ -1949,6 +1955,24 @@ void CXySubFilterMainPPage::UpdateControlData(bool fSave)
             if (entry.value == m_backend) backend_index = index;
         }
         m_backendCombo.SetCurSel(backend_index);
+
+        int actual_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+        if (SUCCEEDED(m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_ACTUAL_SUBTITLE_RENDER_BACKEND, &actual_backend))) {
+            CString actual_backend_label;
+            switch (NormalizeBackend(actual_backend)) {
+            case SUBTITLE_RENDER_BACKEND_LIBASS:
+                actual_backend_label = _T("libass");
+                break;
+            case SUBTITLE_RENDER_BACKEND_CSRI:
+                actual_backend_label = _T("CSRI");
+                break;
+            case SUBTITLE_RENDER_BACKEND_VSFILTER:
+            default:
+                actual_backend_label = _T("VSFilter");
+                break;
+            }
+            m_actualBackendLabel.SetWindowText(actual_backend_label);
+        }
     }
 }
 

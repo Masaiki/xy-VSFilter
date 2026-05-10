@@ -34,6 +34,7 @@ typedef struct
     bool fRunOnce, fShowIcon;
     ATL::CEvent WndCreatedEvent;
     std::function<SubtitleRenderBackend(void)> get_backend;
+    std::function<SubtitleRenderBackend(void)> get_actual_backend;
     std::function<void(SubtitleRenderBackend)> set_backend;
 } SystrayIconData;
 

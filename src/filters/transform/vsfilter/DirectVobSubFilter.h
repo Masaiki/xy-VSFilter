@@ -170,6 +170,7 @@ protected:
 	void UpdateSubtitle(bool fApplyDefStyle = true);
 	void SetSubtitle(ISubStream* pSubStream, bool fApplyDefStyle = true);
 	void InvalidateSubtitle(REFERENCE_TIME rtInvalidate = -1, DWORD_PTR nSubtitleId = -1);
+	SubtitleRenderBackend GetActualSubtitleRenderBackend();
 
 	// the text input pin is using these
 	void AddSubStream(ISubStream* pSubStream);

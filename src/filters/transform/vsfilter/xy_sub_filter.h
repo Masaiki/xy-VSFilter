@@ -108,6 +108,7 @@ private:
     HRESULT FindAndConnectConsumer(IFilterGraph* pGraph);
 
     void UpdateLanguageCount();
+    SubtitleRenderBackend GetActualSubtitleRenderBackend();
 
     CStringW DumpProviderInfo();
     CStringW DumpConsumerInfo();
