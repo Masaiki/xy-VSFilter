@@ -3709,7 +3709,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         render_frame_creater->SetClipRect(subtitle_target_rect);
     }
 
-	if (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded && (color_space == XY_CS_ARGB || XY_CS_ARGB_F)) {
+	if (m_render_backend == SUBTITLE_RENDER_BACKEND_CSRI && m_csri_context.m_csri_loaded && (color_space == XY_CS_ARGB || color_space == XY_CS_ARGB_F)) {
 		csri_fmt fmt = {
 			CSRI_F_BGR_,
 			subtitle_target_rect.right - subtitle_target_rect.left,
