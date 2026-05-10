@@ -59,11 +59,18 @@ function Get-ExistingString($name, $fallback) {
 }
 
 function Invoke-Git([string[]]$arguments) {
-    $output = & git -C $RepoRoot @arguments 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        return (($output | Out-String).Trim())
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & git -C $RepoRoot @arguments 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return (($output | Out-String).Trim())
+        }
+        return $null
     }
-    return $null
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
 function Add-IfNotEmpty([System.Collections.Generic.List[string]]$list, [string]$value) {
