@@ -62,18 +62,25 @@ void CHdmvSub::AllocSegment(int nSize)
 
 POSITION CHdmvSub::GetStartPosition(REFERENCE_TIME rt, double fps /* = 0*/)
 {
+    return GetStartPosition(rt, fps, true);
+}
+
+POSITION CHdmvSub::GetStartPosition(REFERENCE_TIME rt, double fps, bool CleanOld)
+{
     HDMV_PRESENTATION_SEGMENT* pPresentationSegment;
 
-    // Cleanup old PG
-    while (m_pPresentationSegments.GetCount() > 0) {
-        pPresentationSegment = m_pPresentationSegments.GetHead();
-        if (pPresentationSegment->rtStop < rt) {
-            TRACE_HDMVSUB( (_T("CHdmvSub:HDMV Remove Presentation segment %d  %lS => %lS (rt=%lS)\n"), pPresentationSegment->composition_descriptor.nNumber,
-                          ReftimeToString(pPresentationSegment->rtStart), ReftimeToString(pPresentationSegment->rtStop), ReftimeToString(rt)) );
-            m_pPresentationSegments.RemoveHead();
-            delete pPresentationSegment;
-        } else {
-            break;
+    if (CleanOld) {
+        // Cleanup old PG
+        while (m_pPresentationSegments.GetCount() > 0) {
+            pPresentationSegment = m_pPresentationSegments.GetHead();
+            if (pPresentationSegment->rtStop < rt) {
+                TRACE_HDMVSUB( (_T("CHdmvSub:HDMV Remove Presentation segment %d  %lS => %lS (rt=%lS)\n"), pPresentationSegment->composition_descriptor.nNumber,
+                              ReftimeToString(pPresentationSegment->rtStart), ReftimeToString(pPresentationSegment->rtStop), ReftimeToString(rt)) );
+                m_pPresentationSegments.RemoveHead();
+                delete pPresentationSegment;
+            } else {
+                break;
+            }
         }
     }
  // log first 2 objects

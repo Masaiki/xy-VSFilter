@@ -8,7 +8,7 @@
 class HdmvSubtitleProviderImpl
 {
 public:
-    HdmvSubtitleProviderImpl (CBaseSub* pSub);
+    HdmvSubtitleProviderImpl (CBaseSub* pSub, bool cleanOld = true);
     ~HdmvSubtitleProviderImpl(void);
 
     STDMETHODIMP Connect     (IXyOptions *consumer);
@@ -19,6 +19,7 @@ private:
     HRESULT Render(REFERENCE_TIME now, POSITION pos);
 private :
     CBaseSub*                   m_pSub;
+    bool                        m_cleanOld;
 
     IXyOptions                 *m_consumer;
     CSize                       m_cur_output_size;

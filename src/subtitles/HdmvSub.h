@@ -100,6 +100,7 @@ public:
     HRESULT   ParseSample(BYTE* pData, int lSampleLen, REFERENCE_TIME rtStart, REFERENCE_TIME rtStop);
 
     POSITION  GetStartPosition(REFERENCE_TIME rt, double fps = 0);
+    POSITION  GetStartPosition(REFERENCE_TIME rt, double fps, bool CleanOld);
     POSITION  GetNext(POSITION pos) {
         m_pPresentationSegments.GetNext(pos);
         return pos;
