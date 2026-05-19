@@ -2,7 +2,7 @@
 This is a subtitle render filter for directshow video players such as mpc-hc/mpc-be, potplayer with madVR, which use libass to render ASS and SSA format subtitles, and origns from https://github.com/Cyberbeing/xy-VSFilter/pull/16, named XySubFilter with libass.
 
 ## How to use
-1. Run Install_XySubFilter.bat as administrator and dont move or delete the "XySubFilter.dll".
+1. Run Install_XySubFilter.bat or Install_VSFilter.bat as administrator and dont move or delete the registered DLL.
     - Alternatively, you can install [XySubFilter](https://scoop.sh/#/apps?q=xysubfilter-libass-np&s=0&d=1&o=true) via Scoop:
     ```
     scoop bucket add nonportable
@@ -13,10 +13,15 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
     - Options -> Playback -> Output -> Subtitle Renderer in MPC-HC
 
 ## How to compile
-1. Clone or download release from https://github.com/ShiftMediaProject/VSYASM and https://github.com/ShiftMediaProject/VSNASM, and run install_script.bat as administrator.
-2. Clone the repo and run `git submodule update --init --recursive --remote` in the folder.
-3. In Visual Studio, manully set the Runtime Library of libass and its dependencies to "/MT" for Release and "/MTd" for Debug. See [here](https://docs.microsoft.com/en-us/cpp/build/reference/md-mt-ld-use-run-time-library?view=msvc-170) for more.
-4. Build project xy_sub_filter.
+1. Clone or download release from https://github.com/ShiftMediaProject/VSYASM and run install_script.bat as administrator.
+2. Install dependencies with vcpkg:
+    ```
+    .\vcpkg install libass boost-flyweight boost-smart-ptr log4cplus[unicode] --triplet x64-windows-static
+    .\vcpkg install libass boost-flyweight boost-smart-ptr log4cplus[unicode] --triplet x86-windows-static
+    .\vcpkg integrate install
+    ```
+3. Build project xy_sub_filter or vsfilter.
+    - If vcpkg is not integrated, pass `/p:VcpkgRoot=<vcpkg root>` to MSBuild.
 
 ## Note
 This project (XySubFilter with libass) is a **variant** of XySubFilter, which uses [libass](https://github.com/libass/libass) to render **SSA/ASS**, so
