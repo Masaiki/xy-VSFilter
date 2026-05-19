@@ -9,7 +9,34 @@
     <TargetName Condition="'$(Configuration)'=='Debug Unicode'">$(ProjectName)DU</TargetName>
     <LinkIncremental Condition="'$(Configuration)'=='Debug'">true</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)'=='Release'">false</LinkIncremental>
+    <LibassLibraryName Condition="'$(LibassLibraryName)'==''">ass.lib</LibassLibraryName>
+    <LibassDebugLibraryName Condition="'$(LibassDebugLibraryName)'==''">ass.lib</LibassDebugLibraryName>
+    <VcpkgLibassDependencyLibraries Condition="'$(VcpkgLibassDependencyLibraries)'==''">freetype.lib;harfbuzz.lib;fribidi.lib;brotlidec.lib;brotlicommon.lib;bz2.lib;libpng16.lib</VcpkgLibassDependencyLibraries>
+    <VcpkgLibassDebugDependencyLibraries Condition="'$(VcpkgLibassDebugDependencyLibraries)'==''">freetyped.lib;harfbuzz.lib;fribidi.lib;brotlidec.lib;brotlicommon.lib;bz2d.lib;libpng16d.lib</VcpkgLibassDebugDependencyLibraries>
+    <VcpkgRoot Condition="'$(VcpkgRoot)'=='' and '$(VCPKG_ROOT)'!=''">$(VCPKG_ROOT)</VcpkgRoot>
+    <VcpkgRoot Condition="'$(VcpkgRoot)'!=''">$([System.String]::Copy('$(VcpkgRoot)').Trim())</VcpkgRoot>
+    <VcpkgTriplet Condition="'$(VcpkgTriplet)'=='' and '$(Platform)'=='Win32'">x86-windows-static</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(VcpkgTriplet)'=='' and '$(Platform)'=='x64'">x64-windows-static</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(VcpkgTriplet)'=='' and '$(Platform)'=='ARM64EC'">arm64ec-windows</VcpkgTriplet>
+    <VcpkgZlibLibraryName Condition="'$(VcpkgZlibLibraryName)'=='' and $(VcpkgTriplet.Contains('-static'))">zs.lib</VcpkgZlibLibraryName>
+    <VcpkgZlibLibraryName Condition="'$(VcpkgZlibLibraryName)'==''">z.lib</VcpkgZlibLibraryName>
+    <VcpkgDebugZlibLibraryName Condition="'$(VcpkgDebugZlibLibraryName)'=='' and $(VcpkgTriplet.Contains('-static'))">zsd.lib</VcpkgDebugZlibLibraryName>
+    <VcpkgDebugZlibLibraryName Condition="'$(VcpkgDebugZlibLibraryName)'==''">z.lib</VcpkgDebugZlibLibraryName>
+    <VcpkgInstalledDir Condition="'$(VcpkgInstalledDir)'=='' and '$(VcpkgRoot)'!=''">$(VcpkgRoot)\installed</VcpkgInstalledDir>
+    <VcpkgIncludeDir Condition="'$(VcpkgIncludeDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\include</VcpkgIncludeDir>
+    <VcpkgLibDir Condition="'$(VcpkgLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\lib</VcpkgLibDir>
+    <VcpkgDebugLibDir Condition="'$(VcpkgDebugLibDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\lib</VcpkgDebugLibDir>
+    <VcpkgLibraryDirectories Condition="'$(VcpkgLibraryDirectories)'=='' and ('$(Configuration)'=='Debug' Or '$(Configuration)'=='Debug Unicode')">$(VcpkgDebugLibDir);$(VcpkgLibDir)</VcpkgLibraryDirectories>
+    <VcpkgLibraryDirectories Condition="'$(VcpkgLibraryDirectories)'==''">$(VcpkgLibDir)</VcpkgLibraryDirectories>
+    <VcpkgBinDir Condition="'$(VcpkgBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\bin</VcpkgBinDir>
+    <VcpkgDebugBinDir Condition="'$(VcpkgDebugBinDir)'=='' and '$(VcpkgInstalledDir)'!=''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\debug\bin</VcpkgDebugBinDir>
+    <VcpkgRuntimeBinDir Condition="'$(Configuration)'=='Debug'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
+    <VcpkgRuntimeBinDir Condition="'$(Configuration)'=='Debug Unicode'">$(VcpkgDebugBinDir)</VcpkgRuntimeBinDir>
+    <VcpkgRuntimeBinDir Condition="'$(VcpkgRuntimeBinDir)'==''">$(VcpkgBinDir)</VcpkgRuntimeBinDir>
   </PropertyGroup>
+  <Target Name="ValidateVcpkgDependencies" BeforeTargets="PrepareForBuild" Condition="'$(VcpkgInstalledDir)'=='' Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\ass\ass.h') Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\boost\shared_ptr.hpp') Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\boost\flyweight.hpp') Or !Exists('$(VcpkgInstalledDir)\$(VcpkgTriplet)\include\log4cplus\logger.h')">
+    <Error Text="vcpkg dependencies were not found. Set VCPKG_ROOT, pass /p:VcpkgRoot=..., or run 'vcpkg integrate install', then install libass, boost-flyweight, boost-smart-ptr, and log4cplus[unicode] for $(VcpkgTriplet)." />
+  </Target>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalOptions>/w34706 %(AdditionalOptions)</AdditionalOptions>

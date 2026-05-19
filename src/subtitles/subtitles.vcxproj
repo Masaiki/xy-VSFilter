@@ -40,8 +40,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <IncludePath>$(KIT_SHARED_IncludePath);$(UM_IncludePath);$(VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)src\filters\transform\vsfilter;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)include\;$(SolutionDir)include\unrar\;$(SolutionDir)src\thirdparty\;$(IncludePath)</IncludePath>
-    <IncludePath Condition="'$(VisualStudioVersion)'&gt;'10.0'">$(SolutionDir)msvc\include\;$(WindowsSdkDir)include\shared;$(WindowsSdkDir)include\um;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
+    <IncludePath>$(VcpkgIncludeDir);$(KIT_SHARED_IncludePath);$(UM_IncludePath);$(VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)src\filters\transform\vsfilter;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)include\;$(SolutionDir)include\unrar\;$(SolutionDir)src\thirdparty\;$(IncludePath)</IncludePath>
+    <IncludePath Condition="'$(VisualStudioVersion)'&gt;'10.0'">$(VcpkgIncludeDir);$(SolutionDir)msvc\include\;$(WindowsSdkDir)include\shared;$(WindowsSdkDir)include\um;$(SolutionDir)src\dsutil;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>

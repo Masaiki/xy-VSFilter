@@ -2,7 +2,10 @@ param(
     [string]$VersionHeader,
     [string]$SolutionDir,
     [string]$Platform,
-    [string]$LibassHeader
+    [string]$LibassHeader,
+    [string]$VcpkgTriplet,
+    [string]$VcpkgRoot,
+    [string]$VcpkgInstalledDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -93,6 +96,26 @@ function Convert-LibassVersionMacro([string]$value) {
     return $null
 }
 
+function Get-VcpkgTriplets([string]$platform, [string]$explicitTriplet) {
+    $triplets = New-Object 'System.Collections.Generic.List[string]'
+    Add-IfNotEmpty $triplets $explicitTriplet
+    Add-IfNotEmpty $triplets $env:VCPKG_DEFAULT_TRIPLET
+
+    if ($platform -ieq "Win32" -or $platform -ieq "x86") {
+        Add-IfNotEmpty $triplets "x86-windows-static"
+        Add-IfNotEmpty $triplets "x86-windows"
+    } elseif ($platform -ieq "x64" -or $platform -ieq "amd64") {
+        Add-IfNotEmpty $triplets "x64-windows-static"
+        Add-IfNotEmpty $triplets "x64-windows"
+    } elseif ($platform -ieq "ARM64EC") {
+        Add-IfNotEmpty $triplets "arm64ec-windows"
+    }
+
+    Add-IfNotEmpty $triplets "x86-windows-static"
+    Add-IfNotEmpty $triplets "x64-windows-static"
+    return $triplets
+}
+
 function Get-LibassVersionFromHeader([string]$path) {
     if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path $path)) {
         return $null
@@ -110,12 +133,49 @@ function Get-LibassVersionFromHeader([string]$path) {
     return $null
 }
 
+function Get-LibassVersionFromVcpkg([string]$vcpkgRoot, [string]$vcpkgInstalledDir, [string]$platform, [string]$explicitTriplet) {
+    if ([string]::IsNullOrWhiteSpace($vcpkgInstalledDir) -and -not [string]::IsNullOrWhiteSpace($vcpkgRoot)) {
+        $vcpkgInstalledDir = Join-Path $vcpkgRoot "installed"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($vcpkgInstalledDir) -or -not (Test-Path $vcpkgInstalledDir)) {
+        return $null
+    }
+
+    $statusFile = Join-Path $vcpkgInstalledDir "vcpkg\status"
+    if (-not (Test-Path $statusFile)) {
+        return $null
+    }
+
+    $statusText = Get-Content $statusFile -Raw
+    foreach ($triplet in (Get-VcpkgTriplets $platform $explicitTriplet)) {
+        foreach ($paragraph in [regex]::Split($statusText, "\r?\n\r?\n")) {
+            if ($paragraph -match '(?m)^Package:\s+libass\s*$' -and
+                $paragraph -match "(?m)^Architecture:\s+$([regex]::Escape($triplet))\s*$" -and
+                $paragraph -match '(?m)^Version:\s+([^\r\n]+)') {
+                return $Matches[1].Trim()
+            }
+        }
+    }
+
+    return $null
+}
+
 $major = Get-ExistingNumber "XY_VSFILTER_VERSION_MAJOR" 3
 $minor = Get-ExistingNumber "XY_VSFILTER_VERSION_MINOR" 0
 $patch = Get-ExistingNumber "XY_VSFILTER_VERSION_PATCH" 0
 $commit = Get-ExistingNumber "XY_VSFILTER_VERSION_COMMIT" 0
 $sha1 = Get-ExistingString "XY_VSFILTER_VERSION_COMMIT_SHA1" ""
 $libassVersion = Get-ExistingString "LIBASS_VERSION_STRING" "0.17.4"
+$effectiveVcpkgRoot = $VcpkgRoot
+if ([string]::IsNullOrWhiteSpace($effectiveVcpkgRoot)) {
+    $effectiveVcpkgRoot = $env:VCPKG_ROOT
+}
+
+$vcpkgLibassVersion = Get-LibassVersionFromVcpkg $effectiveVcpkgRoot $VcpkgInstalledDir $Platform $VcpkgTriplet
+if ($vcpkgLibassVersion) {
+    $libassVersion = $vcpkgLibassVersion
+}
 
 $gitSha1 = Invoke-Git @("rev-parse", "HEAD")
 if ($gitSha1) {
@@ -137,16 +197,26 @@ if ($currentRevCount -match '^\d+$' -and $baseRevCount -match '^\d+$') {
 
 $assHeaderCandidates = New-Object 'System.Collections.Generic.List[string]'
 Add-IfNotEmpty $assHeaderCandidates $LibassHeader
+foreach ($triplet in (Get-VcpkgTriplets $Platform $VcpkgTriplet)) {
+    if (-not [string]::IsNullOrWhiteSpace($VcpkgInstalledDir)) {
+        Add-IfNotEmpty $assHeaderCandidates (Join-Path $VcpkgInstalledDir "$triplet\include\ass\ass.h")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($effectiveVcpkgRoot)) {
+        Add-IfNotEmpty $assHeaderCandidates (Join-Path $effectiveVcpkgRoot "installed\$triplet\include\ass\ass.h")
+    }
+}
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "SMP\libass\libass\ass.h")
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "msvc\include\ass\ass.h")
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "include\ass\ass.h")
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "src\thirdparty\libass\libass\ass.h")
 
-foreach ($assHeader in $assHeaderCandidates) {
-    $candidateVersion = Get-LibassVersionFromHeader $assHeader
-    if ($candidateVersion) {
-        $libassVersion = $candidateVersion
-        break
+if (-not $vcpkgLibassVersion) {
+    foreach ($assHeader in $assHeaderCandidates) {
+        $candidateVersion = Get-LibassVersionFromHeader $assHeader
+        if ($candidateVersion) {
+            $libassVersion = $candidateVersion
+            break
+        }
     }
 }
 

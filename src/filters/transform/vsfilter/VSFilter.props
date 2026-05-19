@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <IncludePath>$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\thirdparty\VirtualDub\h\;$(SolutionDir)include\;$(SolutionDir)msvc\include\;$(IncludePath)</IncludePath>
+    <IncludePath>$(VcpkgIncludeDir);$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)src\thirdparty\VirtualDub\h\;$(SolutionDir)include\;$(SolutionDir)msvc\include\;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget)\;$(LibraryPath)</LibraryPath>
     <OutDir>$(OutDir)$(Configuration)\</OutDir>
     <TargetExt>.dll</TargetExt>
@@ -14,15 +14,15 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <Target Name="UpdateVSFilterVersion" BeforeTargets="ClCompile">
-    <Exec Command='powershell -NoProfile -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\update_vsfilter_version.ps1" -VersionHeader "$(MSBuildThisFileDirectory)version_in.h" -SolutionDir "$(SolutionDir)." -Platform "$(Platform)" -LibassHeader "$(SolutionDir)SMP\libass\libass\ass.h"' />
+    <Exec Command='powershell -NoProfile -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\update_vsfilter_version.ps1" -VersionHeader "$(MSBuildThisFileDirectory)version_in.h" -SolutionDir "$(SolutionDir)." -Platform "$(Platform)" -VcpkgTriplet "$(VcpkgTriplet)" -VcpkgRoot "$(VcpkgRoot)" -VcpkgInstalledDir "$(VcpkgInstalledDir)"' />
   </Target>
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib;$(OutDir)..</AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplus_staticDU.lib;KasumiD.lib;systemD.lib;unrarD.lib;Mfuuid.lib;libassd.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug' And '$(VisualStudioVersion)'&gt;'11.0'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplus_staticDU.lib;KasumiD.lib;systemD.lib;unrarD.lib;dwmapi.lib;Mfuuid.lib;libassd.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus_staticRU.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;Mfuuid.lib;libass.lib</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release' And '$(VisualStudioVersion)'&gt;'11.0'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus_staticRU.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;dwmapi.lib;Mfuuid.lib;libass.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VcpkgLibraryDirectories);$(SolutionDir)lib;$(OutDir)..</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplusD.lib;KasumiD.lib;systemD.lib;unrarD.lib;Mfuuid.lib;$(LibassDebugLibraryName);$(VcpkgLibassDebugDependencyLibraries);$(VcpkgDebugZlibLibraryName)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug' And '$(VisualStudioVersion)'&gt;'11.0'">strmbaseD.lib;dsutilD.lib;subtitlesD.lib;subpicD.lib;basevideofilterD.lib;libssfD.lib;log4cplusD.lib;KasumiD.lib;systemD.lib;unrarD.lib;dwmapi.lib;Mfuuid.lib;$(LibassDebugLibraryName);$(VcpkgLibassDebugDependencyLibraries);$(VcpkgDebugZlibLibraryName)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;Mfuuid.lib;$(LibassLibraryName);$(VcpkgLibassDependencyLibraries);$(VcpkgZlibLibraryName)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release' And '$(VisualStudioVersion)'&gt;'11.0'">delayimp.lib;strmbaseR.lib;dsutilR.lib;subtitlesR.lib;subpicR.lib;basevideofilterR.lib;libssfR.lib;log4cplus.lib;KasumiR.lib;systemR.lib;unrarR.lib;winmm.lib;dwmapi.lib;Mfuuid.lib;$(LibassLibraryName);$(VcpkgLibassDependencyLibraries);$(VcpkgZlibLibraryName)</AdditionalDependencies>
       <RegisterOutput>false</RegisterOutput>
     </Link>
     <ResourceCompile>
@@ -44,4 +44,10 @@
       <Profile>false</Profile>
     </Link>
   </ItemDefinitionGroup>
+  <Target Name="CopyVcpkgRuntimeDlls" AfterTargets="Build" Condition="'$(VcpkgRuntimeBinDir)'!='' and Exists('$(VcpkgRuntimeBinDir)')">
+    <ItemGroup>
+      <VcpkgRuntimeDll Include="$(VcpkgRuntimeBinDir)\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VcpkgRuntimeDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
