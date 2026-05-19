@@ -205,7 +205,6 @@ foreach ($triplet in (Get-VcpkgTriplets $Platform $VcpkgTriplet)) {
         Add-IfNotEmpty $assHeaderCandidates (Join-Path $effectiveVcpkgRoot "installed\$triplet\include\ass\ass.h")
     }
 }
-Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "SMP\libass\libass\ass.h")
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "msvc\include\ass\ass.h")
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "include\ass\ass.h")
 Add-IfNotEmpty $assHeaderCandidates (Join-Path $RepoRoot "src\thirdparty\libass\libass\ass.h")
