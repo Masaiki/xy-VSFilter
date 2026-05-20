@@ -21,7 +21,7 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
     .\vcpkg integrate install
     ```
 3. Build project xy_sub_filter or vsfilter.
-    - If vcpkg is not integrated, pass `/p:VcpkgRoot=<vcpkg root>` to MSBuild.
+    - If vcpkg is not integrated, set the `VCPKG_ROOT` environment variable before launching Visual Studio, or pass `/p:VcpkgRoot=<vcpkg root>` to MSBuild.
 
 ## Note
 This project (XySubFilter with libass) is a **variant** of XySubFilter, which uses [libass](https://github.com/libass/libass) to render **SSA/ASS**, so
