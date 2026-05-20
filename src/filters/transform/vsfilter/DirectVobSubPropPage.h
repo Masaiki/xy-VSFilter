@@ -182,8 +182,22 @@ class CDVSAboutPPage : public CDVSBasePPage
 {
 public:
     CDVSAboutPPage(LPUNKNOWN lpunk, HRESULT* phr, TCHAR* pName=NAME("About Property Page"));
-    
+
     bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+};
+
+[uuid("97E6734B-6955-4D2E-9026-26E0A6B7E9F1")]
+class CDVSLibassLogPPage : public CDVSBasePPage
+{
+    CEdit m_log;
+    CButton m_refresh;
+
+protected:
+    virtual bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    virtual void UpdateControlData(bool fSave);
+
+public:
+    CDVSLibassLogPPage(LPUNKNOWN lpunk, HRESULT* phr, TCHAR* pName = NAME("libass Log Property Page"));
 };
 
 [uuid("525F116F-04AD-40a2-AE2F-A0C4E1AFEF98")]
@@ -341,6 +355,15 @@ public:
     CXySubFilterPathsPPage(LPUNKNOWN lpunk, HRESULT* phr
         , TCHAR* pName = NAME("XySubFilter Property Page (path)"))
         : CDVSPathsPPage(lpunk, phr, pName) {}
+};
+
+[uuid("6B6F0116-B18B-4A3D-8B81-C869AB75B407")]
+class CXySubFilterLibassLogPPage : public CDVSLibassLogPPage
+{
+public:
+    CXySubFilterLibassLogPPage(LPUNKNOWN lpunk, HRESULT* phr
+        , TCHAR* pName = NAME("XySubFilter Property Page (libass log)"))
+        : CDVSLibassLogPPage(lpunk, phr, pName) {}
 };
 
 [uuid("D0DE7ADC-7DC6-43EC-912D-ABD44D7453FB")]

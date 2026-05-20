@@ -1234,6 +1234,43 @@ bool CDVSAboutPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     return false;
 }
+
+/* CDVSLibassLogPPage */
+
+CDVSLibassLogPPage::CDVSLibassLogPPage(LPUNKNOWN lpunk, HRESULT* phr, TCHAR* pName/*=NAME("libass Log Property Page")*/)
+    : CDVSBasePPage(pName, lpunk, IDD_LIBASSLOGPAGE, IDD_LIBASSLOGPAGE)
+{
+    BindControl(IDC_LIBASS_LOG, m_log);
+    BindControl(IDC_LIBASS_LOG_REFRESH, m_refresh);
+}
+
+bool CDVSLibassLogPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    if (uMsg == WM_COMMAND && LOWORD(wParam) == IDC_LIBASS_LOG_REFRESH && HIWORD(wParam) == BN_CLICKED) {
+        UpdateControlData(false);
+        return true;
+    }
+
+    return false;
+}
+
+void CDVSLibassLogPPage::UpdateControlData(bool fSave)
+{
+    if (fSave) {
+        return;
+    }
+
+    LPWSTR log = nullptr;
+    int chars = 0;
+    HRESULT hr = m_pDirectVobSubXy->XyGetString(DirectVobSubXyOptions::STRING_LIBASS_LOG, &log, &chars);
+    if (SUCCEEDED(hr) && log) {
+        m_log.SetWindowText(log);
+        LocalFree(log);
+    } else {
+        m_log.SetWindowText(_T(""));
+    }
+}
+
 /* CDVSZoomPPage */
 
 CDVSZoomPPage::CDVSZoomPPage(LPUNKNOWN pUnk, HRESULT* phr) :

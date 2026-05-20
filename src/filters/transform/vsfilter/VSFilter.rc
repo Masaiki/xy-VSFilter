@@ -471,6 +471,14 @@ BEGIN
     RTEXT           "Cache Size(MB)",IDC_LABLE_CACHE_SIZE,14,60,57,8
 END
 
+IDD_LIBASSLOGPAGE DIALOGEX 0, 0, 247, 188
+STYLE DS_SETFONT | WS_CHILD
+FONT 8, "MS Sans Serif", 400, 0, 0x1
+BEGIN
+    EDITTEXT        IDC_LIBASS_LOG,7,7,233,156,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP
+    PUSHBUTTON      "&Refresh",IDC_LIBASS_LOG_REFRESH,190,167,50,14
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -629,6 +637,14 @@ BEGIN
         RIGHTMARGIN, 240
         BOTTOMMARGIN, 208
     END
+
+    IDD_LIBASSLOGPAGE, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 240
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 181
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -706,6 +722,7 @@ BEGIN
     IDD_DVSMISCPAGE         "M&isc"
     IDS_R_GENERAL           "General"
     IDD_DVSMOREPAGE         "M&ore"
+    IDD_LIBASSLOGPAGE       "libass &Log"
 END
 
 STRINGTABLE

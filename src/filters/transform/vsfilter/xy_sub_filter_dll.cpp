@@ -70,6 +70,7 @@ CFactoryTemplate g_Templates[] =
     {L"XySubFilterMorePPage", &__uuidof(CXySubFilterMorePPage), CreateInstance<CXySubFilterMorePPage>},
     {L"XySubFilterTimingPPage", &__uuidof(CXySubFilterTimingPPage), CreateInstance<CXySubFilterTimingPPage>},
     {L"XySubFilterPathsPPage", &__uuidof(CXySubFilterPathsPPage), CreateInstance<CXySubFilterPathsPPage>},
+    {L"XySubFilterLibassLogPPage", &__uuidof(CXySubFilterLibassLogPPage), CreateInstance<CXySubFilterLibassLogPPage>},
     {L"XySubFilterAboutPPage", &__uuidof(CXySubFilterAboutPPage), CreateInstance<CXySubFilterAboutPPage>},
 };
 

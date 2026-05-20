@@ -1067,7 +1067,7 @@ STDMETHODIMP CDirectVobSubFilter::GetPages(CAUUID* pPages)
 {
     CheckPointer(pPages, E_POINTER);
 
-	pPages->cElems = 8;
+	pPages->cElems = 9;
     pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID)*pPages->cElems);
 
 	if(pPages->pElems == NULL) return E_OUTOFMEMORY;
@@ -1080,6 +1080,7 @@ STDMETHODIMP CDirectVobSubFilter::GetPages(CAUUID* pPages)
     pPages->pElems[i++] = __uuidof(CDVSTimingPPage);
     pPages->pElems[i++] = __uuidof(CDVSColorPPage);
     pPages->pElems[i++] = __uuidof(CDVSPathsPPage);
+    pPages->pElems[i++] = __uuidof(CDVSLibassLogPPage);
     pPages->pElems[i++] = __uuidof(CDVSAboutPPage);
 
     return NOERROR;
@@ -2309,6 +2310,18 @@ HRESULT CDirectVobSubFilter::DoGetField(unsigned field, void *value)
         break;
     case INT_ACTUAL_SUBTITLE_RENDER_BACKEND:
         *(int*)value = static_cast<int>(GetActualSubtitleRenderBackend());
+        break;
+    case STRING_LIBASS_LOG:
+        {
+            CAutoLock cAutoLock(&m_csFilter);
+            ISubStream *pSubStream = nullptr;
+            if (m_nSubtitleId != static_cast<DWORD_PTR>(-1)) {
+                pSubStream = reinterpret_cast<ISubStream *>(m_nSubtitleId);
+            }
+
+            auto rts = dynamic_cast<CRenderedTextSubtitle *>(pSubStream);
+            *(CStringW*)value = rts ? rts->m_ass_context.GetLog() : CStringW();
+        }
         break;
     default:
         hr = DirectVobSubImpl::DoGetField(field, value);

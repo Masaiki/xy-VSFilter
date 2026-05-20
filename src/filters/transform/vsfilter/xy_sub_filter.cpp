@@ -702,6 +702,13 @@ HRESULT XySubFilter::DoGetField( unsigned field, void *value )
     case INT_ACTUAL_SUBTITLE_RENDER_BACKEND:
         *(int*)value = static_cast<int>(GetActualSubtitleRenderBackend());
         break;
+    case STRING_LIBASS_LOG:
+        {
+            CAutoLock cAutoLock(&m_csFilter);
+            auto rts = dynamic_cast<CRenderedTextSubtitle *>(m_curSubStream);
+            *(CStringW*)value = rts ? rts->m_ass_context.GetLog() : CStringW();
+        }
+        break;
     default:
         hr = DirectVobSubImpl::DoGetField(field, value);
         break;
@@ -1037,7 +1044,7 @@ STDMETHODIMP XySubFilter::GetPages(CAUUID* pPages)
     XY_LOG_INFO(pPages);
     CheckPointer(pPages, E_POINTER);
 
-    pPages->cElems = 5;
+    pPages->cElems = 6;
     pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID)*pPages->cElems);
 
     if(pPages->pElems == NULL) return E_OUTOFMEMORY;
@@ -1047,6 +1054,7 @@ STDMETHODIMP XySubFilter::GetPages(CAUUID* pPages)
     pPages->pElems[i++] = __uuidof(CXySubFilterMorePPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterTimingPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterPathsPPage);
+    pPages->pElems[i++] = __uuidof(CXySubFilterLibassLogPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterAboutPPage);
 
     return NOERROR;

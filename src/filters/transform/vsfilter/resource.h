@@ -157,6 +157,7 @@
 #define IDD_XY_SUB_FILTER_MAINPAGE      242
 #define IDC_SPIN5                       243
 #define IDD_XY_SUB_FILTER_MOREPAGE      243
+#define IDD_LIBASSLOGPAGE               244
 #define IDC_EDIT6                       244
 #define IDC_SPIN6                       245
 #define IDC_EDIT9                       246
@@ -252,14 +253,16 @@
 #define IDS_RG_SUBTITLE_BACKEND         1075
 #define IDC_COMBO_RENDER_BACKEND        1076
 #define IDC_ACTUAL_RENDER_BACKEND       1077
+#define IDC_LIBASS_LOG                  1078
+#define IDC_LIBASS_LOG_REFRESH          1079
 
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        339
+#define _APS_NEXT_RESOURCE_VALUE        340
 #define _APS_NEXT_COMMAND_VALUE         32770
-#define _APS_NEXT_CONTROL_VALUE         347
+#define _APS_NEXT_CONTROL_VALUE         1080
 #define _APS_NEXT_SYMED_VALUE           210
 #endif
 #endif

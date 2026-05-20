@@ -91,6 +91,7 @@ CFactoryTemplate g_Templates[] =
     {L"DVSZoomPPage", &__uuidof(CDVSZoomPPage), CreateInstance<CDVSZoomPPage>},
     {L"DVSColorPPage", &__uuidof(CDVSColorPPage), CreateInstance<CDVSColorPPage>},
     {L"DVSPathsPPage", &__uuidof(CDVSPathsPPage), CreateInstance<CDVSPathsPPage>},
+    {L"DVSLibassLogPPage", &__uuidof(CDVSLibassLogPPage), CreateInstance<CDVSLibassLogPPage>},
     {L"DVSAboutPPage", &__uuidof(CDVSAboutPPage), CreateInstance<CDVSAboutPPage>},
 };
 
