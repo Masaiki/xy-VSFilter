@@ -342,10 +342,13 @@ public:
 class CTextSubFilter : virtual public CFilter
 {
 	int m_CharSet;
+	SubtitleRenderBackend m_render_backend;
 
 public:
-	CTextSubFilter(CString fn = _T(""), int CharSet = DEFAULT_CHARSET, float fps = -1)
+	CTextSubFilter(CString fn = _T(""), int CharSet = DEFAULT_CHARSET, float fps = -1,
+		SubtitleRenderBackend backend = SUBTITLE_RENDER_BACKEND_VSFILTER)
 		: m_CharSet(CharSet)
+		, m_render_backend(backend)
 	{
 		m_fps = fps;
 		if(!fn.IsEmpty()) Open(fn, CharSet);
@@ -372,6 +375,7 @@ public:
 		{
 			if(CRenderedTextSubtitle* rts = new CRenderedTextSubtitle(&m_csSubLock))
 			{
+				rts->m_render_backend = m_render_backend;
 				m_pSubPicProvider = (ISubPicProvider*)rts;
 				if(rts->Open(CString(fn), CharSet)) SetFileName(fn);
 				else m_pSubPicProvider = NULL;
@@ -978,8 +982,9 @@ public:
         class CTextSubAvisynthFilter : public CTextSubFilter, public CAvisynthFilter
         {
         public:
-            CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET, float fps = -1)
-                : CTextSubFilter(CString(fn), CharSet, fps)
+            CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET,
+                    float fps = -1, SubtitleRenderBackend backend = SUBTITLE_RENDER_BACKEND_VSFILTER)
+                : CTextSubFilter(CString(fn), CharSet, fps, backend)
                 , CAvisynthFilter(c, env) {
                 if (!m_pSubPicProvider) {
                     env->ThrowError("TextSub: Can't open \"%s\"", fn);
@@ -987,19 +992,42 @@ public:
             }
         };
 
+        static SubtitleRenderBackend GetTextSubBackend(void* user_data)
+        {
+            return user_data ? SUBTITLE_RENDER_BACKEND_LIBASS : SUBTITLE_RENDER_BACKEND_VSFILTER;
+        }
+
         AVSValue __cdecl TextSubCreateS(AVSValue args, void* user_data, IScriptEnvironment* env)
         {
-            return (DEBUG_NEW CTextSubAvisynthFilter(args[0].AsClip(), env, args[1].AsString()));
+            return (DEBUG_NEW CTextSubAvisynthFilter(
+                        args[0].AsClip(),
+                        env,
+                        args[1].AsString(),
+                        DEFAULT_CHARSET,
+                        -1,
+                        GetTextSubBackend(user_data)));
         }
 
         AVSValue __cdecl TextSubCreateSI(AVSValue args, void* user_data, IScriptEnvironment* env)
         {
-            return (DEBUG_NEW CTextSubAvisynthFilter(args[0].AsClip(), env, args[1].AsString(), args[2].AsInt()));
+            return (DEBUG_NEW CTextSubAvisynthFilter(
+                        args[0].AsClip(),
+                        env,
+                        args[1].AsString(),
+                        args[2].AsInt(),
+                        -1,
+                        GetTextSubBackend(user_data)));
         }
 
         AVSValue __cdecl TextSubCreateSIF(AVSValue args, void* user_data, IScriptEnvironment* env)
         {
-            return (DEBUG_NEW CTextSubAvisynthFilter(args[0].AsClip(), env, args[1].AsString(), args[2].AsInt(), (float)args[3].AsFloat()));
+            return (DEBUG_NEW CTextSubAvisynthFilter(
+                        args[0].AsClip(),
+                        env,
+                        args[1].AsString(),
+                        args[2].AsInt(),
+                        (float)args[3].AsFloat(),
+                        GetTextSubBackend(user_data)));
         }
 
         AVSValue __cdecl MaskSubCreateSIIFI(AVSValue args, void* user_data, IScriptEnvironment* env)
@@ -1022,7 +1050,13 @@ public:
             };
             AVSValue clip(env->Invoke("Blackness", value, nom));
             env->SetVar(env->SaveString("RGBA"), true);
-            return (DEBUG_NEW CTextSubAvisynthFilter(clip.AsClip(), env, args[0].AsString()));
+            return (DEBUG_NEW CTextSubAvisynthFilter(
+                        clip.AsClip(),
+                        env,
+                        args[0].AsString(),
+                        DEFAULT_CHARSET,
+                        -1,
+                        GetTextSubBackend(user_data)));
         }
 
         extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit(IScriptEnvironment* env)
@@ -1031,7 +1065,11 @@ public:
             env->AddFunction("TextSub", "cs", TextSubCreateS, 0);
             env->AddFunction("TextSub", "csi", TextSubCreateSI, 0);
             env->AddFunction("TextSub", "csif", TextSubCreateSIF, 0);
+            env->AddFunction("TextSubLibass", "cs", TextSubCreateS, (void*)1);
+            env->AddFunction("TextSubLibass", "csi", TextSubCreateSI, (void*)1);
+            env->AddFunction("TextSubLibass", "csif", TextSubCreateSIF, (void*)1);
             env->AddFunction("MaskSub", "siifi", MaskSubCreateSIIFI, 0);
+            env->AddFunction("MaskSubLibass", "siifi", MaskSubCreateSIIFI, (void*)1);
             env->SetVar(env->SaveString("RGBA"), false);
             return NULL;
         }
@@ -1108,14 +1146,20 @@ public:
         class CTextSubAvisynthFilter : public CTextSubFilter, public CAvisynthFilter
         {
         public:
-            CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET, float fps = -1, VFRTranslator* vfr = 0) //vfr patch
-                : CTextSubFilter(CString(fn), CharSet, fps)
+            CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET,
+                    float fps = -1, VFRTranslator* vfr = 0, SubtitleRenderBackend backend = SUBTITLE_RENDER_BACKEND_VSFILTER) //vfr patch
+                : CTextSubFilter(CString(fn), CharSet, fps, backend)
                 , CAvisynthFilter(c, env, vfr) {
                 if (!m_pSubPicProvider) {
                     env->ThrowError("TextSub: Can't open \"%s\"", fn);
                 }
             }
         };
+
+        static SubtitleRenderBackend GetTextSubBackend(void* user_data)
+        {
+            return user_data ? SUBTITLE_RENDER_BACKEND_LIBASS : SUBTITLE_RENDER_BACKEND_VSFILTER;
+        }
 
         AVSValue __cdecl TextSubCreateGeneral(AVSValue args, void* user_data, IScriptEnvironment* env)
         {
@@ -1133,7 +1177,8 @@ public:
                         args[1].AsString(),
                         args[2].AsInt(DEFAULT_CHARSET),
                         (float)args[3].AsFloat(-1),
-                        vfr));
+                        vfr,
+                        GetTextSubBackend(user_data)));
         }
 
         AVSValue __cdecl TextSubSwapUV(AVSValue args, void* user_data, IScriptEnvironment* env)
@@ -1181,15 +1226,18 @@ public:
                         args[0].AsString(),
                         args[5].AsInt(DEFAULT_CHARSET),
                         (float)args[3].AsFloat(-1),
-                        vfr));
+                        vfr,
+                        GetTextSubBackend(user_data)));
         }
 
         extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit2(IScriptEnvironment* env)
         {
             env->AddFunction("VobSub", "cs", VobSubCreateS, 0);
             env->AddFunction("TextSub", "c[file]s[charset]i[fps]f[vfr]s", TextSubCreateGeneral, 0);
+            env->AddFunction("TextSubLibass", "c[file]s[charset]i[fps]f[vfr]s", TextSubCreateGeneral, (void*)1);
             env->AddFunction("TextSubSwapUV", "b", TextSubSwapUV, 0);
             env->AddFunction("MaskSub", "[file]s[width]i[height]i[fps]f[length]i[charset]i[vfr]s", MaskSubCreate, 0);
+            env->AddFunction("MaskSubLibass", "[file]s[width]i[height]i[fps]f[length]i[charset]i[vfr]s", MaskSubCreate, (void*)1);
             env->SetVar(env->SaveString("RGBA"), false);
             return NULL;
         }
@@ -1205,7 +1253,8 @@ public:
 
         class CTextSubVapourSynthFilter : public CTextSubFilter {
         public:
-            CTextSubVapourSynthFilter(const wchar_t *file, const int charset, const float fps, int *error) : CTextSubFilter(CString(file), charset, fps) {
+            CTextSubVapourSynthFilter(const wchar_t *file, const int charset, const float fps,
+                    SubtitleRenderBackend backend, int *error) : CTextSubFilter(CString(file), charset, fps, backend) {
                 *error = !m_pSubPicProvider ? 1 : 0;
             }
         };
@@ -1419,10 +1468,13 @@ public:
                 if (!d->vi->fpsNum && fps <= 0.0f && !d->vfr)
                     throw std::string{ "variable framerate clip must have fps or vfr specified" };
 
-                if (filterName == "TextSub")
-                    d->textsub = std::make_unique<CTextSubVapourSynthFilter>(file.get(), charset, fps, &err);
-                else
+                if (filterName == "TextSub" || filterName == "TextSubLibass") {
+                    const SubtitleRenderBackend backend =
+                        filterName == "TextSubLibass" ? SUBTITLE_RENDER_BACKEND_LIBASS : SUBTITLE_RENDER_BACKEND_VSFILTER;
+                    d->textsub = std::make_unique<CTextSubVapourSynthFilter>(file.get(), charset, fps, backend, &err);
+                } else {
                     d->vobsub = std::make_unique<CVobSubVapourSynthFilter>(file.get(), &err);
+                }
                 if (err)
                     throw std::string{ "can't open " } + _file;
 
@@ -1453,6 +1505,14 @@ public:
                 "fps:float:opt;"
                 "vfr:data:opt;",
                 vsfilterCreate, const_cast<char *>("TextSub"), plugin);
+
+            registerFunc("TextSubLibass",
+                "clip:clip;"
+                "file:data;"
+                "charset:int:opt;"
+                "fps:float:opt;"
+                "vfr:data:opt;",
+                vsfilterCreate, const_cast<char *>("TextSubLibass"), plugin);
 
             registerFunc("VobSub",
                 "clip:clip;"
