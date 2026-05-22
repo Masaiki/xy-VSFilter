@@ -28,6 +28,12 @@
 #include "..\..\..\subtitles\SSF.h"
 
 #include "csri_wrapper.h"
+struct csri_vsfilter_renderer {
+	struct csri_info info;
+	SubtitleRenderBackend backend;
+	const char *alias;
+};
+
 extern "C" struct csri_vsfilter_inst {
 	CRenderedTextSubtitle *rts;
 	CCritSec *cs;
@@ -37,7 +43,42 @@ extern "C" struct csri_vsfilter_inst {
 	enum csri_pixfmt pixfmt;
 	size_t readorder;
 };
-static const char *csri_vsfilter = "vsfilter";
+
+static csri_vsfilter_renderer csri_renderers[] = {
+	{
+#ifdef _DEBUG
+		{ "xy_vsfilter_libass_debug", "2.39", "xy-VSFilter libass backend", "Gabest and others", "Copyright (c) 2003-2008 by Gabest and others" },
+#else
+		{ "xy_vsfilter_libass", "2.39", "xy-VSFilter libass backend", "Gabest and others", "Copyright (c) 2003-2008 by Gabest and others" },
+#endif
+		SUBTITLE_RENDER_BACKEND_LIBASS,
+		"libass",
+	},
+	{
+#ifdef _DEBUG
+		{ "vsfilter_textsub_debug", "2.39", "VSFilter/TextSub (guliverkli2)", "Gabest", "Copyright (c) 2003-2008 by Gabest and others" },
+#else
+		{ "vsfilter_textsub", "2.39", "VSFilter/TextSub (guliverkli2)", "Gabest", "Copyright (c) 2003-2008 by Gabest and others" },
+#endif
+		SUBTITLE_RENDER_BACKEND_VSFILTER,
+		"vsfilter",
+	},
+};
+
+static const int csri_renderer_count = sizeof(csri_renderers) / sizeof(csri_renderers[0]);
+
+static csri_vsfilter_renderer *get_renderer(csri_rend *renderer)
+{
+	if (!renderer) {
+		return &csri_renderers[0];
+	}
+	for (int i = 0; i < csri_renderer_count; i++) {
+		if (renderer == reinterpret_cast<csri_rend *>(&csri_renderers[i])) {
+			return &csri_renderers[i];
+		}
+	}
+	return &csri_renderers[0];
+}
 
 
 CSRIAPI csri_inst *csri_open_file(csri_rend *renderer, const char *filename, struct csri_openflag *flags)
@@ -56,6 +97,7 @@ CSRIAPI csri_inst *csri_open_file(csri_rend *renderer, const char *filename, str
 	csri_vsfilter_inst *inst = new csri_vsfilter_inst();
 	inst->cs = new CCritSec();
 	inst->rts = new CRenderedTextSubtitle(inst->cs);
+	inst->rts->m_render_backend = get_renderer(renderer)->backend;
 	if (inst->rts->Open(CString(namebuf), DEFAULT_CHARSET)) {
 		delete[] namebuf;
 		inst->readorder = 0;
@@ -79,6 +121,7 @@ CSRIAPI csri_inst *csri_open_mem(csri_rend *renderer, const void *data, size_t l
 
 	inst->cs = new CCritSec();
 	inst->rts = new CRenderedTextSubtitle(inst->cs);
+	inst->rts->m_render_backend = get_renderer(renderer)->backend;
 	if (inst->rts->Open((BYTE*)data, (int)length, DEFAULT_CHARSET, _T("CSRI memory subtitles"))) {
 		inst->readorder = 0;
 		return inst;
@@ -166,46 +209,41 @@ CSRIAPI void *csri_query_ext(csri_rend *rend, csri_ext_id extname)
 	return 0;
 }
 
-// Get info for renderer
-static struct csri_info csri_vsfilter_info = {
-#ifdef _DEBUG
-	"vsfilter_textsub_debug", // name
-	"2.39", // version (assumed version number, svn revision, patchlevel)
-#else
-	"vsfilter_textsub", // name
-	"2.39", // version (assumed version number, svn revision, patchlevel)
-#endif
-	// 2.38-0611 is base svn 611
-	// 2.38-0611-1 is with clipfix and fax/fay patch
-	// 2.38-0611-2 adds CSRI
-	// 2.38-0611-3 fixes a bug in CSRI and adds fontcrash-fix and float-pos
-	// 2.38-0611-4 fixes be1-dots and ugly-fade bugs and adds xbord/ybord/xshad/yshad/blur tags and extends be
-	// 2.39 merges with guliverkli2 fork
-	"VSFilter/TextSub (guliverkli2)", // longname
-	"Gabest", // author
-	"Copyright (c) 2003-2008 by Gabest and others" // copyright
-};
 CSRIAPI struct csri_info *csri_renderer_info(csri_rend *rend)
 {
-	return &csri_vsfilter_info;
+	return &get_renderer(rend)->info;
 }
-// Only one supported, obviously
+
 CSRIAPI csri_rend *csri_renderer_byname(const char *name, const char *specific)
 {
-	if (strcmp(name, csri_vsfilter_info.name))
+	if (!name)
 		return 0;
-	if (specific && strcmp(specific, csri_vsfilter_info.specific))
-		return 0;
-	return &csri_vsfilter;
-}
-// Still just one
-CSRIAPI csri_rend *csri_renderer_default()
-{
-	return &csri_vsfilter;
-}
-// And no further
-CSRIAPI csri_rend *csri_renderer_next(csri_rend *prev)
-{
+	for (int i = 0; i < csri_renderer_count; i++) {
+		if (strcmp(name, csri_renderers[i].info.name) && strcmp(name, csri_renderers[i].alias)) {
+			continue;
+		}
+		if (specific && strcmp(specific, csri_renderers[i].info.specific)) {
+			return 0;
+		}
+		return reinterpret_cast<csri_rend *>(&csri_renderers[i]);
+	}
 	return 0;
 }
 
+CSRIAPI csri_rend *csri_renderer_default()
+{
+	return reinterpret_cast<csri_rend *>(&csri_renderers[0]);
+}
+
+CSRIAPI csri_rend *csri_renderer_next(csri_rend *prev)
+{
+	if (!prev) {
+		return reinterpret_cast<csri_rend *>(&csri_renderers[0]);
+	}
+	for (int i = 0; i + 1 < csri_renderer_count; i++) {
+		if (prev == reinterpret_cast<csri_rend *>(&csri_renderers[i])) {
+			return reinterpret_cast<csri_rend *>(&csri_renderers[i + 1]);
+		}
+	}
+	return 0;
+}
