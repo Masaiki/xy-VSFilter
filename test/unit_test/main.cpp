@@ -74,6 +74,11 @@ int wmain(int argc, wchar_t ** argv)
             return -1;
         }
 
+        if (GetFileAttributesW(argv[3]) == INVALID_FILE_ATTRIBUTES) {
+            std::wcerr << L"subtitle file not found: " << argv[3] << std::endl;
+            return -1;
+        }
+
         std::string subtitle_file;
         if (!WideToUtf8(argv[3], subtitle_file)) {
             std::wcerr << L"failed to convert subtitle path to UTF-8" << std::endl;
