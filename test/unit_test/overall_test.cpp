@@ -1,13 +1,33 @@
 #define CSRIAPI extern "C" __declspec(dllimport)
 #include "csri.h"
-#include <atlimage.h>
+#include <windows.h>
+#include <gdiplus.h>
 #include <stdint.h>
 #include <vector>
 
 using namespace std;
 
-static const GUID ImageFormatPNG =
-{ 0xb96b3caf, 0x0728, 0x11d3, { 0x9d, 0x7b, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e } };
+static int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+{
+    UINT num = 0;
+    UINT size = 0;
+
+    Gdiplus::GetImageEncodersSize(&num, &size);
+    if (size == 0) return -1;
+
+    vector<unsigned char> codecInfoBuffer(size);
+    Gdiplus::ImageCodecInfo* pImageCodecInfo = (Gdiplus::ImageCodecInfo*)codecInfoBuffer.data();
+
+    Gdiplus::GetImageEncoders(num, size, pImageCodecInfo);
+
+    for (UINT j = 0; j < num; ++j) {
+        if (wcscmp(pImageCodecInfo[j].MimeType, format) == 0) {
+            *pClsid = pImageCodecInfo[j].Clsid;
+            return j;
+        }
+    }
+    return -1;
+}
 
 csri_inst * g_csri_inst_yyy = NULL;
 
@@ -60,7 +80,7 @@ HRESULT RenderFrameToPng(const char *subtitle_file, LPCTSTR image_file,
         return E_FAIL;
     }
 
-    csri_fmt fmt = { CSRI_F_BGR_, (unsigned)width, (unsigned)height };
+    csri_fmt fmt = { CSRI_F_BGRA, (unsigned)width, (unsigned)height };
     if (csri_request_fmt(inst, &fmt) != 0) {
         csri_close(inst);
         return E_FAIL;
@@ -71,25 +91,27 @@ HRESULT RenderFrameToPng(const char *subtitle_file, LPCTSTR image_file,
 
     csri_frame frame;
     memset(&frame, 0, sizeof(frame));
-    frame.pixfmt = CSRI_F_BGR_;
+    frame.pixfmt = CSRI_F_BGRA;
     frame.planes[0] = &buf[0];
     frame.strides[0] = stride;
     csri_render(inst, &frame, time);
 
     {
-        CImage image;
-        if (!image.Create(width, height, 32)) {
-            csri_close(inst);
-            return E_FAIL;
+        Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+        ULONG_PTR gdiplusToken;
+        Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+        HRESULT hr = E_FAIL;
+        {
+            Gdiplus::Bitmap bmp(width, height, stride, PixelFormat32bppPARGB, &buf[0]);
+            CLSID pngClsid;
+            if (GetEncoderClsid(L"image/png", &pngClsid) >= 0) {
+                Gdiplus::Status status = bmp.Save(image_file, &pngClsid, NULL);
+                hr = (status == Gdiplus::Ok) ? S_OK : E_FAIL;
+            }
         }
 
-        for (int y = 0; y < height; y++) {
-            BYTE *dst = (BYTE *)image.GetPixelAddress(0, y);
-            const BYTE *src = &buf[0] + y * stride;
-            memcpy(dst, src, width * 4);
-        }
-
-        HRESULT hr = image.Save(image_file, ImageFormatPNG);
+        Gdiplus::GdiplusShutdown(gdiplusToken);
         csri_close(inst);
         return hr;
     }
