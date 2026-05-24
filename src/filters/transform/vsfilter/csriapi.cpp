@@ -157,6 +157,7 @@ CSRIAPI int csri_request_fmt(csri_inst *inst, const struct csri_fmt *fmt)
 
 	// Check if pixel format is supported
 	switch (fmt->pixfmt) {
+		case CSRI_F_BGRA:
 		case CSRI_F_BGR_:
 		case CSRI_F_BGR:
 		case CSRI_F_YUY2:
@@ -182,8 +183,15 @@ CSRIAPI void csri_render(csri_inst *inst, struct csri_frame *frame, double time)
 	spd.w = vsf_inst->screen_res.cx;
 	spd.h = vsf_inst->screen_res.cy;
 	switch (vsf_inst->pixfmt) {
-	case CSRI_F_BGR_:
+	case CSRI_F_BGRA:
 		spd.type = MSP_RGBA;
+		spd.bpp = 32;
+		spd.bits = frame->planes[0];
+		spd.pitch = frame->strides[0];
+		break;
+
+	case CSRI_F_BGR_:
+		spd.type = MSP_RGB32;
 		spd.bpp = 32;
 		spd.bits = frame->planes[0];
 		spd.pitch = frame->strides[0];

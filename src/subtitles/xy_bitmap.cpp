@@ -35,6 +35,17 @@ static inline void FlipAlphaValueC(BYTE *data, int w)
     }
 }
 
+static inline DWORD AlphaBltPackRgb(DWORD dst, DWORD src, DWORD dstScale)
+{
+    return (((((dst&0x00ff00ff)*dstScale)>>8) + (src&0x00ff00ff))&0x00ff00ff)
+        | (((((dst&0x0000ff00)*dstScale)>>8) + (src&0x0000ff00))&0x0000ff00);
+}
+
+static inline DWORD AlphaBltPackAlpha(DWORD dst, DWORD srcInvAlpha, DWORD dstScale)
+{
+    return 255 - srcInvAlpha + (((dst >> 24) * dstScale) >> 8);
+}
+
 XyBitmap::~XyBitmap()
 {
     xy_free(bits);
@@ -54,7 +65,7 @@ XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout )
     result->w = target_rect.Width();
     result->h = target_rect.Height();
     int w16 = (result->w + 15) & ~15;
-        
+
     switch (result->type)
     {
     case PACK:
@@ -94,7 +105,7 @@ void XyBitmap::ClearBitmap( XyBitmap *bitmap )
         for (int i=0;i<bitmap->h;i++, p+=bitmap->pitch)
         {
             memsetd(p, 0xFF000000, bitmap->w*4);
-        }        
+        }
     }
 }
 
@@ -117,6 +128,7 @@ void XyBitmap::AlphaBltPack( SubPicDesc& spd, POINT pos, SIZE size, LPCVOID pixe
     const BYTE* src = reinterpret_cast<const BYTE*>(pixels) + y_src*pitch + x_src*4;
 
     BYTE* dst = reinterpret_cast<BYTE*>(spd.bits) + spd.pitch * y + ((x*spd.bpp)>>3);
+    const bool updateAlpha = (spd.type == MSP_RGBA);
 
     for(int i=0;i<h;i++, src += pitch, dst += spd.pitch)
     {
@@ -125,9 +137,20 @@ void XyBitmap::AlphaBltPack( SubPicDesc& spd, POINT pos, SIZE size, LPCVOID pixe
         DWORD* d2 = (DWORD*)dst;
         for(; s2 < s2end; s2 += 4, d2++)
         {
-            int tmp = s2[3]+1;
-            *d2 = (((((*d2&0x00ff00ff)*tmp)>>8) + (*((DWORD*)s2)&0x00ff00ff))&0x00ff00ff)
-                | (((((*d2&0x0000ff00)*tmp)>>8) + (*((DWORD*)s2)&0x0000ff00))&0x0000ff00);
+            const DWORD srcPixel = *(DWORD*)s2;
+            const DWORD dstPixel = *d2;
+            const DWORD srcInvAlpha = s2[3];
+            const DWORD dstScale = srcInvAlpha + 1;
+            const DWORD rgb = AlphaBltPackRgb(dstPixel, srcPixel, dstScale);
+            if (updateAlpha)
+            {
+                const DWORD alpha = AlphaBltPackAlpha(dstPixel, srcInvAlpha, dstScale);
+                *d2 = (rgb & 0x00ffffff) | (alpha << 24);
+            }
+            else
+            {
+                *d2 = rgb;
+            }
         }
     }
 }
@@ -245,7 +268,7 @@ void XyBitmap::BltPack( SubPicDesc& spd, POINT pos, SIZE size, LPCVOID pixels, i
 //////////////////////////////////////////////////////////////////////////
 //
 // SubRenderFrame
-// 
+//
 
 XySubRenderFrame::XySubRenderFrame()
     : CUnknown(NAME("XySubRenderFrameWrapper"), NULL)
@@ -379,7 +402,7 @@ void XySubRenderFrame::MoveTo( int x, int y )
 //////////////////////////////////////////////////////////////////////////
 //
 // XySubRenderFrameCreater
-// 
+//
 
 XySubRenderFrameCreater* XySubRenderFrameCreater::GetDefaultCreater()
 {
