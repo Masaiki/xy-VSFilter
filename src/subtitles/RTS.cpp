@@ -3832,6 +3832,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                argb = render_frame_creater->TransColor(argb);
                 for (int y = 0; y < i->h; ++y)
                 {
                     auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left)*4);
@@ -3843,7 +3844,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
         case XY_CS_AYUV_PLANAR:
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
-                uint32_t ayuv = ColorConvTable::Argb2Ayuv(argb);
+                uint32_t ayuv = render_frame_creater->TransColor(argb);
                 for (int y = 0; y < i->h; ++y)
                 {
                     int rowOffset = (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left);
@@ -3863,6 +3864,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+                argb = render_frame_creater->TransColor(argb);
                 for (int y = 0; y < i->h; ++y)
                 {
                     auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
@@ -3876,7 +3878,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
-                uint32_t ayuv = ColorConvTable::Argb2Ayuv(argb);
+                uint32_t ayuv = render_frame_creater->TransColor(argb);
                 for (int y = 0; y < i->h; ++y)
                 {
                     auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
@@ -3890,10 +3892,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
-                uint32_t ayuv = ColorConvTable::Argb2Ayuv(argb);
-#define AYUV_2_AUYV(ayuv) ((ayuv&0xff00)<<8)|((ayuv&0xff0000)>>8)|(ayuv&0xff0000ff)
-				uint32_t auyv = AYUV_2_AUYV(ayuv);
-#undef AYUV_2_AUYV
+                uint32_t auyv = render_frame_creater->TransColor(argb);
                 for (int y = 0; y < i->h; ++y)
                 {
                     auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
