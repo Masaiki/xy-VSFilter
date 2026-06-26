@@ -1670,6 +1670,7 @@ CAtlArray<AssCmdPosLevel> CRenderedTextSubtitle::m_cmd_pos_level;
 CRenderedTextSubtitle::CRenderedTextSubtitle(CCritSec* pLock)
     : CSubPicProviderImpl(pLock)
     , m_target_scale_x(1.0), m_target_scale_y(1.0)
+    , m_max_bitmap_count(INT_MAX)
 {
     if( m_cmdMap.IsEmpty() )
     {
@@ -3038,6 +3039,7 @@ STDMETHODIMP CRenderedTextSubtitle::NonDelegatingQueryInterface(REFIID riid, voi
         QI(IPersist)
         QI(ISubStream)
         QI(ISubPicProviderEx2)
+        QI(ISubPicProviderEx3)
         QI(ISubPicProvider)
         QI(ISubPicProviderEx)
         __super::NonDelegatingQueryInterface(riid, ppv);
@@ -3790,6 +3792,120 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             return S_OK;
         }
 
+        int xy_tile_count = 0;
+        for (auto i = img; i != nullptr; i = i->next)
+            ++xy_tile_count;
+
+        if (xy_tile_count <= m_max_bitmap_count)
+        {
+            // Emit one bitmap per libass tile instead of flattening them all into a single
+            // union-bounding-box bitmap. When the tiles are spread out, that union box is largely
+            // transparent, so flattening produces a large, mostly-empty bitmap that the consumer
+            // has to re-upload every frame while the subtitle is animated. Delivering the tiles
+            // separately keeps the per-frame upload proportional to the actual glyph coverage.
+            // Source-over compositing is associative, so the composited result is identical.
+            XySubRenderFrameCreater *render_frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
+            XySubRenderFrame *sub_render_frame = render_frame_creater->NewXySubRenderFrame(xy_tile_count);
+
+            int tile_idx = 0;
+            for (auto i = img; i != nullptr; i = i->next, ++tile_idx)
+            {
+                RECT tr = { i->dst_x, i->dst_y, i->dst_x + i->w, i->dst_y + i->h };
+                switch (color_space)
+                {
+                case XY_CS_AYUV_PLANAR:
+                case XY_CS_AYUV:
+                case XY_CS_AUYV:
+                    if (tr.left & 1) --tr.left;
+                    if (tr.top & 1) --tr.top;
+                    break;
+                default:
+                    break;
+                }
+                tr.right += (tr.right - tr.left) & 1;
+                tr.bottom += (tr.bottom - tr.top) & 1;
+
+                XyBitmap *tmp = render_frame_creater->CreateBitmap(tr);
+                sub_render_frame->m_bitmaps.GetAt(tile_idx).reset(tmp);
+                sub_render_frame->m_bitmap_ids.GetAt(tile_idx) = (int)rt + tile_idx;
+
+                const int xoff = i->dst_x - tmp->x;
+                const int yoff = i->dst_y - tmp->y;
+                const uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
+
+                switch (color_space)
+                {
+                case XY_CS_ARGB_F:
+                {
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    const uint32_t argbt = render_frame_creater->TransColor(argb);
+                    for (int y = 0; y < i->h; ++y) {
+                        auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
+                        auto alpha = i->bitmap + y * i->stride;
+                        packed_pix_mix_sse2(dst, alpha, i->w, argbt);
+                    }
+                    break;
+                }
+                case XY_CS_AYUV_PLANAR:
+                {
+                    uint32_t ayuv = render_frame_creater->TransColor(argb);
+                    for (int y = 0; y < i->h; ++y) {
+                        int rowOffset = (yoff + y) * tmp->pitch + xoff;
+                        BYTE *dstA = tmp->plans[0] + rowOffset;
+                        BYTE *dstY = tmp->plans[1] + rowOffset;
+                        BYTE *dstU = tmp->plans[2] + rowOffset;
+                        BYTE *dstV = tmp->plans[3] + rowOffset;
+                        const BYTE *alpha = i->bitmap + y * i->stride;
+                        int w0 = i->w & ~15;
+                        ayuv_planar_mix_sse2(dstA, dstY, dstU, dstV, alpha, w0, ayuv);
+                        ayuv_planar_mix_c(dstA + w0, dstY + w0, dstU + w0, dstV + w0, alpha + w0, i->w - w0, ayuv);
+                    }
+                    break;
+                }
+                case XY_CS_ARGB:
+                {
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    const uint32_t argbt = render_frame_creater->TransColor(argb);
+                    for (int y = 0; y < i->h; ++y) {
+                        auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
+                        auto alpha = i->bitmap + y * i->stride;
+                        packed_pix_mix_sse2(dst, alpha, i->w, argbt);
+                    }
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    break;
+                }
+                case XY_CS_AYUV:
+                {
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    uint32_t ayuv = render_frame_creater->TransColor(argb);
+                    for (int y = 0; y < i->h; ++y) {
+                        auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
+                        auto alpha = i->bitmap + y * i->stride;
+                        packed_pix_mix_sse2(dst, alpha, i->w, ayuv);
+                    }
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    break;
+                }
+                case XY_CS_AUYV:
+                {
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    uint32_t auyv = render_frame_creater->TransColor(argb);
+                    for (int y = 0; y < i->h; ++y) {
+                        auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
+                        auto alpha = i->bitmap + y * i->stride;
+                        packed_pix_mix_sse2(dst, alpha, i->w, auyv);
+                    }
+                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
+                    break;
+                }
+                }
+            }
+            m_last_frame = sub_render_frame;
+            (*subRenderFrame = sub_render_frame)->AddRef();
+
+            return S_OK;
+        }
+
         RECT clip_rect = {};
         for (auto i = img; i != nullptr; i = i->next)
         {
@@ -4149,4 +4265,14 @@ STDMETHODIMP CRenderedTextSubtitle::Lock()
 STDMETHODIMP CRenderedTextSubtitle::Unlock()
 {
     return CSubPicProviderImpl::Unlock();
+}
+
+STDMETHODIMP CRenderedTextSubtitle::SetMaxBitmapCount(int max_bitmap_count)
+{
+    max_bitmap_count = max(1, max_bitmap_count);
+    if (m_max_bitmap_count != max_bitmap_count) {
+        m_max_bitmap_count = max_bitmap_count;
+        m_last_frame = NULL;
+    }
+    return S_OK;
 }

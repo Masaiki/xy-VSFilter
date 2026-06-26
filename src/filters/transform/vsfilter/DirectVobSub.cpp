@@ -1643,8 +1643,13 @@ CDVS4XySubFilter::CDVS4XySubFilter( const Option *options, CCritSec * pLock )
     }
     m_xy_str_opt[STRING_YUV_MATRIX] = "None";
 
+    // Generous default: the libass path emits one bitmap per glyph tile and the consumer
+    // composites them directly. Tiles are only combined into fewer bitmaps when a frame
+    // exceeds this count, so ordinary animated subtitles are delivered tile-by-tile rather
+    // than flattened into a single large, mostly-transparent bitmap that would have to be
+    // re-uploaded every frame.
     m_xy_int_opt[INT_MAX_BITMAP_COUNT] = theApp.GetProfileInt(ResStr(IDS_R_PERFORMANCE), ResStr(IDS_RP_MAX_BITMAP_COUNT)
-        , 8);
+        , 64);
     if (m_xy_int_opt[INT_MAX_BITMAP_COUNT]<= 1)
     {
         m_xy_int_opt[INT_MAX_BITMAP_COUNT] = 1;

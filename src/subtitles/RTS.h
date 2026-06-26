@@ -326,7 +326,7 @@ public:
 };
 
 [uuid("537DCACA-2812-4a4f-B2C6-1A34C17ADEB0")]
-class CRenderedTextSubtitle : public CSubPicProviderImpl, public ISubStream, public ISubPicProviderEx2, public CSimpleTextSubtitle
+class CRenderedTextSubtitle : public CSubPicProviderImpl, public ISubStream, public ISubPicProviderEx2, public ISubPicProviderEx3, public CSimpleTextSubtitle
 {
 public:
     enum AssCmdType
@@ -426,6 +426,7 @@ private:
     int                      m_period;//1000/m_fps
     double                   m_target_scale_x, m_target_scale_y;
     bool                     m_movable;
+    int                      m_max_bitmap_count;
 
     static void InitCmdMap();
 
@@ -472,6 +473,9 @@ public:
         const RECT& video_rect, const RECT& subtitle_target_rect,
         const SIZE& original_video_size,
         REFERENCE_TIME rt, double fps);
+
+    // ISubPicProviderEx3
+    STDMETHODIMP SetMaxBitmapCount(int max_bitmap_count);
 
     // ISubPicProviderEx && ISubPicProviderEx2
     STDMETHODIMP_(POSITION) GetStartPosition(REFERENCE_TIME rt, double fps);

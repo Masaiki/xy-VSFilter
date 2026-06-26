@@ -253,6 +253,14 @@ HRESULT SimpleSubPicProvider::RenderTo( IXySubRenderFrame** pSubPic, REFERENCE_T
     {
         return hr;
     }
+    CComQIPtr<ISubPicProviderEx3> provider3 = pSubPicProviderEx;
+    if (provider3) {
+        int max_bitmap_count;
+        hr = m_consumer->XyGetInt(DirectVobSubXyOptions::INT_MAX_BITMAP_COUNT2, &max_bitmap_count);
+        if (FAILED(hr))
+            return hr;
+        provider3->SetMaxBitmapCount(max_bitmap_count);
+    }
 
     hr = pSubPicProviderEx->RenderEx(pSubPic, m_spd_type,
         CRect(CPoint(),m_spd_size), CRect(CPoint(),m_spd_size),
