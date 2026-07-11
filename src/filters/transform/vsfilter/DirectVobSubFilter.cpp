@@ -1563,6 +1563,9 @@ bool CDirectVobSubFilter::Open()
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(new CRenderedTextSubtitle(&m_csSubLock));
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
+            pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
+                ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
+            });
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
                 pSubStream = pRTS.Detach();

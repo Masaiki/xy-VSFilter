@@ -38,6 +38,39 @@ static UINT WM_DVSSHOWHIDESUB = RegisterWindowMessage(TEXT("WM_DVSSHOWHIDESUB"))
 static UINT s_uTaskbarRestart = RegisterWindowMessage(TEXT("TaskbarCreated"));
 static UINT WM_NOTIFYICON = RegisterWindowMessage(TEXT("MYWM_NOTIFYICON"));
 
+static bool FlushSystrayNotification(SystrayIconData* data)
+{
+    if(!data || !data->fShowIcon || !data->hSystrayWnd)
+    {
+        return false;
+    }
+
+    ATL::CComCritSecLock<ATL::CComAutoCriticalSection> lock(data->notification_lock);
+    if(data->notification_message.IsEmpty())
+    {
+        return false;
+    }
+
+    NOTIFYICONDATA tnid;
+    SecureZeroMemory(&tnid, sizeof(tnid));
+    tnid.cbSize = sizeof(tnid);
+    tnid.hWnd = data->hSystrayWnd;
+    tnid.uID = IDI_ICON1;
+    tnid.uFlags = NIF_INFO;
+    tnid.dwInfoFlags = NIIF_WARNING;
+    lstrcpyn(tnid.szInfoTitle, data->notification_title, _countof(tnid.szInfoTitle));
+    lstrcpyn(tnid.szInfo, data->notification_message, _countof(tnid.szInfo));
+
+    if(!Shell_NotifyIcon(NIM_MODIFY, &tnid))
+    {
+        return false;
+    }
+
+    data->notification_title.Empty();
+    data->notification_message.Empty();
+    return true;
+}
+
 LRESULT CALLBACK HookProc(UINT code, WPARAM wParam, LPARAM lParam)
 {
 	MSG* msg = (MSG*)lParam;
@@ -203,9 +236,13 @@ LRESULT CSystrayWindow::OnTaskBarRestart(WPARAM, LPARAM)
         LocalFree(name);
         lstrcpyn(tnid.szTip, str_name.GetString(), sizeof(tnid.szTip));
 
-		BOOL res = Shell_NotifyIcon(NIM_ADD, &tnid); 
+		BOOL res = Shell_NotifyIcon(NIM_ADD, &tnid);
+		if(res)
+		{
+			FlushSystrayNotification(m_tbid);
+		}
 
-		if(tnid.hIcon) DestroyIcon(tnid.hIcon); 
+		if(tnid.hIcon) DestroyIcon(tnid.hIcon);
 
 		return res?0:-1;
 	}
@@ -421,6 +458,22 @@ HANDLE CreateSystray( SystrayIconData *data )
     HANDLE ret = CreateThread(0, 0, SystrayThreadProc, data, 0, &tid);
     WaitForSingleObject(data->WndCreatedEvent, INFINITE);
     return ret;
+}
+
+bool ShowSystrayNotification(SystrayIconData* data, const CString& title, const CString& message)
+{
+    if(!data || !data->fShowIcon)
+    {
+        return false;
+    }
+
+    {
+        ATL::CComCritSecLock<ATL::CComAutoCriticalSection> lock(data->notification_lock);
+        data->notification_title = title;
+        data->notification_message = message;
+    }
+
+    return FlushSystrayNotification(data);
 }
 
 void DeleteSystray(HANDLE *pSystrayThread, SystrayIconData* data )

@@ -2200,7 +2200,7 @@ STSStyle* CSimpleTextSubtitle::CreateDefaultStyle(int CharSet)
 void CSimpleTextSubtitle::ChangeUnknownStylesToDefault()
 {
     CAtlMap<CString, STSStyle*, CStringElementTraits<CString> > unknown;
-    bool fReport = true;
+    CString unknown_styles;
     CString last_style = _T("!@dkdfjlakfkjjklezdv^5132ae");
     bool last_style_changed_to_unknow = false;
     for(size_t i = 0; i < m_entries.GetCount(); i++)
@@ -2225,11 +2225,13 @@ void CSimpleTextSubtitle::ChangeUnknownStylesToDefault()
             {
                 if(!unknown.Lookup(stse.style, val))
                 {
-                    if(fReport && stse.style!=g_default_style)
+                    if(stse.style != g_default_style)
                     {
-                        CString msg;
-                        msg.Format(_T("Unknown style found: \"%s\", changed to \"Default\"!\n\nPress Cancel to ignore further warnings."), stse.style);
-                        if(MessageBox(NULL, msg, _T("Warning"), MB_OKCANCEL|MB_ICONWARNING) != IDOK) fReport = false;
+                        if(!unknown_styles.IsEmpty())
+                        {
+                            unknown_styles += _T(", ");
+                        }
+                        unknown_styles += stse.style;
                     }
 
                     unknown[stse.style] = NULL;
@@ -2237,6 +2239,17 @@ void CSimpleTextSubtitle::ChangeUnknownStylesToDefault()
 
                 stse.style = g_default_style;
             }
+        }
+    }
+
+    if(!unknown_styles.IsEmpty())
+    {
+        CString msg;
+        msg.Format(_T("Unknown subtitle styles were replaced with \"Default\": %s"), unknown_styles);
+        XY_LOG_WARN(msg.GetString());
+        if(m_warning_callback)
+        {
+            m_warning_callback(msg);
         }
     }
 }

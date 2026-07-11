@@ -1928,6 +1928,9 @@ bool XySubFilter::Open()
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             pRTS && (pRTS->m_csri_context.m_loader = m_csri_loader);
+            pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
+                ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
+            });
             if(pRTS && pRTS->Open(ret[i].full_file_name, DEFAULT_CHARSET) && pRTS->GetStreamCount() > 0)
             {
                 pSubStream = pRTS.Detach();

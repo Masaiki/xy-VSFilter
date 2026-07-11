@@ -33,6 +33,9 @@ typedef struct
     IDirectVobSub2* dvs;
     bool fRunOnce, fShowIcon;
     ATL::CEvent WndCreatedEvent;
+    ATL::CComAutoCriticalSection notification_lock;
+    CString notification_title;
+    CString notification_message;
     std::function<SubtitleRenderBackend(void)> get_backend;
     std::function<SubtitleRenderBackend(void)> get_actual_backend;
     std::function<void(SubtitleRenderBackend)> set_backend;
@@ -41,3 +44,4 @@ typedef struct
 extern DWORD CALLBACK SystrayThreadProc(void* pParam);
 extern HANDLE CreateSystray(SystrayIconData *data);
 extern void DeleteSystray(HANDLE *pSystrayThread, SystrayIconData* data);
+extern bool ShowSystrayNotification(SystrayIconData* data, const CString& title, const CString& message);

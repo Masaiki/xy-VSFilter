@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include <atlcoll.h>
 #include <wxutil.h>
 #include "TextFile.h"
@@ -217,6 +219,8 @@ public:
     YCbCrMatrix    m_eYCbCrMatrix;
     YCbCrRange     m_eYCbCrRange;
 public:
+    std::function<void(const CString&)> m_warning_callback;
+
     CSimpleTextSubtitle();
     virtual ~CSimpleTextSubtitle();
 
