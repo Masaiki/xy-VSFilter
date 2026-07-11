@@ -351,6 +351,22 @@ struct YUVLevelInfo
 const YUVLevelInfo YUV_LVL_PC = { 0, 255, 128, 255 };
 const YUVLevelInfo YUV_LVL_TV = {16, 219, 128, 224 };
 
+static int ScaleRange(int value, int output_size, int input_size)
+{
+    const int scaled = value * output_size;
+    return scaled >= 0
+        ? (scaled + input_size / 2) / input_size
+        : -((-scaled + input_size / 2) / input_size);
+}
+
+static int RoundFixed12(int64_t value)
+{
+    const int64_t rounding = 1 << 11;
+    return value >= 0
+        ? int((value + rounding) >> 12)
+        : -int((-value + rounding) >> 12);
+}
+
 #define FLOAT_TO_FIXED(f, SCALE) int((f)*(SCALE)+0.5)
 
 #define DEFINE_RGB2YUV_FUNC(func, RGB_LEVEL, YUV_LEVEL, Kr, Kg, Kb, YUV_POS)                 \
@@ -368,11 +384,11 @@ DWORD func(int r8, int g8, int b8)                                              
     const int U_SCALE= int(1.0*YUV_LEVEL.u_size/RGB_LEVEL.size*4096+0.5);                    \
                                                                                              \
     int y = INT_Kr*r8 + INT_Kg*g8 + INT_Kb*b8;                                               \
-    int u = (((b8<<FRACTION_BITS) - y) >> 12) * Y_CU;                                        \
-    int v = (((r8<<FRACTION_BITS) - y) >> 12) * Y_CV;                                        \
-    y = Y_SCALE == 4096 ? y : (y>>12)*Y_SCALE;                                               \
-    u = U_SCALE == 4096 ? u : (u>>12)*U_SCALE;                                               \
-    v = U_SCALE == 4096 ? v : (v>>12)*U_SCALE;                                               \
+    int u = RoundFixed12((((int64_t)b8<<FRACTION_BITS) - y) * Y_CU);                          \
+    int v = RoundFixed12((((int64_t)r8<<FRACTION_BITS) - y) * Y_CV);                          \
+    y = Y_SCALE == 4096 ? y : RoundFixed12((int64_t)y*Y_SCALE);                              \
+    u = U_SCALE == 4096 ? u : RoundFixed12((int64_t)u*U_SCALE);                              \
+    v = U_SCALE == 4096 ? v : RoundFixed12((int64_t)v*U_SCALE);                              \
     y = (y + (YUV_LEVEL.y_low*FRACTION_SCALE + FRACTION_SCALE/2))>>FRACTION_BITS;            \
     u = (u + (YUV_LEVEL.u_mid*FRACTION_SCALE + FRACTION_SCALE/2))>>FRACTION_BITS;            \
     v = (v + (YUV_LEVEL.u_mid*FRACTION_SCALE + FRACTION_SCALE/2))>>FRACTION_BITS;            \
@@ -423,11 +439,11 @@ DWORD func(int a8, int r8, int g8, int b8)                                      
                                                                                           \
     int a = (256-a8)<<(FRACTION_BITS-8);                                                  \
     int y = INT_Kr*r8 + INT_Kg*g8 + INT_Kb*b8;                                            \
-    int u = (((b8<<FRACTION_BITS) - y) >> 12) * Y_CU;                                     \
-    int v = (((r8<<FRACTION_BITS) - y) >> 12) * Y_CV;                                     \
-    y = Y_SCALE == 4096 ? y : (y>>12)*Y_SCALE;                                            \
-    u = U_SCALE == 4096 ? u : (u>>12)*U_SCALE;                                            \
-    v = U_SCALE == 4096 ? v : (v>>12)*U_SCALE;                                            \
+    int u = RoundFixed12((((int64_t)b8<<FRACTION_BITS) - y) * Y_CU);                       \
+    int v = RoundFixed12((((int64_t)r8<<FRACTION_BITS) - y) * Y_CV);                       \
+    y = Y_SCALE == 4096 ? y : RoundFixed12((int64_t)y*Y_SCALE);                           \
+    u = U_SCALE == 4096 ? u : RoundFixed12((int64_t)u*U_SCALE);                           \
+    v = U_SCALE == 4096 ? v : RoundFixed12((int64_t)v*U_SCALE);                           \
     y = (y + YUV_LEVEL.y_low*a  + FRACTION_SCALE/2)>>FRACTION_BITS;                       \
     u = (u + YUV_LEVEL.u_mid*a  + FRACTION_SCALE/2)>>FRACTION_BITS;                       \
     v = (v + YUV_LEVEL.u_mid*a  + FRACTION_SCALE/2)>>FRACTION_BITS;                       \
@@ -449,7 +465,7 @@ DWORD func(int r8, int g8, int b8)                                              
     const int U_SCALE= int(1.0*YUV_LEVEL.u_size/RGB_LEVEL.size*4096+0.5);                    \
                                                                                              \
     int y = INT_Kr*r8 + INT_Kg*g8 + INT_Kb*b8 - RGB_LEVEL.low;                               \
-    y = Y_SCALE == 4096 ? y : (y>>12)*Y_SCALE;                                               \
+    y = Y_SCALE == 4096 ? y : RoundFixed12((int64_t)y*Y_SCALE);                              \
     y = (y + (YUV_LEVEL.y_low*FRACTION_SCALE + FRACTION_SCALE/2))>>FRACTION_BITS;            \
     y = clip(y, 255);                                                                        \
     return y;                                                                                \
@@ -849,38 +865,31 @@ DWORD ColorConvTable::A8Y8U8V8_To_ARGB_PC_BT2020( int a8, int y8, int u8, int v8
 
 DWORD ColorConvTable::A8Y8U8V8_PC_To_TV( int a8, int y8, int u8, int v8 )
 {
-    const int FRACTION_SCALE = 1<<16;
     const int YUV_MIN = 16;
-    const int cy = int(219.0/255*FRACTION_SCALE+0.5);
-    const int cuv = int(224.0/255*FRACTION_SCALE+0.5);
-    y8 = ((y8*cy)>>16) + YUV_MIN;
-    u8 = ((u8*cuv)>>16) + YUV_MIN;
-    v8 = ((v8*cuv)>>16) + YUV_MIN;
+    y8 = ScaleRange(y8, 219, 255) + YUV_MIN;
+    u8 = ScaleRange(u8, 224, 255) + YUV_MIN;
+    v8 = ScaleRange(v8, 224, 255) + YUV_MIN;
     return (a8<<24) | (y8<<16) | (u8<<8) | v8;
 }
 
 DWORD ColorConvTable::A8Y8U8V8_TV_To_PC( int a8, int y8, int u8, int v8 )
 {
-    const int FRACTION_SCALE = 1<<16;
     const int YUV_MIN = 16;
-    const int cy = int(255/219.0*FRACTION_SCALE+0.5);
-    const int cuv = int(255/224.0*FRACTION_SCALE+0.5);
-    y8 = ((y8-YUV_MIN)*cy)>>16;
-    u8 = ((u8-YUV_MIN)*cuv)>>16;
-    v8 = ((v8-YUV_MIN)*cuv)>>16;
+    y8 = ScaleRange(y8 - YUV_MIN, 255, 219);
+    u8 = ScaleRange(u8 - YUV_MIN, 255, 224);
+    v8 = ScaleRange(v8 - YUV_MIN, 255, 224);
     return (a8<<24) | (y8<<16) | (u8<<8) | v8;
 }
 
 DWORD ColorConvTable::RGB_PC_TO_TV( DWORD argb )
 {
     const int MIN = 16;
-    const int SCALE = int(219.0/255*FRACTION_SCALE+0.5);
     DWORD r = (argb & 0x00ff0000)>>16;
     DWORD g = (argb & 0x0000ff00)>>8;
     DWORD b = (argb & 0x000000ff);
-    r = ((r*SCALE)>>16) + MIN;
-    g = ((g*SCALE)>>16) + MIN;
-    b = ((b*SCALE)>>16) + MIN;
+    r = ScaleRange(r, 219, 255) + MIN;
+    g = ScaleRange(g, 219, 255) + MIN;
+    b = ScaleRange(b, 219, 255) + MIN;
     return (argb & 0xff000000)|(r<<16)|(g<<8)|b;
 }
 

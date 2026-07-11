@@ -75,6 +75,7 @@
   <ItemGroup>
     <ClInclude Include="subpic_alphablend_test_data.h" />
     <ClInclude Include="test_alphablend.h" />
+    <ClInclude Include="test_color_conv_table.h" />
     <ClInclude Include="test_instrinsics_macro.h" />
     <ClInclude Include="test_overall.h" />
     <ClInclude Include="test_subsample_and_interlace.h" />
