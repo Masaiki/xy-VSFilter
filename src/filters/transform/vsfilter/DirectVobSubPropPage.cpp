@@ -31,6 +31,44 @@
 #include "../../../DSUtil/MediaTypes.h"
 
 #include "../../../subtitles/SubtitleRenderBackend.h"
+#include "../../../subtitles/TextRendererMode.h"
+
+namespace
+{
+void PopulateTextRendererModeCombo(CComboBox& combo, int selected_mode)
+{
+    struct Entry
+    {
+        LPCTSTR label;
+        TextRendererMode mode;
+    };
+    const Entry entries[] = {
+        { _T("Legacy GDI (TextOutW)"), TEXT_RENDERER_LEGACY_GDI },
+        { _T("Auto fallback"), TEXT_RENDERER_AUTO_FALLBACK },
+        { _T("Uniscribe"), TEXT_RENDERER_UNISCRIBE },
+    };
+
+    selected_mode = NormalizeTextRendererMode(selected_mode);
+    int selected_index = 0;
+    combo.ResetContent();
+    for (const auto& entry : entries) {
+        const int index = combo.AddString(entry.label);
+        combo.SetItemData(index, entry.mode);
+        if (entry.mode == selected_mode) {
+            selected_index = index;
+        }
+    }
+    combo.SetCurSel(selected_index);
+}
+
+int GetTextRendererModeComboValue(const CComboBox& combo)
+{
+    const int index = combo.GetCurSel();
+    return index == CB_ERR ? TEXT_RENDERER_AUTO_FALLBACK
+                           : NormalizeTextRendererMode(static_cast<int>(combo.GetItemData(index)));
+}
+
+}
 
 BOOL WINAPI MyGetDialogSize(int iResourceID, DLGPROC pDlgProc, LPARAM lParam, SIZE* pResult)
 {
@@ -985,6 +1023,7 @@ CDVSBasePPage(NAME("DirectVobSub More Property Page"), pUnk, IDD_DVSMOREPAGE, ID
     BindControl(IDC_SPIN_LAYOUT_SIZE_Y, m_layout_size_y);
 
     BindControl(IDC_CHECKBOX_VS_ASS_RENDERING, m_vsassrendering);
+    BindControl(IDC_COMBO_TEXT_RENDERER_MODE, m_text_renderer_mode_combo);
 }
 
 bool CDVSMorePPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -1082,6 +1121,8 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
 
         hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, m_fVSAssRendering ? SUBTITLE_RENDER_BACKEND_VSFILTER : SUBTITLE_RENDER_BACKEND_LIBASS);
         CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_TEXT_RENDERER_MODE, m_text_renderer_mode);
+        CHECK_N_LOG(hr, "Failed to set option");
     }
     else
     {
@@ -1103,7 +1144,10 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
 
         int backend;
         hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, &backend);
-		m_fVSAssRendering = (backend == SUBTITLE_RENDER_BACKEND_VSFILTER);
+        m_fVSAssRendering = (backend == SUBTITLE_RENDER_BACKEND_VSFILTER);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_TEXT_RENDERER_MODE, &m_text_renderer_mode);
+        m_text_renderer_mode = NormalizeTextRendererMode(m_text_renderer_mode);
         CHECK_N_LOG(hr, "Failed to get option");
     }
 }
@@ -1138,6 +1182,7 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
         m_layout_size.cy = m_layout_size_y.GetPos32();
 
         m_fVSAssRendering = !!m_vsassrendering.GetCheck();
+        m_text_renderer_mode = GetTextRendererModeComboValue(m_text_renderer_mode_combo);
     }
     else
     {
@@ -1195,6 +1240,7 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
         m_layout_size_y.SetPos32(m_layout_size.cy);
 
         m_vsassrendering.SetCheck(m_fVSAssRendering);
+        PopulateTextRendererModeCombo(m_text_renderer_mode_combo, m_text_renderer_mode);
     }
 }
 
@@ -2007,6 +2053,7 @@ CXySubFilterMorePPage::CXySubFilterMorePPage(LPUNKNOWN pUnk, HRESULT* phr)
     BindControl(IDC_CHECKBOX_RENDER_TO_ORIGINAL_VIDEO_SIZE, m_checkbox_render_to_original_video_size);
 
     BindControl(IDC_EDIT_CACHE_SIZE, m_edit_cache_size);
+    BindControl(IDC_COMBO_TEXT_RENDERER_MODE, m_text_renderer_mode_combo);
 }
 
 bool CXySubFilterMorePPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -2149,6 +2196,8 @@ void CXySubFilterMorePPage::UpdateObjectData(bool fSave)
 
         hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_MAX_CACHE_SIZE_MB, m_cache_size);
         CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_TEXT_RENDERER_MODE, m_text_renderer_mode);
+        CHECK_N_LOG(hr, "Failed to set option");
     }
     else
     {
@@ -2193,6 +2242,9 @@ void CXySubFilterMorePPage::UpdateObjectData(bool fSave)
         }
 
         hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_AUTO_MAX_CACHE_SIZE_MB, &m_auto_cache_size);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_TEXT_RENDERER_MODE, &m_text_renderer_mode);
+        m_text_renderer_mode = NormalizeTextRendererMode(m_text_renderer_mode);
         CHECK_N_LOG(hr, "Failed to get option");
     }
 }
@@ -2268,6 +2320,7 @@ void CXySubFilterMorePPage::UpdateControlData(bool fSave)
                 m_cache_size = -1;
             }
         }
+        m_text_renderer_mode = GetTextRendererModeComboValue(m_text_renderer_mode_combo);
     }
     else
     {
@@ -2381,6 +2434,7 @@ void CXySubFilterMorePPage::UpdateControlData(bool fSave)
         m_combo_rgb_level.SetCurSel( m_rgb_level );
 
         m_checkbox_render_to_original_video_size.SetCheck(m_render_to_original_video_size);
+        PopulateTextRendererModeCombo(m_text_renderer_mode_combo, m_text_renderer_mode);
 
         CString cache_size_str;
         m_edit_cache_size.GetWindowText(cache_size_str);

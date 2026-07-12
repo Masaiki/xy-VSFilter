@@ -167,7 +167,9 @@ class CDVSMorePPage : public CDVSBasePPage
     CComboBox m_combo_subpixel_pos, m_combo_layout_size_opt;
 
     bool m_fVSAssRendering;
+    int m_text_renderer_mode;
     CButton m_vsassrendering;
+    CComboBox m_text_renderer_mode_combo;
 protected:
     virtual bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
     virtual void UpdateControlData(bool fSave);
@@ -304,6 +306,7 @@ class CXySubFilterMorePPage : public CDVSBasePPage
     bool m_render_to_original_video_size;
 
     int  m_cache_size, m_auto_cache_size;
+    int  m_text_renderer_mode;
 
     CButton m_hidesub, m_allowmoving, m_autoreload, m_instupd;
 
@@ -315,6 +318,7 @@ class CXySubFilterMorePPage : public CDVSBasePPage
     CButton m_checkbox_render_to_original_video_size;
 
     CComboBox m_combo_yuv_matrix, m_combo_yuv_range, m_combo_rgb_level;
+    CComboBox m_text_renderer_mode_combo;
     CEdit m_edit_cache_size;
 protected:
     virtual bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);

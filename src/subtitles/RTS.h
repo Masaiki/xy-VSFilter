@@ -131,14 +131,21 @@ public:
 protected:
     virtual bool CreatePath(PathData* path_data);
 
-    static void GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str);
+    static void GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str,
+                            TextRendererMode text_renderer_mode);
 public:
     CText(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
-        , double target_scale_x=1.0, double target_scale_y=1.0);
+        , double target_scale_x=1.0, double target_scale_y=1.0
+        , TextRendererMode text_renderer_mode=TEXT_RENDERER_AUTO_FALLBACK);
     CText(const CText& src);
 
     virtual SharedPtrCWord Copy();
     virtual bool Append(const SharedPtrCWord& w);
+
+private:
+    TextRendererMode m_text_renderer_mode;
+
+    friend class PathDataCacheKey;
 };
 
 class CPolygon : public CWord
@@ -461,6 +468,7 @@ public:
     bool Init(const CRectCoor2& video_rect, const CRectCoor2& subtitle_target_rect,
         const SIZE& original_video_size); // will call Deinit()
     void Deinit();
+    void SetTextRendererMode(TextRendererMode mode);
 
     DECLARE_IUNKNOWN
     STDMETHODIMP NonDelegatingQueryInterface(REFIID riid, void** ppv);

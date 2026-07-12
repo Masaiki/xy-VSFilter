@@ -22,6 +22,7 @@
 #include "stdafx.h"
 #include "DirectVobSub.h"
 #include "VSFilter.h"
+#include "../../../subtitles/TextRendererMode.h"
 
 using namespace DirectVobSubXyOptions;
 
@@ -1095,6 +1096,8 @@ CDirectVobSub::CDirectVobSub( const Option *options, CCritSec * pLock )
     m_xy_bool_opt[BOOL_VOBSUBSETTINGS_ONLY_SHOW_FORCED_SUBS] = !!theApp.GetProfileInt(ResStr(IDS_R_VOBSUB), ResStr(IDS_RV_ONLYSHOWFORCEDSUBS), 0);
     m_xy_bool_opt[BOOL_VOBSUBSETTINGS_POLYGONIZE] = !!theApp.GetProfileInt(ResStr(IDS_R_VOBSUB), ResStr(IDS_RV_POLYGONIZE), 0);
     m_defStyle <<= theApp.GetProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_STYLE), _T(""));
+    m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(NormalizeTextRendererMode(
+        theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), TEXT_RENDERER_AUTO_FALLBACK)));
     m_xy_bool_opt[BOOL_FLIP_PICTURE]  = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPPICTURE), 0);
     m_xy_bool_opt[BOOL_FLIP_SUBTITLE] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPSUBTITLES), 0);
     m_xy_bool_opt[BOOL_OSD] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SHOWOSDSTATS), 0);
@@ -1333,6 +1336,7 @@ STDMETHODIMP CDirectVobSub::UpdateRegistry()
     theApp.WriteProfileInt(ResStr(IDS_R_VOBSUB), ResStr(IDS_RV_POLYGONIZE), m_xy_bool_opt[BOOL_VOBSUBSETTINGS_POLYGONIZE]);
     CString style;
     theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_STYLE), style <<= m_defStyle);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPPICTURE), m_xy_bool_opt[BOOL_FLIP_PICTURE]);
     theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPSUBTITLES), m_xy_bool_opt[BOOL_FLIP_SUBTITLE]);
     theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SHOWOSDSTATS), m_xy_bool_opt[BOOL_OSD]);
@@ -1507,6 +1511,8 @@ CDVS4XySubFilter::CDVS4XySubFilter( const Option *options, CCritSec * pLock )
     m_xy_bool_opt[BOOL_VOBSUBSETTINGS_ONLY_SHOW_FORCED_SUBS] = !!theApp.GetProfileInt(ResStr(IDS_R_VOBSUB), ResStr(IDS_RV_ONLYSHOWFORCEDSUBS), 0);
     m_xy_bool_opt[BOOL_VOBSUBSETTINGS_POLYGONIZE]            = !!theApp.GetProfileInt(ResStr(IDS_R_VOBSUB), ResStr(IDS_RV_POLYGONIZE), 0);
     m_defStyle <<= theApp.GetProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_STYLE), _T(""));
+    m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(NormalizeTextRendererMode(
+        theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), TEXT_RENDERER_AUTO_FALLBACK)));
 
     m_nReloaderDisableCount                 = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_DISABLERELOADER), 0) ? 1 : 0;
     m_SubtitleDelay                         =   theApp.GetProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLEDELAY), 0);
@@ -1745,6 +1751,7 @@ STDMETHODIMP CDVS4XySubFilter::UpdateRegistry()
     theApp.WriteProfileInt(ResStr(IDS_R_VOBSUB), ResStr(IDS_RV_POLYGONIZE), m_xy_bool_opt[BOOL_VOBSUBSETTINGS_POLYGONIZE]);
     CString style;
     theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_STYLE), style <<= m_defStyle);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     theApp.WriteProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLEDELAY), m_SubtitleDelay);
     theApp.WriteProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLESPEEDMUL), m_SubtitleSpeedMul);
     theApp.WriteProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLESPEEDDIV), m_SubtitleSpeedDiv);
