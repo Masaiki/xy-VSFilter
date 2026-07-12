@@ -30,10 +30,6 @@ jobs:
         run: |
           git clone https://github.com/ShiftMediaProject/VSYASM.git
           .\VSYASM\install_script.bat
-      - name: force /MT build
-        shell: bash
-        run: |
-          sed -i -e 's|<ClCompile>|&<RuntimeLibrary>MultiThreaded</RuntimeLibrary>|g' SMP/*/SMP/*.vcxproj
       - name: add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
       - name: build
