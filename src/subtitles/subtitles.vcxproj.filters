@@ -21,6 +21,9 @@
     <ClCompile Include="GFN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GdiTextRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Rasterizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -120,6 +123,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GFN.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GdiTextRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Rasterizer.h">
@@ -231,6 +237,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SubtitleRenderBackend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TextRendererMode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

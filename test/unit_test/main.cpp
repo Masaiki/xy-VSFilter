@@ -11,6 +11,7 @@
 //#include "test_xy_filter.h"
 //#include "xy_filter_benchmark.h"
 #include "test_color_conv_table.h"
+#include "test_font_fallback.h"
 #include "test_overall.h"
 
 

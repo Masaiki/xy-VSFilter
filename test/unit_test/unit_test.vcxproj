@@ -47,13 +47,13 @@
   <PropertyGroup>
     <OutDir>$(OutDir)$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
-    <IncludePath>$(SolutionDir)src\thirdparty\gtest\include;$(SolutionDir)src\subtitles;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\subpic\;$(SolutionDir)src\filters\transform\vsfilter\;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)src\thirdparty\gtest\include;$(SolutionDir)src\subtitles;$(SolutionDir)src\DSUtil;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\subpic\;$(SolutionDir)src\filters\transform\vsfilter\;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)include\;$(SolutionDir)msvc\include\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalLibraryDirectories>$(OutDir);$(OutDir)..</AdditionalLibraryDirectories>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">gtestDU.lib;subtitlesD.lib;subpicD.lib;strmbaseD.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">gtestRU.lib;subtitlesR.lib;subpicR.lib;strmbaseR.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)msvc\lib\$(PlatformTarget);$(OutDir);$(OutDir)..</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Debug'">usp10.lib;gtestDU.lib;subtitlesD.lib;subpicD.lib;strmbaseD.lib;dsutilD.lib;KasumiD.lib;systemD.lib;libassd.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)'=='Release'">usp10.lib;gtestRU.lib;subtitlesR.lib;subpicR.lib;strmbaseR.lib;dsutilR.lib;KasumiR.lib;systemR.lib;libass.lib;delayimp.lib;VSFilter.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
     <ClCompile>
@@ -76,6 +76,7 @@
     <ClInclude Include="subpic_alphablend_test_data.h" />
     <ClInclude Include="test_alphablend.h" />
     <ClInclude Include="test_color_conv_table.h" />
+    <ClInclude Include="test_font_fallback.h" />
     <ClInclude Include="test_instrinsics_macro.h" />
     <ClInclude Include="test_overall.h" />
     <ClInclude Include="test_subsample_and_interlace.h" />

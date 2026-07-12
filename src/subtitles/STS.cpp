@@ -1974,6 +1974,7 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_defaultStyle.charSet = DEFAULT_CHARSET;
     m_ass_context          = {};
     m_render_backend       = SUBTITLE_RENDER_BACKEND_LIBASS;
+    m_text_renderer_mode   = TEXT_RENDERER_LEGACY_GDI;
     m_csri_context = {};
 }
 
@@ -1995,6 +1996,7 @@ void CSimpleTextSubtitle::Copy(CSimpleTextSubtitle& sts)
     m_encoding                     = sts.m_encoding;
     m_defaultStyle                 = sts.m_defaultStyle;
     m_fForcedDefaultStyle          = sts.m_fForcedDefaultStyle;
+    m_text_renderer_mode           = NormalizeTextRendererMode(sts.m_text_renderer_mode);
     CopyStyles     (sts.m_styles  );
     m_segments.Copy(sts.m_segments);
     m_entries.Copy (sts.m_entries );
