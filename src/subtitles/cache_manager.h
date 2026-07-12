@@ -30,6 +30,7 @@ class TextInfoCacheKey
 public:
     XyFwStringW::IdType m_str_id;
     FwSTSStyle m_style;
+    TextRendererMode m_text_renderer_mode;
 
     ULONG m_hash_value;
 public:
@@ -58,6 +59,8 @@ public:
             m_scalex = 0;
             m_scaley = 0;
         }
+        const CText* text = dynamic_cast<const CText*>(&word);
+        m_text_renderer_mode = text ? text->m_text_renderer_mode : TEXT_RENDERER_LEGACY_GDI;
         m_str_id = word.m_str.GetId();
     }
     PathDataCacheKey(const PathDataCacheKey& key)
@@ -65,12 +68,14 @@ public:
         ,m_scalex(key.m_scalex)
         ,m_scaley(key.m_scaley)
         ,m_style(key.m_style)
+        ,m_text_renderer_mode(key.m_text_renderer_mode)
         ,m_hash_value(key.m_hash_value){}
     bool operator==(const PathDataCacheKey& key)const
     {
         return m_str_id==key.m_str_id 
             && fabs(m_scalex-key.m_scalex)<0.000001
-            && fabs(m_scaley-key.m_scaley)<0.000001 
+            && fabs(m_scaley-key.m_scaley)<0.000001
+            && m_text_renderer_mode==key.m_text_renderer_mode
             && ( m_style==key.m_style || CompareSTSStyle(m_style, key.m_style) );
     }
     bool operator==(const CWord& key)const
@@ -91,6 +96,7 @@ protected:
     double m_scalex, m_scaley;//for CPolygon 
     XyFwStringW::IdType m_str_id;
     FwSTSStyle m_style;
+    TextRendererMode m_text_renderer_mode;
 };
 
 class ScanLineData2CacheKey: public PathDataCacheKey

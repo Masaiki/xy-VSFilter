@@ -35,6 +35,9 @@
     <ClInclude Include="test_color_conv_table.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test_font_fallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="test_instrinsics_macro.h">
       <Filter>Header Files</Filter>
     </ClInclude>

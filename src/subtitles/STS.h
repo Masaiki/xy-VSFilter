@@ -32,6 +32,7 @@
 #include <unordered_map>
 #include "XySubRenderIntf.h"
 #include "SubtitleRenderBackend.h"
+#include "TextRendererMode.h"
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
 
@@ -307,6 +308,7 @@ public:
     ASS_Context m_ass_context;
     CSRI_Context m_csri_context;
     SubtitleRenderBackend m_render_backend;
+    TextRendererMode m_text_renderer_mode;
     std::vector<CStringA> reserved_styles;
     std::vector<CStringA> styles_overrides;
     CComPtr<IXySubRenderFrame> m_last_frame;

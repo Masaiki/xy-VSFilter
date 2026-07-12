@@ -239,6 +239,7 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
 
     auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, phr);
     pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+    pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     pin->m_csri_loader = m_csri_loader;
     m_pSubtitleInputPin.Add(pin);
     ASSERT(SUCCEEDED(*phr));
@@ -677,6 +678,25 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
                 rts->m_render_backend = backend;
             }
         }
+        break;
+    }
+    case INT_TEXT_RENDERER_MODE:
+    {
+        const auto mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
+        m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(mode);
+        for(int i = 0; i < m_pSubtitleInputPin.GetCount(); i++)
+            m_pSubtitleInputPin[i]->m_text_renderer_mode = mode;
+        POSITION pos = m_pSubStreams.GetHeadPosition();
+        while(pos)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+            if (rts) {
+                rts->SetTextRendererMode(mode);
+            }
+        }
+        m_context_id++;
+        InvalidateSubtitle();
         break;
     }
     }
@@ -1969,6 +1989,7 @@ bool XySubFilter::Open()
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
+            if (pRTS) pRTS->SetTextRendererMode(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
             pRTS && (pRTS->m_csri_context.m_loader = m_csri_loader);
             pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
                 ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
@@ -2591,6 +2612,7 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
         HRESULT hr = S_OK;
         auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, &hr);
         pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+        pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
         pin->m_csri_loader = m_csri_loader;
         m_pSubtitleInputPin.Add(pin);
     }

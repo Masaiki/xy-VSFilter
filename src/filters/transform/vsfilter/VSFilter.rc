@@ -382,6 +382,8 @@ BEGIN
     EDITTEXT        IDC_EDIT_LAYOUT_SIZE_Y,168,107,32,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "",IDC_SPIN_LAYOUT_SIZE_Y,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,183,110,11,14
     CONTROL         "Use VSFilter (legacy) ASS implementation", IDC_CHECKBOX_VS_ASS_RENDERING, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 16, 128, 224, 10
+    LTEXT           "Text renderer for legacy VSFilter paths:",IDC_STATIC,16,146,210,8
+    COMBOBOX        IDC_COMBO_TEXT_RENDERER_MODE,16,157,208,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
 END
 
 IDD_XY_SUB_FILTER_MAINPAGE DIALOGEX 0, 0, 247, 244
@@ -465,6 +467,8 @@ BEGIN
     LTEXT           " (reloading is disabled while showing the property pages)",IDC_STATIC,25,222,182,8
     CONTROL         "Appl&y changes immediately",IDC_INSTANTUPDATE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,236,104,10
     CONTROL         "Allow video renderer to &reposition simple SSA/ASS subtitles",IDC_CHECKBOX_ALLOW_MOVING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,251,224,10
+    LTEXT           "Text renderer for legacy VSFilter paths:",IDC_STATIC,16,266,210,8
+    COMBOBOX        IDC_COMBO_TEXT_RENDERER_MODE,16,277,208,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     CONTROL         "Render To Original Video Size",IDC_CHECKBOX_RENDER_TO_ORIGINAL_VIDEO_SIZE,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,127,132,10
     EDITTEXT        IDC_EDIT_CACHE_SIZE,22,72,40,14,ES_AUTOHSCROLL,WS_EX_RIGHT
@@ -764,6 +768,7 @@ BEGIN
     IDS_RV_ONLYSHOWFORCEDSUBS "only_show_forced_subs"
     IDS_RV_POLYGONIZE       "polygonize"
     IDS_RT_STYLE            "style2"
+    IDS_RT_TEXT_RENDERER_MODE "text_renderer_mode"
     IDS_RTM_SUBTITLEDELAY   "subtitle_delay"
     IDS_RTM_SUBTITLESPEEDMUL "subtitle_speed_mul"
     IDS_RTM_SUBTITLESPEEDDIV "subtitle_Speed_div"
@@ -807,6 +812,7 @@ BEGIN
     IDS_RV_ONLYSHOWFORCEDSUBS "OnlyShowForcedSubs"
     IDS_RV_POLYGONIZE       "Polygonize"
     IDS_RT_STYLE            "Style2"
+    IDS_RT_TEXT_RENDERER_MODE "TextRendererMode"
     IDS_RTM_SUBTITLEDELAY   "Subtitle Delay"
     IDS_RTM_SUBTITLESPEEDMUL "Subtitle Speedmul"
     IDS_RTM_SUBTITLESPEEDDIV "Subtitle Speeddiv"
