@@ -27,6 +27,7 @@
 #include "DirectVobSubPropPage.h"
 #include "VSFilter.h"
 #include "systray.h"
+#include "../basevideofilter/MediaSideData.h"
 #include "../../../DSUtil/MediaTypes.h"
 #include "../../../SubPic/SimpleSubPicProviderImpl.h"
 #include "../../../SubPic/PooledSubPic.h"
@@ -313,6 +314,8 @@ HRESULT CDirectVobSubFilter::Transform(IMediaSample* pIn)
 	pOut->SetDiscontinuity(pIn->IsDiscontinuity() == S_OK);
 	pOut->SetSyncPoint(pIn->IsSyncPoint() == S_OK);
 	pOut->SetPreroll(pIn->IsPreroll() == S_OK);
+	// Preserve per-frame HDR metadata after rendering subtitles into a new sample.
+	CopyHDRMediaSideData(pIn, pOut);
 	//
 
 	BITMAPINFOHEADER bihOut;
