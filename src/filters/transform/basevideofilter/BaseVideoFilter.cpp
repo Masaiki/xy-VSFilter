@@ -22,6 +22,7 @@
 #include "StdAfx.h"
 #include <mmintrin.h>
 #include "BaseVideoFilter.h"
+#include "MediaSideData.h"
 #include "..\..\..\DSUtil\DSUtil.h"
 #include "..\..\..\DSUtil\MediaTypes.h"
 
@@ -686,6 +687,11 @@ HRESULT CBaseVideoFilter::GetMediaType(int iPosition, CMediaType* pmt)
 	((VIDEOINFOHEADER*)pmt->Format())->AvgTimePerFrame = ((VIDEOINFOHEADER*)mt.Format())->AvgTimePerFrame;
 	((VIDEOINFOHEADER*)pmt->Format())->dwBitRate = ((VIDEOINFOHEADER*)mt.Format())->dwBitRate;
 	((VIDEOINFOHEADER*)pmt->Format())->dwBitErrorRate = ((VIDEOINFOHEADER*)mt.Format())->dwBitErrorRate;
+	// dwControlFlags carries the DXVA color range, matrix, primaries and transfer function.
+	if(pmt->subtype == mt.subtype
+	&& pmt->formattype == FORMAT_VideoInfo2
+	&& mt.formattype == FORMAT_VideoInfo2)
+		((VIDEOINFOHEADER2*)pmt->Format())->dwControlFlags = ((VIDEOINFOHEADER2*)mt.Format())->dwControlFlags;
 
 	CorrectMediaType(pmt);
 
@@ -917,6 +923,61 @@ CBaseVideoInputAllocator::CBaseVideoInputAllocator(HRESULT* phr)
 	: CMemAllocator(NAME("CBaseVideoInputAllocator"), NULL, phr)
 {
 	if(phr) *phr = S_OK;
+}
+
+HRESULT CBaseVideoInputAllocator::Alloc(void)
+{
+	CAutoLock lock(this);
+
+	HRESULT hr = CBaseAllocator::Alloc();
+	if(FAILED(hr))
+		return hr;
+
+	if(hr == S_FALSE)
+	{
+		ASSERT(m_pBuffer);
+		return S_OK;
+	}
+
+	if(m_pBuffer)
+		ReallyFree();
+
+	LONG aligned_size = m_lSize + m_lPrefix;
+	if(m_lAlignment > 1)
+	{
+		const LONG remainder = aligned_size % m_lAlignment;
+		if(remainder)
+			aligned_size += m_lAlignment - remainder;
+	}
+
+	ASSERT(aligned_size % m_lAlignment == 0);
+	m_pBuffer = (PBYTE)VirtualAlloc(
+		NULL,
+		m_lCount * aligned_size,
+		MEM_COMMIT,
+		PAGE_READWRITE);
+	if(!m_pBuffer)
+		return E_OUTOFMEMORY;
+
+	LPBYTE next_buffer = m_pBuffer;
+	ASSERT(m_lAllocated == 0);
+	for(; m_lAllocated < m_lCount; m_lAllocated++, next_buffer += aligned_size)
+	{
+		CMediaSample *sample = CreateMediaSampleWithSideData(
+			NAME("CBaseVideoInputAllocator media sample"),
+			this,
+			&hr,
+			next_buffer + m_lPrefix,
+			m_lSize);
+		ASSERT(SUCCEEDED(hr));
+		if(!sample)
+			return E_OUTOFMEMORY;
+
+		m_lFree.Add(sample);
+	}
+
+	m_bChanged = FALSE;
+	return S_OK;
 }
 
 void CBaseVideoInputAllocator::SetMediaType(const CMediaType& mt)
