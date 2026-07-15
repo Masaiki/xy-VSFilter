@@ -3731,11 +3731,17 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 			subtitle_target_rect.right - subtitle_target_rect.left,
 			subtitle_target_rect.bottom - subtitle_target_rect.top,
 		};
-		m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt);
+		if (m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt) != 0) {
+			XY_LOG_ERROR("CSRI renderer rejected BGRA format " << fmt.width << "x" << fmt.height);
+			return E_FAIL;
+		}
 		auto xy_sub_render_frame = XySubRenderFrameCreater::GetDefaultCreater()->NewXySubRenderFrame(1);
 		XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(subtitle_target_rect);
 		xy_sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
 		xy_sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
+		// CSRI_F_BGRA uses straight alpha, while a new XyBitmap starts with
+		// VSFilter's inverted alpha. Present a transparent BGRA frame to CSRI.
+		memset(tmp->bits, 0, tmp->pitch * tmp->h);
 		csri_frame frame = {
 			fmt.pixfmt,
 			{
@@ -3751,15 +3757,21 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 				0,
 			},
 		};
-		switch (color_space)
-		{
-		case XY_CS_ARGB:
-			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
-			break;
-		case XY_CS_ARGB_F:
-			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
-			XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-			break;
+		m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+
+		// CSRI returns straight BGRA, but IXySubRenderFrame requires
+		// premultiplied RGB. XY_CS_ARGB stores inverted alpha; ARGB_F does not.
+		for (int y = 0; y < tmp->h; ++y) {
+			BYTE *pixel = tmp->plans[0] + y * tmp->pitch;
+			for (int x = 0; x < tmp->w; ++x, pixel += 4) {
+				const unsigned alpha = pixel[3];
+				pixel[0] = (BYTE)((pixel[0] * alpha + 127) / 255);
+				pixel[1] = (BYTE)((pixel[1] * alpha + 127) / 255);
+				pixel[2] = (BYTE)((pixel[2] * alpha + 127) / 255);
+				if (color_space == XY_CS_ARGB) {
+					pixel[3] = (BYTE)(255 - alpha);
+				}
+			}
 		}
 		(*subRenderFrame = xy_sub_render_frame)->AddRef();
 		return S_OK;
