@@ -5,6 +5,7 @@
 bool CSRI_Context::csri_load_file(CString path)
 {
     csri_unload();
+    m_memory_source.clear();
     if (path.IsEmpty()) return false;
 
     if (!m_loader || !m_loader->is_loaded()) {
@@ -23,10 +24,25 @@ bool CSRI_Context::csri_load_file(CString path)
     return true;
 }
 
-bool CSRI_Context::csri_load_memory(char *data, int size)
+bool CSRI_Context::csri_load_memory(const void *data, size_t size)
+{
+    if (!data || size == 0) {
+        csri_unload();
+        m_memory_source.clear();
+        return false;
+    }
+
+    const unsigned char *bytes = static_cast<const unsigned char *>(data);
+    std::vector<unsigned char> memory_source(bytes, bytes + size);
+    csri_unload();
+    m_memory_source.swap(memory_source);
+    return csri_reload_memory();
+}
+
+bool CSRI_Context::csri_reload_memory()
 {
     csri_unload();
-    if (size <= 0 || !data) return false;
+    if (m_memory_source.empty()) return false;
 
     if (!m_loader || !m_loader->is_loaded()) {
         return false;
@@ -40,9 +56,9 @@ bool CSRI_Context::csri_load_memory(char *data, int size)
 
     struct csri_openflag flags = {0};
     if (m_stream_ext) {
-        m_inst = std::unique_ptr<csri_inst, CSRI_InstDeleter>(m_stream_ext->init_stream(m_renderer, data, size, &flags), m_deleter);
+        m_inst = std::unique_ptr<csri_inst, CSRI_InstDeleter>(m_stream_ext->init_stream(m_renderer, m_memory_source.data(), m_memory_source.size(), &flags), m_deleter);
     } else {
-        m_inst = std::unique_ptr<csri_inst, CSRI_InstDeleter>(m_loader->csri_open_mem(m_renderer, data, size, &flags), m_deleter);
+        m_inst = std::unique_ptr<csri_inst, CSRI_InstDeleter>(m_loader->csri_open_mem(m_renderer, m_memory_source.data(), m_memory_source.size(), &flags), m_deleter);
     }
     if (!m_inst) return false;
 

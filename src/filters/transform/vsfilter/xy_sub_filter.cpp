@@ -561,11 +561,19 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
                         continue;
                     }
 
+                    rts->m_csri_context.m_loader = m_csri_loader;
+                    if (rts->m_csri_context.has_memory_source()) {
+                        if (!rts->m_csri_context.csri_reload_memory()) {
+                            XY_LOG_WARN(L"Failed to reopen embedded CSRI subtitle '" << rts->m_name.GetString() << L"'");
+                        }
+                        continue;
+                    }
+
                     const CStringW ext = PathFindExtensionW(rts->m_path);
                     if (ext.CompareNoCase(L".ass") == 0 || ext.CompareNoCase(L".ssa") == 0) {
-                        rts->m_csri_context.m_loader = m_csri_loader;
                         if (!rts->m_csri_context.csri_load_file(rts->m_path)) {
-                            XY_LOG_WARN(L"Failed to reopen CSRI subtitle '" << rts->m_path.GetString() << L"'");
+                            XY_LOG_WARN(L"Failed to reopen CSRI subtitle '" << rts->m_name.GetString()
+                                << L"' from '" << rts->m_path.GetString() << L"'");
                         }
                     }
                 }
