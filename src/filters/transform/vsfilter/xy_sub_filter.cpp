@@ -531,14 +531,48 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
         m_context_id++;
         break;
     case STRING_CSRI_LIB_PATH:
-        hr = ConfigureCsriRenderer(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
-        for (POSITION pos = m_pSubStreams.GetHeadPosition(); pos;)
         {
-            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
-            auto rts = dynamic_cast<CRenderedTextSubtitle *>(pSubStream.p);
-            if (rts) {
-                rts->m_csri_context.csri_unload();
+            CAutoLock cAutolock(&m_csFilter);
+            CStringW normalized(m_xy_str_opt[STRING_CSRI_LIB_PATH]);
+            normalized.Trim();
+            if (m_csri_loader && m_csri_loader->is_loaded()
+                    && normalized.CompareNoCase(m_loaded_csri_lib_path) == 0) {
+                break;
             }
+
+            // CSRI instances contain C++ objects and function pointers owned by
+            // the renderer DLL. Destroy every instance before replacing it.
+            for (POSITION pos = m_pSubStreams.GetHeadPosition(); pos;)
+            {
+                CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+                auto rts = dynamic_cast<CRenderedTextSubtitle *>(pSubStream.p);
+                if (rts) {
+                    rts->m_csri_context.csri_unload();
+                }
+            }
+
+            hr = ConfigureCsriRenderer(normalized);
+            if (SUCCEEDED(hr) && m_csri_loader->is_loaded()) {
+                for (POSITION pos = m_pSubStreams.GetHeadPosition(); pos;)
+                {
+                    CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+                    auto rts = dynamic_cast<CRenderedTextSubtitle *>(pSubStream.p);
+                    if (!rts) {
+                        continue;
+                    }
+
+                    const CStringW ext = PathFindExtensionW(rts->m_path);
+                    if (ext.CompareNoCase(L".ass") == 0 || ext.CompareNoCase(L".ssa") == 0) {
+                        rts->m_csri_context.m_loader = m_csri_loader;
+                        if (!rts->m_csri_context.csri_load_file(rts->m_path)) {
+                            XY_LOG_WARN(L"Failed to reopen CSRI subtitle '" << rts->m_path.GetString() << L"'");
+                        }
+                    }
+                }
+            }
+
+            m_context_id++;
+            InvalidateSubtitle();
         }
         break;
     case BOOL_OVERRIDE_PLACEMENT:
@@ -2984,5 +3018,6 @@ HRESULT XySubFilter::ConfigureCsriRenderer(const CStringW& path)
         return S_OK;
     }
 
+    m_loaded_csri_lib_path.Empty();
     return E_FAIL;
 }
