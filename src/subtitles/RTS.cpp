@@ -20,9 +20,12 @@
  */
 
 #include "stdafx.h"
+#include <algorithm>
 #include <math.h>
+#include <queue>
 #include <stdint.h>
 #include <time.h>
+#include <vector>
 #include "RTS.h"
 #include "draw_item.h"
 #include "cache_manager.h"
@@ -3658,6 +3661,284 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
     }
 }
 
+namespace
+{
+    struct LibassTile
+    {
+        const ASS_Image *image;
+        RECT allocation_rect;
+    };
+
+    struct LibassComponent
+    {
+        RECT allocation_rect;
+        std::vector<int> tile_indices;
+    };
+
+    RECT GetLibassAllocationRect(const ASS_Image &image, XyColorSpace color_space)
+    {
+        RECT rect = { image.dst_x, image.dst_y, image.dst_x + image.w, image.dst_y + image.h };
+        // YUV bitmap layouts require an even origin; every layout requires even dimensions.
+        switch (color_space) {
+        case XY_CS_AYUV_PLANAR:
+        case XY_CS_AYUV:
+        case XY_CS_AUYV:
+            if (rect.left & 1) --rect.left;
+            if (rect.top & 1) --rect.top;
+            break;
+        default:
+            break;
+        }
+        rect.right += (rect.right - rect.left) & 1;
+        rect.bottom += (rect.bottom - rect.top) & 1;
+        return rect;
+    }
+
+    std::vector<LibassTile> CollectLibassTiles(const ASS_Image *images, XyColorSpace color_space)
+    {
+        std::vector<LibassTile> tiles;
+        for (auto image = images; image != nullptr; image = image->next)
+            tiles.push_back({ image, GetLibassAllocationRect(*image, color_space) });
+        return tiles;
+    }
+
+    bool RectanglesOverlap(const RECT &first, const RECT &second)
+    {
+        return first.left < second.right && second.left < first.right &&
+               first.top < second.bottom && second.top < first.bottom;
+    }
+
+    RECT BoundingRect(const RECT &first, const RECT &second)
+    {
+        return RECT{ min(first.left, second.left), min(first.top, second.top),
+                     max(first.right, second.right), max(first.bottom, second.bottom) };
+    }
+
+    __int64 RectArea(const RECT &rect)
+    {
+        return static_cast<__int64>(rect.right - rect.left) * (rect.bottom - rect.top);
+    }
+
+    std::vector<LibassComponent> FindOverlapComponents(const std::vector<LibassTile> &tiles)
+    {
+        std::vector<LibassComponent> components;
+        components.reserve(tiles.size());
+        std::vector<size_t> matching_components;
+        matching_components.reserve(tiles.size());
+
+        for (size_t tile_index = 0; tile_index < tiles.size(); ++tile_index) {
+            const RECT &tile_rect = tiles[tile_index].allocation_rect;
+            matching_components.clear();
+
+            for (size_t component_index = 0;
+                 component_index < components.size();
+                 ++component_index) {
+                const LibassComponent &component = components[component_index];
+                // A component bounding box is only a broad-phase rejection test. Bounding boxes
+                // can overlap through empty space, so an actual member must confirm connectivity.
+                if (!RectanglesOverlap(component.allocation_rect, tile_rect))
+                    continue;
+
+                bool overlaps_member = false;
+                // Nearby libass tiles tend to be close in draw order, so search recent members first.
+                for (auto member = component.tile_indices.rbegin();
+                     member != component.tile_indices.rend();
+                     ++member) {
+                    if (RectanglesOverlap(tiles[*member].allocation_rect, tile_rect)) {
+                        overlaps_member = true;
+                        break;
+                    }
+                }
+
+                if (overlaps_member)
+                    matching_components.push_back(component_index);
+            }
+
+            if (matching_components.empty()) {
+                components.push_back({ tile_rect, std::vector<int>(1, static_cast<int>(tile_index)) });
+                continue;
+            }
+
+            const size_t destination_index = matching_components.front();
+            if (matching_components.size() == 1) {
+                LibassComponent &destination = components[destination_index];
+                destination.allocation_rect = BoundingRect(destination.allocation_rect, tile_rect);
+                destination.tile_indices.push_back(static_cast<int>(tile_index));
+                continue;
+            }
+
+            RECT merged_rect = BoundingRect(components[destination_index].allocation_rect, tile_rect);
+            std::vector<int> merged_indices =
+                std::move(components[destination_index].tile_indices);
+            for (size_t match_index = 1;  match_index < matching_components.size(); ++match_index) {
+                LibassComponent &source = components[matching_components[match_index]];
+                merged_rect = BoundingRect(merged_rect, source.allocation_rect);
+
+                std::vector<int> combined_indices;
+                combined_indices.reserve(merged_indices.size() + source.tile_indices.size());
+                std::merge(merged_indices.begin(), merged_indices.end(),
+                           source.tile_indices.begin(), source.tile_indices.end(),
+                           std::back_inserter(combined_indices));
+                merged_indices.swap(combined_indices);
+            }
+            // The current tile is newer than every existing component member.
+            merged_indices.push_back(static_cast<int>(tile_index));
+            components[destination_index] = { merged_rect, std::move(merged_indices) };
+
+            // The destination is the first (lowest) match, so removing later matches in reverse
+            // keeps its index stable and retains component order by first libass tile.
+            for (size_t match_index = matching_components.size(); match_index > 1; --match_index) {
+                components.erase(components.begin() + matching_components[match_index - 1]);
+            }
+        }
+
+        return components;
+    }
+
+    struct ComponentMergeCandidate
+    {
+        __int64 area_increase;
+        size_t first;
+        size_t second;
+    };
+
+    struct ComponentMergeCandidateGreater
+    {
+        bool operator()(const ComponentMergeCandidate &first, const ComponentMergeCandidate &second) const
+        {
+            if (first.area_increase != second.area_increase)
+                return first.area_increase > second.area_increase;
+            if (first.first != second.first)
+                return first.first > second.first;
+            return first.second > second.second;
+        }
+    };
+
+    ComponentMergeCandidate GetMergeCandidate(
+        const std::vector<LibassComponent> &components, size_t first, size_t second)
+    {
+        const RECT merged_rect = BoundingRect(components[first].allocation_rect,
+                                              components[second].allocation_rect);
+        return ComponentMergeCandidate{
+            RectArea(merged_rect) - RectArea(components[first].allocation_rect)
+                                  - RectArea(components[second].allocation_rect),
+            first,
+            second
+        };
+    }
+
+    void MergeComponentsToLimit(std::vector<LibassComponent> &components, size_t limit)
+    {
+        if (components.size() <= limit)
+            return;
+
+        components.reserve(components.size() * 2);
+        std::vector<bool> active(components.size(), true);
+        std::vector<ComponentMergeCandidate> candidate_storage;
+        const size_t component_count = components.size();
+        candidate_storage.reserve(component_count * (component_count - 1) / 2);
+        // Build the initial heap from every possible pair in linear time. New pairs are added only
+        // for each merged component, avoiding a full O(n^2) rescan after every merge.
+        for (size_t i = 0; i + 1 < components.size(); ++i) {
+            for (size_t j = i + 1; j < components.size(); ++j)
+                candidate_storage.push_back(GetMergeCandidate(components, i, j));
+        }
+        std::priority_queue<ComponentMergeCandidate,
+                            std::vector<ComponentMergeCandidate>,
+                            ComponentMergeCandidateGreater> candidates(
+                                ComponentMergeCandidateGreater(), std::move(candidate_storage));
+
+        size_t active_count = components.size();
+        while (active_count > limit) {
+            ComponentMergeCandidate best;
+            do {
+                best = candidates.top();
+                candidates.pop();
+            } while (!active[best.first] || !active[best.second]);
+
+            const RECT merged_rect = BoundingRect(components[best.first].allocation_rect,
+                                                  components[best.second].allocation_rect);
+            std::vector<int> merged_indices;
+            merged_indices.reserve(components[best.first].tile_indices.size()
+                                   + components[best.second].tile_indices.size());
+            // Both inputs are in libass order, so a sorted merge retains exact draw order.
+            std::merge(components[best.first].tile_indices.begin(), components[best.first].tile_indices.end(),
+                       components[best.second].tile_indices.begin(), components[best.second].tile_indices.end(),
+                       std::back_inserter(merged_indices));
+
+            active[best.first] = false;
+            active[best.second] = false;
+            components.push_back({ merged_rect, std::move(merged_indices) });
+            active.push_back(true);
+            const size_t merged_index = components.size() - 1;
+
+            // Components are immutable once added. Candidates referencing deactivated entries
+            // can therefore remain in the heap and be discarded lazily when they reach the top.
+            for (size_t i = 0; i < merged_index; ++i) {
+                if (active[i])
+                    candidates.push(GetMergeCandidate(components, i, merged_index));
+            }
+            --active_count;
+        }
+
+        std::vector<LibassComponent> merged_components;
+        merged_components.reserve(active_count);
+        for (size_t i = 0; i < components.size(); ++i) {
+            if (active[i])
+                merged_components.push_back(std::move(components[i]));
+        }
+
+        // Keep output IDs deterministic and preserve the same broad order as libass.
+        std::sort(merged_components.begin(), merged_components.end(),
+            [](const LibassComponent &first, const LibassComponent &second) {
+                return first.tile_indices.front() < second.tile_indices.front();
+            });
+        components.swap(merged_components);
+    }
+
+    void CompositeLibassComponent(XyBitmap &bitmap,
+                                  const LibassComponent &component,
+                                  const std::vector<LibassTile> &tiles,
+                                  XyColorSpace color_space,
+                                  XySubRenderFrameCreater &frame_creater)
+    {
+        // Packed formats use the opposite alpha convention while mixing. ARGB_F keeps that
+        // convention as its output; the other packed formats are flipped back after compositing.
+        if (color_space != XY_CS_AYUV_PLANAR)
+            XyBitmap::FlipAlphaValue(bitmap.bits, bitmap.w, bitmap.h, bitmap.pitch);
+
+        for (auto tile_index : component.tile_indices) {
+            const ASS_Image &tile = *tiles[tile_index].image;
+            const int xoff = tile.dst_x - bitmap.x;
+            const int yoff = tile.dst_y - bitmap.y;
+            const uint32_t argb = (tile.color << 24) ^ (tile.color >> 8) ^ 0xFF000000;
+            const uint32_t color = frame_creater.TransColor(argb);
+
+            for (int y = 0; y < tile.h; ++y) {
+                const BYTE *alpha = tile.bitmap + y * tile.stride;
+                if (color_space == XY_CS_AYUV_PLANAR) {
+                    const int row_offset = (yoff + y) * bitmap.pitch + xoff;
+                    BYTE *dstA = bitmap.plans[0] + row_offset;
+                    BYTE *dstY = bitmap.plans[1] + row_offset;
+                    BYTE *dstU = bitmap.plans[2] + row_offset;
+                    BYTE *dstV = bitmap.plans[3] + row_offset;
+                    const int w0 = tile.w & ~15;
+                    ayuv_planar_mix_sse2(dstA, dstY, dstU, dstV, alpha, w0, color);
+                    ayuv_planar_mix_c(dstA + w0, dstY + w0, dstU + w0, dstV + w0,
+                                      alpha + w0, tile.w - w0, color);
+                } else {
+                    auto dst = reinterpret_cast<uint8_t *>(bitmap.plans[0]
+                        + (yoff + y) * bitmap.pitch + xoff * 4);
+                    packed_pix_mix_sse2(dst, alpha, tile.w, color);
+                }
+            }
+        }
+
+        if (color_space == XY_CS_ARGB || color_space == XY_CS_AYUV || color_space == XY_CS_AUYV)
+            XyBitmap::FlipAlphaValue(bitmap.bits, bitmap.w, bitmap.h, bitmap.pitch);
+    }
+}
+
 STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame, int spd_type,
     const RECT& video_rect, const RECT& subtitle_target_rect,
     const SIZE& original_video_size,
@@ -3792,114 +4073,24 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             return S_OK;
         }
 
-        int xy_tile_count = 0;
-        for (auto i = img; i != nullptr; i = i->next)
-            ++xy_tile_count;
+        // When uploading multiple bitmaps is allowed, group overlapping tiles into components and
+        // upload a bitmap for each component to reduce the total bitmap size needed to be uploaded.
+        if (m_max_bitmap_count != 1) {
+            const std::vector<LibassTile> tiles = CollectLibassTiles(img, color_space);
+            std::vector<LibassComponent> components = FindOverlapComponents(tiles);
+            MergeComponentsToLimit(components, static_cast<size_t>(m_max_bitmap_count));
 
-        if (xy_tile_count <= m_max_bitmap_count)
-        {
-            // Emit one bitmap per libass tile instead of flattening them all into a single
-            // union-bounding-box bitmap. When the tiles are spread out, that union box is largely
-            // transparent, so flattening produces a large, mostly-empty bitmap that the consumer
-            // has to re-upload every frame while the subtitle is animated. Delivering the tiles
-            // separately keeps the per-frame upload proportional to the actual glyph coverage.
-            // Source-over compositing is associative, so the composited result is identical.
-            XySubRenderFrameCreater *render_frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
-            XySubRenderFrame *sub_render_frame = render_frame_creater->NewXySubRenderFrame(xy_tile_count);
+            XySubRenderFrame *sub_render_frame =
+                render_frame_creater->NewXySubRenderFrame(static_cast<UINT>(components.size()));
 
-            int tile_idx = 0;
-            for (auto i = img; i != nullptr; i = i->next, ++tile_idx)
-            {
-                RECT tr = { i->dst_x, i->dst_y, i->dst_x + i->w, i->dst_y + i->h };
-                switch (color_space)
-                {
-                case XY_CS_AYUV_PLANAR:
-                case XY_CS_AYUV:
-                case XY_CS_AUYV:
-                    if (tr.left & 1) --tr.left;
-                    if (tr.top & 1) --tr.top;
-                    break;
-                default:
-                    break;
-                }
-                tr.right += (tr.right - tr.left) & 1;
-                tr.bottom += (tr.bottom - tr.top) & 1;
-
-                XyBitmap *tmp = render_frame_creater->CreateBitmap(tr);
-                sub_render_frame->m_bitmaps.GetAt(tile_idx).reset(tmp);
-                sub_render_frame->m_bitmap_ids.GetAt(tile_idx) = (int)rt + tile_idx;
-
-                const int xoff = i->dst_x - tmp->x;
-                const int yoff = i->dst_y - tmp->y;
-                const uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
-
-                switch (color_space)
-                {
-                case XY_CS_ARGB_F:
-                {
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    const uint32_t argbt = render_frame_creater->TransColor(argb);
-                    for (int y = 0; y < i->h; ++y) {
-                        auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
-                        auto alpha = i->bitmap + y * i->stride;
-                        packed_pix_mix_sse2(dst, alpha, i->w, argbt);
-                    }
-                    break;
-                }
-                case XY_CS_AYUV_PLANAR:
-                {
-                    uint32_t ayuv = render_frame_creater->TransColor(argb);
-                    for (int y = 0; y < i->h; ++y) {
-                        int rowOffset = (yoff + y) * tmp->pitch + xoff;
-                        BYTE *dstA = tmp->plans[0] + rowOffset;
-                        BYTE *dstY = tmp->plans[1] + rowOffset;
-                        BYTE *dstU = tmp->plans[2] + rowOffset;
-                        BYTE *dstV = tmp->plans[3] + rowOffset;
-                        const BYTE *alpha = i->bitmap + y * i->stride;
-                        int w0 = i->w & ~15;
-                        ayuv_planar_mix_sse2(dstA, dstY, dstU, dstV, alpha, w0, ayuv);
-                        ayuv_planar_mix_c(dstA + w0, dstY + w0, dstU + w0, dstV + w0, alpha + w0, i->w - w0, ayuv);
-                    }
-                    break;
-                }
-                case XY_CS_ARGB:
-                {
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    const uint32_t argbt = render_frame_creater->TransColor(argb);
-                    for (int y = 0; y < i->h; ++y) {
-                        auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
-                        auto alpha = i->bitmap + y * i->stride;
-                        packed_pix_mix_sse2(dst, alpha, i->w, argbt);
-                    }
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    break;
-                }
-                case XY_CS_AYUV:
-                {
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    uint32_t ayuv = render_frame_creater->TransColor(argb);
-                    for (int y = 0; y < i->h; ++y) {
-                        auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
-                        auto alpha = i->bitmap + y * i->stride;
-                        packed_pix_mix_sse2(dst, alpha, i->w, ayuv);
-                    }
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    break;
-                }
-                case XY_CS_AUYV:
-                {
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    uint32_t auyv = render_frame_creater->TransColor(argb);
-                    for (int y = 0; y < i->h; ++y) {
-                        auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (yoff + y) * tmp->pitch + xoff * 4);
-                        auto alpha = i->bitmap + y * i->stride;
-                        packed_pix_mix_sse2(dst, alpha, i->w, auyv);
-                    }
-                    XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-                    break;
-                }
-                }
+            for (size_t component_index = 0; component_index < components.size(); ++component_index) {
+                const LibassComponent &component = components[component_index];
+                XyBitmap *bitmap = render_frame_creater->CreateBitmap(component.allocation_rect);
+                sub_render_frame->m_bitmaps.GetAt(component_index).reset(bitmap);
+                sub_render_frame->m_bitmap_ids.GetAt(component_index) = rt + component_index;
+                CompositeLibassComponent(*bitmap, component, tiles, color_space, *render_frame_creater);
             }
+
             m_last_frame = sub_render_frame;
             (*subRenderFrame = sub_render_frame)->AddRef();
 
