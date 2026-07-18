@@ -822,6 +822,12 @@ bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int y
     overlay->mHeight = height;
     overlay->mOverlayWidth = ((width+7)>>3) + 1;
     overlay->mOverlayHeight = ((height+7)>>3) + 1;
+    // VSFilterMod omitted the vertical subpixel offset and used its own
+    // rounding rule when choosing the full-height gradient denominator.
+    const int mod_height = scan_line_data.mHeight
+        + (overlay->mfWideOutlineEmpty ? 0
+            : 2 * ((scan_line_data2.mWideBorder + 7) & ~7));
+    overlay->mVsFilterModGradientHeight = ((mod_height + 14) >> 3) + 1;
     overlay->mOverlayPitch = (overlay->mOverlayWidth+15)&~15;
 
     BYTE* body = reinterpret_cast<BYTE*>(xy_malloc(overlay->mOverlayPitch * overlay->mOverlayHeight));
@@ -912,6 +918,7 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
     output_overlay->mHeight = input_overlay.mHeight;
     output_overlay->mOverlayWidth = input_overlay.mOverlayWidth;
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight;
+    output_overlay->mVsFilterModGradientHeight = input_overlay.mVsFilterModGradientHeight;
     output_overlay->mfWideOutlineEmpty = input_overlay.mfWideOutlineEmpty;
 
     double gaussian_blur_strength_x = gaussian_blur_strength*target_scale_x;
@@ -952,6 +959,7 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
         output_overlay->mHeight += (bluradjust_y<<1);
         output_overlay->mOverlayWidth += (bluradjust_x>>2);
         output_overlay->mOverlayHeight += (bluradjust_y>>2);
+        output_overlay->mVsFilterModGradientHeight += (bluradjust_y>>2);
     }
     else
     {
@@ -1121,6 +1129,8 @@ bool Rasterizer::GaussianBlur( const Overlay& input_overlay, double gaussian_blu
     output_overlay->mHeight        = input_overlay.mHeight + (bluradjust_y<<1);
     output_overlay->mOverlayWidth  = input_overlay.mOverlayWidth + (bluradjust_x>>2);
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight + (bluradjust_y>>2);
+    output_overlay->mVsFilterModGradientHeight =
+        input_overlay.mVsFilterModGradientHeight + (bluradjust_y>>2);
 
     output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth+15)&~15;
 
@@ -1183,6 +1193,8 @@ bool Rasterizer::BeBlur( const Overlay& input_overlay, float be_strength,
     output_overlay->mHeight        = input_overlay.mHeight + (bluradjust_y<<1);
     output_overlay->mOverlayWidth  = input_overlay.mOverlayWidth + (bluradjust_x>>2);
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight + (bluradjust_y>>2);
+    output_overlay->mVsFilterModGradientHeight =
+        input_overlay.mVsFilterModGradientHeight + (bluradjust_y>>2);
 
     output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth+15)&~15;
 
@@ -2791,6 +2803,7 @@ Overlay* Overlay::GetSubpixelVariance(unsigned int xshift, unsigned int yshift)
 
     overlay->mOverlayWidth = ((overlay->mWidth+7)>>3) + 1;
     overlay->mOverlayHeight = ((overlay->mHeight + 7)>>3) + 1;
+    overlay->mVsFilterModGradientHeight = mVsFilterModGradientHeight;
     overlay->mOverlayPitch = (overlay->mOverlayWidth+15)&~15;
     
 

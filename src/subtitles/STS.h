@@ -33,6 +33,8 @@
 #include "XySubRenderIntf.h"
 #include "SubtitleRenderBackend.h"
 #include "TextRendererMode.h"
+#include "VsFilterCompatibility.h"
+#include "mod_style.h"
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
 
@@ -182,6 +184,8 @@ public:
     tmode          m_mode;
     CTextFile::enc m_encoding;
     CString        m_path;
+    CString        m_mod_resource_path;
+    ModImageCache  m_mod_image_cache;
 
     CSize          m_dstScreenSize;
     int            m_defaultWrapStyle;
@@ -309,6 +313,7 @@ public:
     CSRI_Context m_csri_context;
     SubtitleRenderBackend m_render_backend;
     TextRendererMode m_text_renderer_mode;
+    VsFilterCompatibilityMode m_vsfilter_compatibility_mode;
     std::vector<CStringA> reserved_styles;
     std::vector<CStringA> styles_overrides;
     CComPtr<IXySubRenderFrame> m_last_frame;

@@ -253,7 +253,9 @@
 #define IDC_COMBO_RENDER_BACKEND        1076
 #define IDC_ACTUAL_RENDER_BACKEND       1077
 #define IDS_RT_TEXT_RENDERER_MODE       1078
+#define IDS_RT_VSFILTER_COMPATIBILITY_MODE 1079
 #define IDC_COMBO_TEXT_RENDERER_MODE    347
+#define IDC_COMBO_VSFILTER_COMPATIBILITY_MODE 348
 
 // Next default values for new objects
 // 
@@ -261,7 +263,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        339
 #define _APS_NEXT_COMMAND_VALUE         32770
-#define _APS_NEXT_CONTROL_VALUE         348
+#define _APS_NEXT_CONTROL_VALUE         349
 #define _APS_NEXT_SYMED_VALUE           210
 #endif
 #endif

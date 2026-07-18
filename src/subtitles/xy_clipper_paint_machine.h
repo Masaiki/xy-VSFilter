@@ -14,15 +14,18 @@ class ClipperAlphaMaskCacheKey;
 class CClipperPaintMachine
 {
 public:
-    CClipperPaintMachine(const SharedPtrCClipper& clipper)
+    CClipperPaintMachine(const SharedPtrCClipper& clipper,
+        const CPoint& offset = CPoint(0, 0))
         : m_clipper(clipper)
-        , m_hash_key(clipper){ m_hash_key.UpdateHashValue(); }
+        , m_offset(offset)
+        , m_hash_key(clipper, offset){ m_hash_key.UpdateHashValue(); }
 
     void Paint(SharedPtrGrayImage2* output);
     CRect CalcDirtyRect();
     const ClipperAlphaMaskCacheKey& GetHashKey();
 private:
     SharedPtrCClipper m_clipper;
+    CPoint m_offset;
     ClipperAlphaMaskCacheKey m_hash_key;
 };
 

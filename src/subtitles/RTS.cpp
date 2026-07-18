@@ -53,6 +53,37 @@ const double MAX_SUB_PIXEL_F = 8.0;
 static HDC g_hDC;
 static int g_hDC_refcnt = 0;
 
+class ScopedGraphicsMode
+{
+public:
+    ScopedGraphicsMode(HDC dc, bool use_advanced_mode)
+        : m_dc(dc)
+        , m_previous_mode(0)
+        , m_restore(false)
+    {
+        if (!use_advanced_mode) {
+            return;
+        }
+
+        m_previous_mode = GetGraphicsMode(m_dc);
+        if (m_previous_mode != 0 && m_previous_mode != GM_ADVANCED) {
+            m_restore = SetGraphicsMode(m_dc, GM_ADVANCED) != 0;
+        }
+    }
+
+    ~ScopedGraphicsMode()
+    {
+        if (m_restore) {
+            SetGraphicsMode(m_dc, m_previous_mode);
+        }
+    }
+
+private:
+    HDC m_dc;
+    int m_previous_mode;
+    bool m_restore;
+};
+
 static long revcolor(long c)
 {
     return ((c&0xff0000)>>16) + (c&0xff00) + ((c&0xff)<<16);
@@ -115,7 +146,7 @@ inline CStringW::PCXSTR FindChar(CStringW::PCXSTR start, CStringW::PCXSTR end, W
 
 // CMyFont
 
-CMyFont::CMyFont(const STSStyleBase& style)
+CMyFont::CMyFont(const STSStyleBase& style, double orientation)
 {
     LOGFONT lf;
     ZeroMemory(&lf, sizeof(lf));
@@ -125,6 +156,7 @@ CMyFont::CMyFont(const STSStyleBase& style)
     lf.lfClipPrecision  = CLIP_DEFAULT_PRECIS;
     lf.lfQuality        = ANTIALIASED_QUALITY;
     lf.lfPitchAndFamily = DEFAULT_PITCH|FF_DONTCARE;
+    lf.lfOrientation    = static_cast<LONG>(orientation * 10.0);
     if(!CreateFontIndirect(&lf))
     {
         _tcscpy(lf.lfFaceName, _T("Arial"));
@@ -142,8 +174,10 @@ CMyFont::CMyFont(const STSStyleBase& style)
 
 CWord::CWord( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
-    , bool round_to_whole_pixel_after_scale_to_target/*=false*/)
+    , bool round_to_whole_pixel_after_scale_to_target/*=false*/
+    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/)
     : m_style(style), m_str(DEBUG_NEW CStringW(str))
+    , m_mod_style(mod_style)
     , m_width(0), m_ascent(0), m_descent(0)
     , m_ktype(ktype), m_kstart(kstart), m_kend(kend)
     , m_fLineBreak(false), m_fWhiteSpaceChar(false)
@@ -163,6 +197,7 @@ CWord::CWord( const CWord& src):m_str(src.m_str)
     m_fWhiteSpaceChar                            = src.m_fWhiteSpaceChar;
     m_fLineBreak                                 = src.m_fLineBreak;
     m_style                                      = src.m_style;
+    m_mod_style                                  = src.m_mod_style;
     m_pOpaqueBox                                 = src.m_pOpaqueBox;//allow since it is shared_ptr
     m_ktype                                      = src.m_ktype;
     m_kstart                                     = src.m_kstart;
@@ -183,6 +218,7 @@ CWord::~CWord()
 bool CWord::Append(const SharedPtrCWord& w)
 {
     if (m_style != w->m_style ||
+          m_mod_style.get() != w->m_mod_style.get() ||
           m_fLineBreak || w->m_fLineBreak || 
           w->m_kstart != w->m_kend || m_ktype != w->m_ktype)
           return(false);
@@ -397,7 +433,10 @@ bool CWord::DoPaint(const CPointCoor2& psub, const CPointCoor2& trans_org, Share
 
 bool CWord::NeedTransform()
 {
-    return (fabs(m_style.get().fontScaleX - 100) > 0.000001) ||
+    const bool mod_transform = m_mod_style
+        && (m_mod_style->feature_mask & (MOD_FEATURE_Z | MOD_FEATURE_RANDOM | MOD_FEATURE_DISTORT));
+    return mod_transform ||
+           (fabs(m_style.get().fontScaleX - 100) > 0.000001) ||
            (fabs(m_style.get().fontScaleY - 100) > 0.000001) ||
            (fabs(m_style.get().fontAngleX) > 0.000001) ||
            (fabs(m_style.get().fontAngleY) > 0.000001) ||
@@ -422,6 +461,11 @@ bool CWord::NeedTransform()
 void CWord::Transform(PathData* path_data, const CPointCoor2 &org )
 {
     ASSERT(path_data);
+    if (m_mod_style
+            && (m_mod_style->feature_mask & (MOD_FEATURE_Z | MOD_FEATURE_RANDOM | MOD_FEATURE_DISTORT))) {
+        TransformMod(path_data, org);
+        return;
+    }
     const STSStyle& style = m_style.get();
 
     const double scalex = style.fontScaleX/100.0;
@@ -555,6 +599,128 @@ void CWord::Transform(PathData* path_data, const CPointCoor2 &org )
     }
 }
 
+void CWord::TransformMod(PathData* path_data, const CPointCoor2& org)
+{
+    ASSERT(path_data);
+    const STSStyle& style = m_style.get();
+    const ModStyleState& mod = *m_mod_style;
+
+    // VSFilterMod's hot path performs these calculations in SSE float
+    // precision and uses its historical pi constant.
+    const float scalex = static_cast<float>(style.fontScaleX / 100.0);
+    const float scaley = static_cast<float>(style.fontScaleY / 100.0);
+    const float caz = static_cast<float>(cos((3.1415 / 180.0) * style.fontAngleZ));
+    const float saz = static_cast<float>(sin((3.1415 / 180.0) * style.fontAngleZ));
+    const float cax = static_cast<float>(cos((3.1415 / 180.0) * style.fontAngleX));
+    const float sax = static_cast<float>(sin((3.1415 / 180.0) * style.fontAngleX));
+    const float cay = static_cast<float>(cos((3.1415 / 180.0) * style.fontAngleY));
+    const float say = static_cast<float>(sin((3.1415 / 180.0) * style.fontAngleY));
+
+    LONG min_x = LONG_MAX;
+    LONG min_y = LONG_MAX;
+    LONG max_x = LONG_MIN;
+    LONG max_y = LONG_MIN;
+    if (mod.feature_mask & MOD_FEATURE_DISTORT) {
+        for (ptrdiff_t i = 0; i < path_data->mPathPoints; ++i) {
+            min_x = min(min_x, path_data->mpPathPoints[i].x);
+            min_y = min(min_y, path_data->mpPathPoints[i].y);
+            max_x = max(max_x, path_data->mpPathPoints[i].x);
+            max_y = max(max_y, path_data->mpPathPoints[i].y);
+        }
+    }
+    const float width = max_x > min_x ? static_cast<float>(max_x - min_x) : 0.0f;
+    const float height = max_y > min_y ? static_cast<float>(max_y - min_y) : 0.0f;
+    const float inverse_width = width > 0
+        ? _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(width))) : 0.0f;
+    const float inverse_height = height > 0
+        ? _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(height))) : 0.0f;
+    ModRandomGenerator random(static_cast<uint32_t>(mod.random_seed));
+    float random_x[4] = {};
+    float random_y[4] = {};
+    float random_z[4] = {};
+    const auto random_offset = [&random](double amplitude) -> float {
+        const double scaled = amplitude * 100.0;
+        const int range = static_cast<int>(scaled * 2.0 + 1.0);
+        return scaled > 0.0 && range > 0
+            ? static_cast<float>(scaled - random.Next() % range) * 0.01f
+            : 0.0f;
+    };
+
+    for (ptrdiff_t i = 0; i < path_data->mPathPoints; ++i) {
+        float x = static_cast<float>(path_data->mpPathPoints[i].x);
+        float y = static_cast<float>(path_data->mpPathPoints[i].y);
+        float z = static_cast<float>(mod.z);
+
+        if ((mod.feature_mask & MOD_FEATURE_DISTORT) && width > 0 && height > 0) {
+            const float u = (x - static_cast<float>(min_x)) * inverse_width;
+            const float v = (y - static_cast<float>(min_y)) * inverse_height;
+            const float distort_x0 = static_cast<float>(mod.distort_x[0]);
+            const float distort_x2 = static_cast<float>(mod.distort_x[2]);
+            float distort_x213 = static_cast<float>(mod.distort_x[1]);
+            distort_x213 -= distort_x0;
+            distort_x213 -= distort_x2;
+            const float distort_y0 = static_cast<float>(mod.distort_y[0]);
+            const float distort_y2 = static_cast<float>(mod.distort_y[2]);
+            float distort_y213 = static_cast<float>(mod.distort_y[1]);
+            distort_y213 -= distort_y0;
+            distort_y213 -= distort_y2;
+            x = ((distort_x213 * u * v + distort_x2 * v + distort_x0 * u)
+                * width) + static_cast<float>(min_x);
+            y = ((distort_y213 * u * v + distort_y2 * v + distort_y0 * u)
+                * height) + static_cast<float>(min_y);
+        }
+
+        if (mod.feature_mask & MOD_FEATURE_RANDOM) {
+            const int batch_index = static_cast<int>(i & 3);
+            if (batch_index == 0) {
+                for (int k = 0; k < 4; ++k) {
+                    random_x[k] = random_offset(mod.random_x);
+                    random_y[k] = random_offset(mod.random_y);
+                    random_z[k] = random_offset(mod.random_z);
+                }
+            }
+            const int source_index = 3 - batch_index;
+            x += random_x[source_index];
+            y += random_y[source_index];
+            z += random_z[source_index];
+        }
+
+        const float original_x = x;
+        x = scalex * (x + static_cast<float>(style.fontShiftX) * y)
+            - static_cast<float>(org.x / m_target_scale_x);
+        y = scaley * (y + static_cast<float>(style.fontShiftY) * original_x)
+            - static_cast<float>(org.y / m_target_scale_y);
+
+        float xx = x * caz + y * saz;
+        float yy = y * caz - x * saz;
+        float zz = z;
+
+        x = xx;
+        y = yy * cax + zz * sax;
+        z = yy * sax - zz * cax;
+
+        xx = x * cay + z * say;
+        yy = y;
+        zz = x * say - z * cay;
+
+        const float denominator = max(zz + 20000.0f, 1000.0f);
+        const float projected_x = xx * static_cast<float>(20000.0 * m_target_scale_x)
+            / denominator;
+        const float projected_y = yy * static_cast<float>(20000.0 * m_target_scale_y)
+            / denominator;
+
+        path_data->mpPathPoints[i].x = static_cast<LONG>(
+            projected_x + static_cast<float>(org.x) + 0.5f);
+        path_data->mpPathPoints[i].y = static_cast<LONG>(
+            projected_y + static_cast<float>(org.y) + 0.5f);
+        if (m_round_to_whole_pixel_after_scale_to_target
+                && (m_target_scale_x != 1.0 || m_target_scale_y != 1.0)) {
+            path_data->mpPathPoints[i].x = (path_data->mpPathPoints[i].x + 32) & ~63;
+            path_data->mpPathPoints[i].y = (path_data->mpPathPoints[i].y + 32) & ~63;
+        }
+    }
+}
+
 bool CWord::CreateOpaqueBox()
 {
     if(m_pOpaqueBox) return(true);
@@ -571,7 +737,8 @@ bool CWord::CreateOpaqueBox()
         m_width+w,                   -h,
         m_width+w, m_ascent+m_descent+h,
                -w, m_ascent+m_descent+h);
-    m_pOpaqueBox.reset( DEBUG_NEW CPolygon(FwSTSStyle(style), str, 0, 0, 0, 1.0/MAX_SUB_PIXEL, 1.0/MAX_SUB_PIXEL, 0, m_target_scale_x, m_target_scale_y) );
+    m_pOpaqueBox.reset( DEBUG_NEW CPolygon(FwSTSStyle(style), str, 0, 0, 0, 1.0/MAX_SUB_PIXEL, 1.0/MAX_SUB_PIXEL, 0,
+        m_target_scale_x, m_target_scale_y, false, m_mod_style) );
     return(!!m_pOpaqueBox);
 }
 
@@ -582,6 +749,8 @@ bool CWord::operator==( const CWord& rhs ) const
         m_fWhiteSpaceChar == rhs.m_fWhiteSpaceChar &&
         m_fLineBreak      == rhs.m_fLineBreak      &&
         m_style           == rhs.m_style           && //fix me:?
+        ((m_mod_style.get() == rhs.m_mod_style.get()) ||
+         (m_mod_style && rhs.m_mod_style && *m_mod_style == *rhs.m_mod_style)) &&
         m_ktype           == rhs.m_ktype           &&
         m_kstart          == rhs.m_kstart          &&
         m_kend            == rhs.m_kend            &&
@@ -598,8 +767,9 @@ bool CWord::operator==( const CWord& rhs ) const
 
 CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
-    , TextRendererMode text_renderer_mode/*=TEXT_RENDERER_LEGACY_GDI*/ )
-    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y)
+    , TextRendererMode text_renderer_mode/*=TEXT_RENDERER_LEGACY_GDI*/
+    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/ )
+    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, false, mod_style)
     , m_text_renderer_mode(NormalizeTextRendererMode(text_renderer_mode))
 {
     if(m_str.Get() == L" ")
@@ -611,13 +781,16 @@ CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstar
     text_info_key.m_str_id = m_str.GetId();
     text_info_key.m_style  = m_style;
     text_info_key.m_text_renderer_mode = m_text_renderer_mode;
+    text_info_key.m_font_orientation = m_mod_style
+        && (m_mod_style->feature_mask & MOD_FEATURE_SYMBOL_ROTATION)
+        ? m_mod_style->font_orientation : 0;
     text_info_key.UpdateHashValue();
     TextInfoMruCache* text_info_cache = CacheManager::GetTextInfoCache();
     POSITION pos = text_info_cache->Lookup(text_info_key);
     if(pos==NULL)
     {
         TextInfo* tmp=DEBUG_NEW TextInfo();
-        GetTextInfo(tmp, m_style, m_str.Get(), m_text_renderer_mode);
+        GetTextInfo(tmp, m_style, m_str.Get(), m_text_renderer_mode, text_info_key.m_font_orientation);
         text_info.reset(tmp);
         text_info_cache->UpdateCache(text_info_key, text_info);
     }
@@ -653,8 +826,17 @@ bool CText::Append(const SharedPtrCWord& w)
 bool CText::CreatePath(PathData* path_data)
 {
     bool succeeded = false;
+    const bool has_orientation = m_mod_style
+        && (m_mod_style->feature_mask & MOD_FEATURE_SYMBOL_ROTATION);
+    ScopedGraphicsMode graphics_mode(g_hDC, has_orientation);
     FwCMyFont font(m_style);
-    HFONT hOldFont = SelectFont(g_hDC, font.get());
+    boost::shared_ptr<CMyFont> oriented_font;
+    const CMyFont* selected_font = &font.get();
+    if (has_orientation) {
+        oriented_font.reset(DEBUG_NEW CMyFont(m_style.get(), m_mod_style->font_orientation));
+        selected_font = oriented_font.get();
+    }
+    HFONT hOldFont = SelectFont(g_hDC, *selected_font);
     ASSERT(hOldFont);
 
     int width = 0;
@@ -704,13 +886,21 @@ bool CText::CreatePath(PathData* path_data)
 }
 
 void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str,
-                        TextRendererMode text_renderer_mode)
+                        TextRendererMode text_renderer_mode, double font_orientation)
 {
+    ScopedGraphicsMode graphics_mode(g_hDC, font_orientation != 0);
     FwCMyFont font(style);
-    output->m_ascent = (int)(style.get().fontScaleY/100*font.get().m_ascent);
-    output->m_descent = (int)(style.get().fontScaleY/100*font.get().m_descent);
+    boost::shared_ptr<CMyFont> oriented_font;
+    const CMyFont* selected_font = &font.get();
+    if (font_orientation != 0) {
+        oriented_font.reset(DEBUG_NEW CMyFont(style.get(), font_orientation));
+        selected_font = oriented_font.get();
+    }
+    output->m_ascent = (int)(style.get().fontScaleY/100*selected_font->m_ascent);
+    output->m_descent = (int)(style.get().fontScaleY/100*selected_font->m_descent);
 
-    HFONT hOldFont = SelectFont(g_hDC, font.get());
+    HFONT hOldFont = SelectFont(g_hDC, *selected_font);
+    const double orientation_radians = font_orientation * M_PI / 180.0;
     if(style.get().fontSpacing || (long)GetVersion() < 0)
     {
         bool bFirstPath = true;
@@ -719,7 +909,10 @@ void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CString
             CSize extent;
             GdiTextRenderer text_renderer(g_hDC, s, 1, text_renderer_mode);
             if(!text_renderer.GetExtent(&extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return;}
-            output->m_width += extent.cx + (int)style.get().fontSpacing;
+            output->m_width += static_cast<int>(
+                extent.cx * fabs(cos(orientation_radians))
+                + extent.cy * fabs(sin(orientation_radians))
+                + style.get().fontSpacing);
         }
         //          m_width -= (int)m_style.get().fontSpacing; // TODO: subtract only at the end of the line
     }
@@ -728,7 +921,9 @@ void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CString
         CSize extent;
         GdiTextRenderer text_renderer(g_hDC, str, str.GetLength(), text_renderer_mode);
         if(!text_renderer.GetExtent(&extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return;}
-        output->m_width += extent.cx;
+        output->m_width += static_cast<int>(
+            extent.cx * fabs(cos(orientation_radians))
+            + extent.cy * fabs(sin(orientation_radians)));
     }
     output->m_width = (int)(style.get().fontScaleX/100*output->m_width + 4) >> 3;
     SelectFont(g_hDC, hOldFont);
@@ -739,8 +934,9 @@ void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CString
 CPolygon::CPolygon( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend 
     , double scalex, double scaley, int baseline 
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
-    , bool round_to_whole_pixel_after_scale_to_target/*=false*/)
-    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, round_to_whole_pixel_after_scale_to_target)
+    , bool round_to_whole_pixel_after_scale_to_target/*=false*/
+    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/)
+    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, round_to_whole_pixel_after_scale_to_target, mod_style)
     , m_scalex(scalex), m_scaley(scaley), m_baseline(baseline)
 {
     ParseStr();
@@ -1226,7 +1422,8 @@ void CLine::Compact()
 
 CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& clipRect, 
     const CPointCoor2& margin,
-    const SharedPtrCClipperPaintMachine &clipper, CPoint p, const CPoint& org, const int time, const int alpha )
+    const SharedPtrCClipperPaintMachine &clipper, CPoint p, const CPoint& org, const int time,
+    const int alpha, REFERENCE_TIME rt )
 {
     CRectCoor2 bbox(0, 0, 0, 0);
     POSITION pos = GetHeadPosition();
@@ -1237,11 +1434,23 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
         CompositeDrawItem& outputItem = output->GetNext(outputPos);
         if(w->m_fLineBreak) return(bbox); // should not happen since this class is just a line of text without any breaks
         CPointCoor2 shadowPos, outlinePos, bodyPos, org_coor2;
+        CPoint mod_offset(0, 0);
+        int mod_vertical_spacing = 0;
+        if (w->m_mod_style) {
+            if (w->m_mod_style->feature_mask & MOD_FEATURE_JITTER) {
+                mod_offset = w->m_mod_style->jitter.GetOffset(rt);
+            }
+            if (w->m_mod_style->feature_mask & MOD_FEATURE_VERTICAL_SPACING) {
+                mod_vertical_spacing = static_cast<int>(w->m_mod_style->vertical_spacing);
+            }
+        }
 
-        double shadowPos_x = p.x + w->m_style.get().shadowDepthX;
-        double shadowPos_y = p.y + w->m_style.get().shadowDepthY + m_ascent - w->m_ascent;
-        outlinePos = CPoint(p.x, p.y + m_ascent - w->m_ascent);
-        bodyPos    = CPoint(p.x, p.y + m_ascent - w->m_ascent);
+        double shadowPos_x = p.x + mod_offset.x + w->m_style.get().shadowDepthX;
+        double shadowPos_y = p.y + mod_offset.y - mod_vertical_spacing
+            + w->m_style.get().shadowDepthY + m_ascent - w->m_ascent;
+        outlinePos = CPoint(p.x + mod_offset.x,
+            p.y + mod_offset.y - mod_vertical_spacing + m_ascent - w->m_ascent);
+        bodyPos = outlinePos;
 
         shadowPos.x   = static_cast<int>(w->m_target_scale_x * shadowPos_x + 0.5) + margin.x;
         shadowPos.y   = static_cast<int>(w->m_target_scale_y * shadowPos_y + 0.5) + margin.y;
@@ -1276,18 +1485,24 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
 
             DWORD sw[6] = {shadow, -1};
             sw[0] = XySubRenderFrameCreater::GetDefaultCreater()->TransColor(sw[0]);
+            const DWORD mod_solid[2] = {sw[0], 0};
+            const SharedPtrConstModPaintSource mod_paint =
+                w->m_mod_style && HasVariableModPaint(*w->m_mod_style, 3)
+                ? CreateModPaintSource(*w->m_mod_style, 3, -1, mod_solid, alpha)
+                : SharedPtrConstModPaintSource();
             if(w->m_style.get().borderStyle == 0)
             {
                 outputItem.shadow.reset( 
                     DrawItem::CreateDrawItem(shadow_pm, clipRect, clipper, shadowPos.x, shadowPos.y, sw,
                     w->m_ktype > 0 || w->m_style.get().alpha[0] < 0xff,
-                    hasOutline)
+                    hasOutline, mod_paint)
                     );
             }
             else if(w->m_style.get().borderStyle == 1)
             {
                 outputItem.shadow.reset( 
-                    DrawItem::CreateDrawItem( shadow_pm, clipRect, clipper, shadowPos.x, shadowPos.y, sw, true, false)
+                    DrawItem::CreateDrawItem( shadow_pm, clipRect, clipper, shadowPos.x, shadowPos.y, sw,
+                    true, false, mod_paint)
                     );
             }
         }
@@ -1299,17 +1514,27 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
             COLORREF outline = revcolor(w->m_style.get().colors[2]) | ((0xff-aoutline)<<24);
             DWORD sw[6] = {outline, -1};
             sw[0] = XySubRenderFrameCreater::GetDefaultCreater()->TransColor(sw[0]);
+            const DWORD mod_solid[2] = {sw[0], 0};
+            const SharedPtrConstModPaintSource mod_paint =
+                w->m_mod_style && HasVariableModPaint(*w->m_mod_style, 2)
+                ? CreateModPaintSource(*w->m_mod_style, 2, -1, mod_solid, alpha)
+                : SharedPtrConstModPaintSource();
+            const bool body_has_gradient_alpha =
+                w->m_mod_style && w->m_mod_style->body_gradient_alpha;
             if(w->m_style.get().borderStyle == 0)
             {
                 outputItem.outline.reset( 
                     DrawItem::CreateDrawItem(outline_pm, clipRect, clipper, outlinePos.x, outlinePos.y, sw, 
-                    !w->m_style.get().alpha[0] && !w->m_style.get().alpha[1] && !alpha, true)
+                    !w->m_style.get().alpha[0] && !w->m_style.get().alpha[1]
+                        && !alpha && !body_has_gradient_alpha,
+                    true, mod_paint)
                     );
             }
             else if(w->m_style.get().borderStyle == 1)
             {
                 outputItem.outline.reset( 
-                    DrawItem::CreateDrawItem(outline_pm, clipRect, clipper, outlinePos.x, outlinePos.y, sw, true, false)
+                    DrawItem::CreateDrawItem(outline_pm, clipRect, clipper, outlinePos.x, outlinePos.y, sw,
+                    true, false, mod_paint)
                     );
             }
         }
@@ -1324,6 +1549,8 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
             COLORREF primary   = revcolor(w->m_style.get().colors[0]) | ((0xff-aprimary  )<<24);
             COLORREF secondary = revcolor(w->m_style.get().colors[1]) | ((0xff-asecondary)<<24);
             DWORD sw[6] = {primary, 0, secondary};
+            int mod_primary_layer = 0;
+            int mod_secondary_layer = 1;
             // karaoke
             double t;
             if(w->m_ktype == 0 || w->m_ktype == 2)
@@ -1357,8 +1584,17 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
             sw[0] = XySubRenderFrameCreater::GetDefaultCreater()->TransColor(sw[0]);
             sw[2] = XySubRenderFrameCreater::GetDefaultCreater()->TransColor(sw[2]);
             sw[4] = XySubRenderFrameCreater::GetDefaultCreater()->TransColor(sw[4]);
+            const DWORD mod_solid[2] = {sw[0], sw[2]};
+            const SharedPtrConstModPaintSource mod_paint =
+                w->m_mod_style
+                    && HasVariableModPaint(*w->m_mod_style,
+                        mod_primary_layer, mod_secondary_layer)
+                ? CreateModPaintSource(*w->m_mod_style,
+                    mod_primary_layer, mod_secondary_layer, mod_solid, alpha)
+                : SharedPtrConstModPaintSource();
             outputItem.body.reset( 
-                DrawItem::CreateDrawItem(body_pm, clipRect, clipper, bodyPos.x, bodyPos.y, sw, true, false)
+                DrawItem::CreateDrawItem(body_pm, clipRect, clipper, bodyPos.x, bodyPos.y, sw,
+                    true, false, mod_paint)
                 );
         }
         bbox |= CompositeDrawItem::GetDirtyRect(outputItem);
@@ -1763,6 +1999,35 @@ void CRenderedTextSubtitle::InitCmdMap()
         m_cmdMap.SetAt(L"xshad",     CMD_xshad);
         m_cmdMap.SetAt(L"ybord",     CMD_ybord);
         m_cmdMap.SetAt(L"yshad",     CMD_yshad);
+        // VSFilterMod-derived commands. Keep them in the shared lexical cache;
+        // compatibility mode is checked only when applying their semantics.
+        // See NOTICE-VSFilterMod.md for provenance and licensing.
+        m_cmdMap.SetAt(L"1img",      CMD_1img);
+        m_cmdMap.SetAt(L"2img",      CMD_2img);
+        m_cmdMap.SetAt(L"3img",      CMD_3img);
+        m_cmdMap.SetAt(L"4img",      CMD_4img);
+        m_cmdMap.SetAt(L"1vc",       CMD_1vc);
+        m_cmdMap.SetAt(L"2vc",       CMD_2vc);
+        m_cmdMap.SetAt(L"3vc",       CMD_3vc);
+        m_cmdMap.SetAt(L"4vc",       CMD_4vc);
+        m_cmdMap.SetAt(L"1va",       CMD_1va);
+        m_cmdMap.SetAt(L"2va",       CMD_2va);
+        m_cmdMap.SetAt(L"3va",       CMD_3va);
+        m_cmdMap.SetAt(L"4va",       CMD_4va);
+        m_cmdMap.SetAt(L"distort",   CMD_distort);
+        m_cmdMap.SetAt(L"frs",       CMD_frs);
+        m_cmdMap.SetAt(L"fsvp",      CMD_fsvp);
+        m_cmdMap.SetAt(L"jitter",    CMD_jitter);
+        m_cmdMap.SetAt(L"mover",     CMD_mover);
+        m_cmdMap.SetAt(L"moves3",    CMD_moves3);
+        m_cmdMap.SetAt(L"moves4",    CMD_moves4);
+        m_cmdMap.SetAt(L"movevc",    CMD_movevc);
+        m_cmdMap.SetAt(L"rnd",       CMD_rnd);
+        m_cmdMap.SetAt(L"rndx",      CMD_rndx);
+        m_cmdMap.SetAt(L"rndy",      CMD_rndy);
+        m_cmdMap.SetAt(L"rndz",      CMD_rndz);
+        m_cmdMap.SetAt(L"rnds",      CMD_rnds);
+        m_cmdMap.SetAt(L"z",         CMD_z);
     }
     m_cmd_pos_level.SetCount(CMD_COUNT+1);
     m_cmd_pos_level[CMD_1c   ] = POS_LVL_NONE;
@@ -1828,6 +2093,32 @@ void CRenderedTextSubtitle::InitCmdMap()
     m_cmd_pos_level[CMD_xshad] = POS_LVL_NONE;
     m_cmd_pos_level[CMD_ybord] = POS_LVL_NONE;
     m_cmd_pos_level[CMD_yshad] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_1img] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_2img] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_3img] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_4img] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_1vc] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_2vc] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_3vc] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_4vc] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_1va] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_2va] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_3va] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_4va] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_distort] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_frs] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_fsvp] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_jitter] = POS_LVL_NONE;
+    m_cmd_pos_level[CMD_mover] = POS_LVL_HARD;
+    m_cmd_pos_level[CMD_moves3] = POS_LVL_HARD;
+    m_cmd_pos_level[CMD_moves4] = POS_LVL_HARD;
+    m_cmd_pos_level[CMD_movevc] = POS_LVL_HARD;
+    m_cmd_pos_level[CMD_rnd] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_rndx] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_rndy] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_rndz] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_rnds] = POS_LVL_SOFT;
+    m_cmd_pos_level[CMD_z] = POS_LVL_SOFT;
 
     m_cmd_pos_level[CMD_COUNT] = POS_LVL_NONE;
 }
@@ -1888,6 +2179,11 @@ bool CRenderedTextSubtitle::Init( const CRectCoor2& video_rect, const CRectCoor2
 
 void CRenderedTextSubtitle::Deinit()
 {
+    Deinit(true, true);
+}
+
+void CRenderedTextSubtitle::Deinit(bool clear_ass_tag_cache, bool reset_geometry)
+{
     POSITION pos = m_subtitleCacheEntry.GetHeadPosition();
     while(pos)
     {
@@ -1898,17 +2194,20 @@ void CRenderedTextSubtitle::Deinit()
     m_subtitleCacheEntry.RemoveAll();
     m_sla.Empty();
 
-    m_video_rect.SetRectEmpty();
-    m_subtitle_target_rect.SetRectEmpty();
-    m_size = CSize(0, 0);
-
-    m_target_scale_x = m_target_scale_y = 1.0;
+    if (reset_geometry) {
+        m_video_rect.SetRectEmpty();
+        m_subtitle_target_rect.SetRectEmpty();
+        m_size = CSize(0, 0);
+        m_target_scale_x = m_target_scale_y = 1.0;
+    }
 
     CacheManager::GetBitmapMruCache()->RemoveAll();
 
     CacheManager::GetClipperAlphaMaskMruCache()->RemoveAll();
     CacheManager::GetTextInfoCache           ()->RemoveAll();
-    CacheManager::GetAssTagListMruCache      ()->RemoveAll();
+    if (clear_ass_tag_cache) {
+        CacheManager::GetAssTagListMruCache()->RemoveAll();
+    }
 
     CacheManager::GetScanLineDataMruCache   ()->RemoveAll();
     CacheManager::GetOverlayNoOffsetMruCache()->RemoveAll();
@@ -1930,6 +2229,16 @@ void CRenderedTextSubtitle::SetTextRendererMode(TextRendererMode mode)
     if (m_text_renderer_mode != mode) {
         m_text_renderer_mode = mode;
         Deinit();
+    }
+}
+
+void CRenderedTextSubtitle::SetVsFilterCompatibilityMode(VsFilterCompatibilityMode mode)
+{
+    mode = NormalizeVsFilterCompatibilityMode(mode);
+    if (m_vsfilter_compatibility_mode != mode) {
+        m_vsfilter_compatibility_mode = mode;
+        m_mod_image_cache.ResetDecoded();
+        Deinit(false, false);
     }
 }
 
@@ -1983,7 +2292,8 @@ void CRenderedTextSubtitle::ParseEffect(CSubtitle* sub, const CStringW& str)
     }
 }
 
-void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwSTSStyle& style)
+void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwSTSStyle& style,
+    const SharedPtrConstModStyleState& mod_style)
 {
     if(!sub) return;
     str.Replace(L"\\N", L"\n");
@@ -1997,7 +2307,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(ite < j)
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, str.Mid(ite, j-ite), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2011,7 +2321,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(c == L'\n')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2025,7 +2335,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         else if(c == L' ')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(c), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2041,13 +2351,14 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
     return;
 }
 
-void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, const CStringW& str, const FwSTSStyle& style)
+void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, const CStringW& str, const FwSTSStyle& style,
+    const SharedPtrConstModStyleState& mod_style)
 {
     if (!sub || !str.GetLength() || !m_nPolygon) return;
 
     if (PCWord tmp_ptr = DEBUG_NEW CPolygon(style, str, m_ktype, m_kstart, m_kend, sub->m_scalex/(1<<(m_nPolygon-1))
         , sub->m_scaley/(1<<(m_nPolygon-1)), m_polygonBaselineOffset
-        , m_target_scale_x, m_target_scale_y))
+        , m_target_scale_x, m_target_scale_y, false, mod_style))
     {
         SharedPtrCWord w(tmp_ptr);
         ///Todo: fix me
@@ -2195,6 +2506,14 @@ bool CRenderedTextSubtitle::ParseSSATag( AssTagList *assTags, const CStringW& st
         case CMD_xshad:
         case CMD_ybord:
         case CMD_yshad:
+        case CMD_frs:
+        case CMD_fsvp:
+        case CMD_rnd:
+        case CMD_rndx:
+        case CMD_rndy:
+        case CMD_rndz:
+        case CMD_rnds:
+        case CMD_z:
             //        default:
             params.Add(cmd.Mid(cmd_length));
             break;
@@ -2217,6 +2536,24 @@ bool CRenderedTextSubtitle::ParseSSATag( AssTagList *assTags, const CStringW& st
         case CMD_move :
         case CMD_org  :
         case CMD_pos  :
+        case CMD_1img :
+        case CMD_2img :
+        case CMD_3img :
+        case CMD_4img :
+        case CMD_1vc  :
+        case CMD_2vc  :
+        case CMD_3vc  :
+        case CMD_4vc  :
+        case CMD_1va  :
+        case CMD_2va  :
+        case CMD_3va  :
+        case CMD_4va  :
+        case CMD_distort:
+        case CMD_jitter:
+        case CMD_mover:
+        case CMD_moves3:
+        case CMD_moves4:
+        case CMD_movevc:
             break;
         case CMD_t:
             if (!params.IsEmpty() && params.GetCount()<=4)
@@ -2234,7 +2571,8 @@ bool CRenderedTextSubtitle::ParseSSATag( AssTagList *assTags, const CStringW& st
     return(true);
 }
 
-bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTags, STSStyle& style, const STSStyle& org, bool fAnimate /*= false*/ )
+bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTags, STSStyle& style,
+    const STSStyle& org, SharedPtrModStyleState& mod_style, bool fAnimate /*= false*/ )
 {
     if(!sub) return(false);
     
@@ -2244,6 +2582,11 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
         const AssTag& assTag = assTags.GetNext(pos);
         AssCmdType cmd_type = assTag.cmdType;
         const CAtlArray<CStringW>& params = assTag.strParams;
+
+        const bool mod_only_command = cmd_type >= CMD_1img && cmd_type < CMD_COUNT;
+        if (mod_only_command && !IsVsFilterModMode()) {
+            continue;
+        }
 
         sub->m_hard_position_level = sub->m_hard_position_level > m_cmd_pos_level[cmd_type] ?
                                      sub->m_hard_position_level : m_cmd_pos_level[cmd_type];
@@ -2267,6 +2610,29 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                       |((int)CalcAnimation(c&0x00ff00, style.colors[i]&0x00ff00, fAnimate))&0x00ff00
                       |((int)CalcAnimation(c&0xff0000, style.colors[i]&0xff0000, fAnimate))&0xff0000)
                     : org.colors[i];
+                if (IsVsFilterModMode() && mod_style) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    ModPaintLayerState& layer = mod.paint[i];
+                    if (!fAnimate) {
+                        layer.mode = MOD_PAINT_SOLID;
+                        layer.image.reset();
+                        layer.image_id.Empty();
+                    } else if (layer.mode == MOD_PAINT_GRADIENT) {
+                        for (int corner = 0; corner < 4; ++corner) {
+                            DWORD& color = layer.colors[corner];
+                            color = !p.IsEmpty()
+                                ? (((int)CalcAnimation(c&0x0000ff, color&0x0000ff, true))&0x0000ff
+                                  |((int)CalcAnimation(c&0x00ff00, color&0x00ff00, true))&0x00ff00
+                                  |((int)CalcAnimation(c&0xff0000, color&0xff0000, true))&0xff0000)
+                                : org.colors[i];
+                        }
+                    }
+                    mod.feature_mask &= ~(MOD_FEATURE_GRADIENT | MOD_FEATURE_IMAGE);
+                    for (const auto& paint : mod.paint) {
+                        if (paint.mode == MOD_PAINT_GRADIENT) mod.feature_mask |= MOD_FEATURE_GRADIENT;
+                        if (paint.mode == MOD_PAINT_IMAGE && paint.image) mod.feature_mask |= MOD_FEATURE_IMAGE;
+                    }
+                }
                 break;
             }
         case CMD_1a :
@@ -2282,6 +2648,126 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                 style.alpha[i] = !p.IsEmpty()
                     ? (BYTE)CalcAnimation(wcstol(p, NULL, 16), style.alpha[i], fAnimate)
                     : org.alpha[i];
+                if (IsVsFilterModMode() && mod_style) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    ModPaintLayerState& layer = mod.paint[i];
+                    if (layer.mode == MOD_PAINT_GRADIENT) {
+                        const BYTE alpha = !p.IsEmpty() ? static_cast<BYTE>(wcstol(p, NULL, 16)) : org.alpha[i];
+                        for (int corner = 0; corner < 4; ++corner) {
+                            layer.alpha[corner] = static_cast<BYTE>(
+                                CalcAnimation(alpha, layer.alpha[corner], fAnimate));
+                        }
+                    }
+                }
+                break;
+            }
+        case CMD_1img:
+        case CMD_2img:
+        case CMD_3img:
+        case CMD_4img:
+            {
+                const int i =
+                      cmd_type == CMD_1img ? 0
+                    : cmd_type == CMD_2img ? 1
+                    : cmd_type == CMD_3img ? 2 : 3;
+                if (!params.IsEmpty() && !params[0].IsEmpty()) {
+                    const SharedPtrConstModImageResource image =
+                        m_mod_image_cache.Resolve(params[0], m_path, m_mod_resource_path);
+                    if (!image) {
+                        break;
+                    }
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    ModPaintLayerState& layer = mod.paint[i];
+                    layer.mode = MOD_PAINT_IMAGE;
+                    layer.image_id = params[0];
+                    layer.image = image;
+                    if (params.GetCount() >= 3) {
+                        layer.image_x_offset = static_cast<int>(CalcAnimation(
+                            wcstod(params[1], NULL), layer.image_x_offset, fAnimate));
+                        layer.image_y_offset = static_cast<int>(CalcAnimation(
+                            wcstod(params[2], NULL), layer.image_y_offset, fAnimate));
+                    }
+                    mod.feature_mask |= MOD_FEATURE_IMAGE;
+                    if (fAnimate && params.GetCount() >= 3) {
+                        sub->m_fAnimated = true;
+                        sub->m_fAnimated2 = true;
+                    }
+                    mod.feature_mask &= ~(MOD_FEATURE_GRADIENT | MOD_FEATURE_IMAGE);
+                    for (const auto& paint : mod.paint) {
+                        if (paint.mode == MOD_PAINT_GRADIENT) mod.feature_mask |= MOD_FEATURE_GRADIENT;
+                        if (paint.mode == MOD_PAINT_IMAGE && paint.image) mod.feature_mask |= MOD_FEATURE_IMAGE;
+                    }
+                }
+                break;
+            }
+        case CMD_1vc:
+        case CMD_2vc:
+        case CMD_3vc:
+        case CMD_4vc:
+            {
+                const int i =
+                      cmd_type == CMD_1vc ? 0
+                    : cmd_type == CMD_2vc ? 1
+                    : cmd_type == CMD_3vc ? 2 : 3;
+                if (params.GetCount() >= 4) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    ModPaintLayerState& layer = mod.paint[i];
+                    if (layer.mode != MOD_PAINT_GRADIENT) {
+                        for (int corner = 0; corner < 4; ++corner) {
+                            layer.colors[corner] = style.colors[i];
+                            layer.alpha[corner] = style.alpha[i];
+                        }
+                        layer.image.reset();
+                        layer.image_id.Empty();
+                    }
+                    layer.mode = MOD_PAINT_GRADIENT;
+                    for (int corner = 0; corner < 4; ++corner) {
+                        CStringW color_param(params[corner]);
+                        color_param.Trim(L"&H");
+                        const DWORD color = wcstol(color_param, NULL, 16) & 0xffffff;
+                        DWORD& current = layer.colors[corner];
+                        current =
+                            (((int)CalcAnimation(color&0x0000ff, current&0x0000ff, fAnimate))&0x0000ff)
+                          | (((int)CalcAnimation(color&0x00ff00, current&0x00ff00, fAnimate))&0x00ff00)
+                          | (((int)CalcAnimation(color&0xff0000, current&0xff0000, fAnimate))&0xff0000);
+                    }
+                    mod.feature_mask |= MOD_FEATURE_GRADIENT;
+                }
+                break;
+            }
+        case CMD_1va:
+        case CMD_2va:
+        case CMD_3va:
+        case CMD_4va:
+            {
+                const int i =
+                      cmd_type == CMD_1va ? 0
+                    : cmd_type == CMD_2va ? 1
+                    : cmd_type == CMD_3va ? 2 : 3;
+                if (params.GetCount() >= 4) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    ModPaintLayerState& layer = mod.paint[i];
+                    if (layer.mode != MOD_PAINT_GRADIENT) {
+                        for (int corner = 0; corner < 4; ++corner) {
+                            layer.colors[corner] = style.colors[i];
+                            layer.alpha[corner] = style.alpha[i];
+                        }
+                        layer.image.reset();
+                        layer.image_id.Empty();
+                    }
+                    layer.mode = MOD_PAINT_GRADIENT;
+                    for (int corner = 0; corner < 4; ++corner) {
+                        CStringW alpha_param(params[corner]);
+                        alpha_param.Trim(L"&H");
+                        const int alpha = wcstol(alpha_param, NULL, 16) & 0xff;
+                        layer.alpha[corner] = static_cast<BYTE>(
+                            CalcAnimation(alpha, layer.alpha[corner], fAnimate));
+                    }
+                    mod.feature_mask |= MOD_FEATURE_GRADIENT;
+                    if (i <= 1) {
+                        mod.body_gradient_alpha = true;
+                    }
+                }
                 break;
             }
         case CMD_alpha:
@@ -2291,6 +2777,17 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                     style.alpha[i] = !p.IsEmpty()
                                      ? (BYTE)CalcAnimation(wcstol(p, NULL, 16), style.alpha[i], fAnimate)
                                      : org.alpha[i];
+                    if (IsVsFilterModMode() && mod_style) {
+                        ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                        ModPaintLayerState& layer = mod.paint[i];
+                        if (layer.mode == MOD_PAINT_GRADIENT) {
+                            const BYTE alpha = !p.IsEmpty() ? static_cast<BYTE>(wcstol(p, NULL, 16)) : org.alpha[i];
+                            for (int corner = 0; corner < 4; ++corner) {
+                                layer.alpha[corner] = static_cast<BYTE>(
+                                    CalcAnimation(alpha, layer.alpha[corner], fAnimate));
+                            }
+                        }
+                    }
                 }
                 break;
             }
@@ -2387,6 +2884,43 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                                     |((int)CalcAnimation(c&0x00ff00, style.colors[0]&0x00ff00, fAnimate))&0x00ff00
                                     |((int)CalcAnimation(c&0xff0000, style.colors[0]&0xff0000, fAnimate))&0xff0000)
                                   : org.colors[0];
+                if (IsVsFilterModMode() && mod_style) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    ModPaintLayerState& layer = mod.paint[0];
+                    if (!fAnimate) {
+                        layer.mode = MOD_PAINT_SOLID;
+                        layer.image.reset();
+                        layer.image_id.Empty();
+                    } else if (layer.mode == MOD_PAINT_GRADIENT) {
+                        for (int corner = 0; corner < 4; ++corner) {
+                            DWORD& color = layer.colors[corner];
+                            color = !p.IsEmpty()
+                                ? (((int)CalcAnimation(c&0x0000ff, color&0x0000ff, true))&0x0000ff
+                                  |((int)CalcAnimation(c&0x00ff00, color&0x00ff00, true))&0x00ff00
+                                  |((int)CalcAnimation(c&0xff0000, color&0xff0000, true))&0xff0000)
+                                : org.colors[0];
+                        }
+                    }
+                    mod.feature_mask &= ~(MOD_FEATURE_GRADIENT | MOD_FEATURE_IMAGE);
+                    for (const auto& paint : mod.paint) {
+                        if (paint.mode == MOD_PAINT_GRADIENT) mod.feature_mask |= MOD_FEATURE_GRADIENT;
+                        if (paint.mode == MOD_PAINT_IMAGE && paint.image) mod.feature_mask |= MOD_FEATURE_IMAGE;
+                    }
+                }
+                break;
+            }
+        case CMD_distort:
+            {
+                if (params.GetCount() >= 6) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    for (int point = 0; point < 3; ++point) {
+                        mod.distort_x[point] = CalcAnimation(
+                            wcstod(params[point * 2], NULL), mod.distort_x[point], fAnimate);
+                        mod.distort_y[point] = CalcAnimation(
+                            wcstod(params[point * 2 + 1], NULL), mod.distort_y[point], fAnimate);
+                    }
+                    mod.feature_mask |= MOD_FEATURE_DISTORT;
+                }
                 break;
             }
         case CMD_fade:
@@ -2448,6 +2982,19 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                     style.fontName = org.fontName;
                 break;
             }
+        case CMD_frs:
+            {
+                ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                mod.font_orientation = !p.IsEmpty()
+                    ? CalcAnimation(wcstod(p, NULL), mod.font_orientation, fAnimate)
+                    : 0;
+                if (mod.font_orientation != 0) {
+                    mod.feature_mask |= MOD_FEATURE_SYMBOL_ROTATION;
+                } else {
+                    mod.feature_mask &= ~MOD_FEATURE_SYMBOL_ROTATION;
+                }
+                break;
+            }
         case CMD_frx:
             {
                 style.fontAngleX = !p.IsEmpty()
@@ -2488,8 +3035,14 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
             }
         case CMD_fsc:
             {
-                style.fontScaleX = org.fontScaleX;
-                style.fontScaleY = org.fontScaleY;
+                if (IsVsFilterModMode() && !p.IsEmpty()) {
+                    const double dst = wcstod(p, NULL);
+                    style.fontScaleX = max(0.0, CalcAnimation(dst, style.fontScaleX, fAnimate));
+                    style.fontScaleY = max(0.0, CalcAnimation(dst, style.fontScaleY, fAnimate));
+                } else {
+                    style.fontScaleX = org.fontScaleX;
+                    style.fontScaleY = org.fontScaleY;
+                }
                 break;
             }
         case CMD_fsp:
@@ -2497,6 +3050,19 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                 style.fontSpacing = !p.IsEmpty()
                                     ? CalcAnimation(wcstod(p, NULL), style.fontSpacing, fAnimate)
                                     : org.fontSpacing;
+                break;
+            }
+        case CMD_fsvp:
+            {
+                ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                mod.vertical_spacing = !p.IsEmpty()
+                    ? CalcAnimation(wcstod(p, NULL) * MAX_SUB_PIXEL, mod.vertical_spacing, fAnimate)
+                    : 0;
+                if (mod.vertical_spacing != 0) {
+                    mod.feature_mask |= MOD_FEATURE_VERTICAL_SPACING;
+                } else {
+                    mod.feature_mask &= ~MOD_FEATURE_VERTICAL_SPACING;
+                }
                 break;
             }
         case CMD_fs:
@@ -2526,6 +3092,31 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                 style.fItalic = !p.IsEmpty()
                                 ? (n == 0 ? false : n == 1 ? true : org.fItalic)
                                     : org.fItalic;
+                break;
+            }
+        case CMD_jitter:
+            {
+                if (params.GetCount() >= 4) {
+                    ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                    mod.jitter.left = static_cast<int>(CalcAnimation(
+                        abs(wcstol(params[0], NULL, 10)) * MAX_SUB_PIXEL, mod.jitter.left, fAnimate));
+                    mod.jitter.right = static_cast<int>(CalcAnimation(
+                        abs(wcstol(params[1], NULL, 10)) * MAX_SUB_PIXEL, mod.jitter.right, fAnimate));
+                    mod.jitter.up = static_cast<int>(CalcAnimation(
+                        abs(wcstol(params[2], NULL, 10)) * MAX_SUB_PIXEL, mod.jitter.up, fAnimate));
+                    mod.jitter.down = static_cast<int>(CalcAnimation(
+                        abs(wcstol(params[3], NULL, 10)) * MAX_SUB_PIXEL, mod.jitter.down, fAnimate));
+                    if (params.GetCount() >= 5) {
+                        mod.jitter.period_100ns = max(1, static_cast<int>(CalcAnimation(
+                            wcstol(params[4], NULL, 10) * 10000.0, mod.jitter.period_100ns, fAnimate)));
+                    }
+                    if (params.GetCount() >= 6) {
+                        mod.jitter.seed = wcstol(params[5], NULL, 10);
+                    }
+                    mod.feature_mask |= MOD_FEATURE_JITTER;
+                    sub->m_fAnimated = true;
+                    sub->m_fAnimated2 = true;
+                }
                 break;
             }
         case CMD_kt:
@@ -2568,6 +3159,107 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                 sub->m_fAnimated2 = true;//fix me: define m_fAnimated m_fAnimated2 strictly
                 break;
             }
+        case CMD_mover:
+            {
+                if ((params.GetCount() == 8 || params.GetCount() == 10)
+                        && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVE))) {
+                    ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
+                    effect.feature_mask |= MOD_EFFECT_MOVE;
+                    effect.move_type = MOD_MOVE_RADIAL;
+                    effect.move_points[0].SetPoint(
+                        static_cast<int>(sub->m_scalex * wcstod(params[0], NULL) * MAX_SUB_PIXEL),
+                        static_cast<int>(sub->m_scaley * wcstod(params[1], NULL) * MAX_SUB_PIXEL));
+                    effect.move_points[1].SetPoint(
+                        static_cast<int>(sub->m_scalex * wcstod(params[2], NULL) * MAX_SUB_PIXEL),
+                        static_cast<int>(sub->m_scaley * wcstod(params[3], NULL) * MAX_SUB_PIXEL));
+                    effect.move_angle[0] =
+                        static_cast<double>(
+                            static_cast<int>(wcstod(params[4], NULL) * 10000.0)
+                            * 3.141592654f / 1800000);
+                    effect.move_angle[1] =
+                        static_cast<double>(
+                            static_cast<int>(wcstod(params[5], NULL) * 10000.0)
+                            * 3.141592654f / 1800000);
+                    effect.move_radius.SetPoint(
+                        static_cast<int>(sub->m_scalex * wcstod(params[6], NULL) * MAX_SUB_PIXEL),
+                        static_cast<int>(sub->m_scaley * wcstod(params[7], NULL) * MAX_SUB_PIXEL));
+                    if (params.GetCount() == 10) {
+                        effect.move_t[0] = wcstol(params[8], NULL, 10);
+                        effect.move_t[1] = wcstol(params[9], NULL, 10);
+                    }
+                    sub->m_fAnimated = true;
+                    sub->m_fAnimated2 = true;
+                }
+                break;
+            }
+        case CMD_moves3:
+            {
+                if ((params.GetCount() == 6 || params.GetCount() == 8)
+                        && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVE))) {
+                    ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
+                    effect.feature_mask |= MOD_EFFECT_MOVE;
+                    effect.move_type = MOD_MOVE_QUADRATIC;
+                    for (int point = 0; point < 3; ++point) {
+                        effect.move_points[point].SetPoint(
+                            static_cast<int>(sub->m_scalex * wcstod(params[point * 2], NULL) * MAX_SUB_PIXEL),
+                            static_cast<int>(sub->m_scaley * wcstod(params[point * 2 + 1], NULL) * MAX_SUB_PIXEL));
+                    }
+                    if (params.GetCount() == 8) {
+                        effect.move_t[0] = wcstol(params[6], NULL, 10);
+                        effect.move_t[1] = wcstol(params[7], NULL, 10);
+                    }
+                    sub->m_fAnimated = true;
+                    sub->m_fAnimated2 = true;
+                }
+                break;
+            }
+        case CMD_moves4:
+            {
+                if ((params.GetCount() == 8 || params.GetCount() == 10)
+                        && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVE))) {
+                    ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
+                    effect.feature_mask |= MOD_EFFECT_MOVE;
+                    effect.move_type = MOD_MOVE_CUBIC;
+                    for (int point = 0; point < 4; ++point) {
+                        effect.move_points[point].SetPoint(
+                            static_cast<int>(sub->m_scalex * wcstod(params[point * 2], NULL) * MAX_SUB_PIXEL),
+                            static_cast<int>(sub->m_scaley * wcstod(params[point * 2 + 1], NULL) * MAX_SUB_PIXEL));
+                    }
+                    if (params.GetCount() == 10) {
+                        effect.move_t[0] = wcstol(params[8], NULL, 10);
+                        effect.move_t[1] = wcstol(params[9], NULL, 10);
+                    }
+                    sub->m_fAnimated = true;
+                    sub->m_fAnimated2 = true;
+                }
+                break;
+            }
+        case CMD_movevc:
+            {
+                if ((params.GetCount() == 2 || params.GetCount() == 4 || params.GetCount() == 6)
+                        && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVING_CLIP))) {
+                    ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
+                    effect.feature_mask |= MOD_EFFECT_MOVING_CLIP;
+                    effect.clip_points[0].SetPoint(
+                        static_cast<int>(sub->m_scalex * wcstod(params[0], NULL)),
+                        static_cast<int>(sub->m_scaley * wcstod(params[1], NULL)));
+                    effect.clip_points[1] = effect.clip_points[0];
+                    if (params.GetCount() >= 4) {
+                        effect.clip_points[1].SetPoint(
+                            static_cast<int>(sub->m_scalex * wcstod(params[2], NULL)),
+                            static_cast<int>(sub->m_scaley * wcstod(params[3], NULL)));
+                    }
+                    if (params.GetCount() == 6) {
+                        effect.clip_t[0] = static_cast<int>(
+                            sub->m_scalex * wcstod(params[4], NULL));
+                        effect.clip_t[1] = static_cast<int>(
+                            sub->m_scaley * wcstod(params[5], NULL));
+                    }
+                    sub->m_fAnimated = true;
+                    sub->m_fAnimated2 = true;
+                }
+                break;
+            }
         case CMD_move: // {\move(x1=param[0], y1=param[1], x2=param[2], y2=param[3][, t1=t[0], t2=t[1]])}
             {
                 if((params.GetCount() == 4 || params.GetCount() == 6) && !sub->m_effects[EF_MOVE])
@@ -2601,6 +3293,26 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                         sub->m_effects[EF_ORG] = e;
                     }
                 }
+                else if (IsVsFilterModMode()
+                        && (params.GetCount() == 4 || params.GetCount() == 6)
+                        && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVING_ORG))) {
+                    ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
+                    effect.feature_mask |= MOD_EFFECT_MOVING_ORG;
+                    effect.org_points[0].SetPoint(
+                        static_cast<int>(sub->m_scalex * wcstod(params[0], NULL) * MAX_SUB_PIXEL),
+                        static_cast<int>(sub->m_scaley * wcstod(params[1], NULL) * MAX_SUB_PIXEL));
+                    effect.org_points[1].SetPoint(
+                        static_cast<int>(sub->m_scalex * wcstod(params[2], NULL) * MAX_SUB_PIXEL),
+                        static_cast<int>(sub->m_scaley * wcstod(params[3], NULL) * MAX_SUB_PIXEL));
+                    if (params.GetCount() == 6) {
+                        effect.org_t[0] = static_cast<int>(
+                            sub->m_scalex * wcstod(params[4], NULL) * MAX_SUB_PIXEL);
+                        effect.org_t[1] = static_cast<int>(
+                            sub->m_scaley * wcstod(params[5], NULL) * MAX_SUB_PIXEL);
+                    }
+                    sub->m_fAnimated = true;
+                    sub->m_fAnimated2 = true;
+                }
                 break;
             }
         case CMD_pbo:
@@ -2610,7 +3322,8 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
             }
         case CMD_pos:
             {
-                if(params.GetCount() == 2 && !sub->m_effects[EF_MOVE])
+                if((params.GetCount() == 2 || (IsVsFilterModMode() && params.GetCount() == 3))
+                        && !sub->m_effects[EF_MOVE])
                 {
                     if(Effect* e = DEBUG_NEW Effect)
                     {
@@ -2618,6 +3331,11 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                         e->param[1] = e->param[3] = (int)(sub->m_scaley*wcstod(params[1], NULL)*MAX_SUB_PIXEL);
                         e->t[0] = e->t[1] = 0;
                         sub->m_effects[EF_MOVE] = e;
+                    }
+                    if (params.GetCount() == 3) {
+                        ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                        mod.z = wcstod(params[2], NULL) * 80.0;
+                        if (mod.z != 0) mod.feature_mask |= MOD_FEATURE_Z;
                     }
                 }
                 break;
@@ -2636,10 +3354,45 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                                    : m_defaultWrapStyle;
                 break;
             }
+        case CMD_rnds:
+            {
+                ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                mod.random_seed = !p.IsEmpty()
+                    ? static_cast<int>(CalcAnimation(wcstol(p, NULL, 16), mod.random_seed, fAnimate))
+                    : 0;
+                if (mod.random_x != 0 || mod.random_y != 0 || mod.random_z != 0) {
+                    mod.feature_mask |= MOD_FEATURE_RANDOM;
+                }
+                break;
+            }
+        case CMD_rndx:
+        case CMD_rndy:
+        case CMD_rndz:
+        case CMD_rnd:
+            {
+                ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                const double value = !p.IsEmpty() ? wcstod(p, NULL) * MAX_SUB_PIXEL : 0;
+                if (cmd_type == CMD_rnd || cmd_type == CMD_rndx) {
+                    mod.random_x = CalcAnimation(value, mod.random_x, fAnimate);
+                }
+                if (cmd_type == CMD_rnd || cmd_type == CMD_rndy) {
+                    mod.random_y = CalcAnimation(value, mod.random_y, fAnimate);
+                }
+                if (cmd_type == CMD_rnd || cmd_type == CMD_rndz) {
+                    mod.random_z = CalcAnimation(value, mod.random_z, fAnimate);
+                }
+                if (mod.random_x != 0 || mod.random_y != 0 || mod.random_z != 0) {
+                    mod.feature_mask |= MOD_FEATURE_RANDOM;
+                } else {
+                    mod.feature_mask &= ~MOD_FEATURE_RANDOM;
+                }
+                break;
+            }
         case CMD_r:
             {
                 STSStyle* val;
                 style = (!p.IsEmpty() && m_styles.Lookup(p, val) && val) ? *val : org;
+                mod_style.reset();
                 break;
             }
         case CMD_shad:
@@ -2690,7 +3443,7 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                     m_animAccel = wcstod(params[2], NULL);
                     param = params[3];
                 }
-                ParseSSATag(sub, assTag.embeded, style, org, true);
+                ParseSSATag(sub, assTag.embeded, style, org, mod_style, true);
                 sub->m_fAnimated = true;
                 sub->m_fAnimated2 = true;
                 break;
@@ -2739,6 +3492,19 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                                      : org.shadowDepthY;
                 break;
             }
+        case CMD_z:
+            {
+                ModStyleState& mod = EnsureWritableModStyleState(mod_style);
+                mod.z = !p.IsEmpty()
+                    ? CalcAnimation(wcstod(p, NULL) * 80.0, mod.z, fAnimate)
+                    : 0;
+                if (mod.z != 0) {
+                    mod.feature_mask |= MOD_FEATURE_Z;
+                } else {
+                    mod.feature_mask &= ~MOD_FEATURE_Z;
+                }
+                break;
+            }
         default:
             break;
         }
@@ -2746,7 +3512,8 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
     return(true);
 }
 
-bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, const CStringW& str, STSStyle& style, const STSStyle& org, bool fAnimate)
+bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, const CStringW& str, STSStyle& style,
+    const STSStyle& org, SharedPtrModStyleState& mod_style, bool fAnimate)
 {
     if(!sub) return(false);   
 
@@ -2765,7 +3532,7 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, const CStringW& str, STS
         assTags = ass_tag_cache->GetAt(pos);
         ass_tag_cache->UpdateCache( pos );
     }
-    return ParseSSATag(sub, *assTags, style, org, fAnimate);
+    return ParseSSATag(sub, *assTags, style, org, mod_style, fAnimate);
 }
 
 bool CRenderedTextSubtitle::ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org)
@@ -2889,6 +3656,12 @@ double CRenderedTextSubtitle::CalcAnimation(double dst, double src, bool fAnimat
     return(dst);
 }
 
+bool CRenderedTextSubtitle::IsVsFilterModMode() const
+{
+    return m_render_backend == SUBTITLE_RENDER_BACKEND_VSFILTER
+        && m_vsfilter_compatibility_mode == VSFILTER_COMPATIBILITY_MOD;
+}
+
 CSubtitle* CRenderedTextSubtitle::GetSubtitle(int entry)
 {
     CSubtitle* sub = m_subtitleCache.GetAt(entry);
@@ -2900,7 +3673,11 @@ CSubtitle* CRenderedTextSubtitle::GetSubtitle(int entry)
     if(!sub) return(NULL);
     CStringW str = GetStrW(entry, true);
     STSStyle stss, orgstss;
+    SharedPtrModStyleState mod_style;
     GetStyle(entry, &stss);
+    if (!IsVsFilterModMode() && stss.fontSpacing < 0) {
+        stss.fontSpacing = 0;
+    }
     if (stss.fontScaleX == stss.fontScaleY && m_dPARCompensation != 1.0)
     {
         switch(m_ePARCompensationType)
@@ -2949,7 +3726,7 @@ CSubtitle* CRenderedTextSubtitle::GetSubtitle(int entry)
         int i;
         if(str[0] == L'{' && (i = str.Find(L'}')) > 0)
         {
-            fParsed = ParseSSATag(sub, str.Mid(1, i-1), stss, orgstss);
+            fParsed = ParseSSATag(sub, str.Mid(1, i-1), stss, orgstss, mod_style);
             if(fParsed)
                 str = str.Mid(i+1);
         }
@@ -2979,13 +3756,14 @@ CSubtitle* CRenderedTextSubtitle::GetSubtitle(int entry)
         tmp.shadowDepthX  *= (m_fScaledBAS ? sub->m_scalex : 1) * MAX_SUB_PIXEL;
         tmp.shadowDepthY  *= (m_fScaledBAS ? sub->m_scaley : 1) * MAX_SUB_PIXEL;
         FwSTSStyle fw_tmp(tmp);
+        const SharedPtrConstModStyleState frozen_mod_style = FreezeModStyleState(mod_style);
         if(m_nPolygon)
         {
-            ParsePolygon(sub, str.Left(i), fw_tmp);
+            ParsePolygon(sub, str.Left(i), fw_tmp, frozen_mod_style);
         }
         else
         {
-            ParseString(sub, str.Left(i), fw_tmp);
+            ParseString(sub, str.Left(i), fw_tmp, frozen_mod_style);
         }
         str = str.Mid(i);
     }
@@ -3233,6 +4011,8 @@ HRESULT CRenderedTextSubtitle::ParseScript(REFERENCE_TIME rt, double fps, CSubti
         bool fPosOverride = false, fOrgOverride = false;
         int alpha = 0x00;
         CPoint org2;
+        CPoint mod_clip_offset(0, 0);
+        bool has_mod_clip_offset = false;
         for(int k = 0; k < EF_NUMBEROFEFFECTS; k++)
         {
             if(!s->m_effects[k]) continue;
@@ -3321,6 +4101,161 @@ HRESULT CRenderedTextSubtitle::ParseScript(REFERENCE_TIME rt, double fps, CSubti
                 break;
             }
         }
+        if (s->m_mod_effects) {
+            const ModEffectState& effect = *s->m_mod_effects;
+            if (effect.feature_mask & MOD_EFFECT_MOVE) {
+                int t1 = effect.move_t[0];
+                int t2 = effect.move_t[1];
+                if (t2 < t1) std::swap(t1, t2);
+                if (t1 <= 0 && t2 <= 0) {
+                    t1 = 0;
+                    t2 = m_delay;
+                }
+                CPoint point;
+                switch (effect.move_type) {
+                case MOD_MOVE_RADIAL:
+                    {
+                        const CPoint first(
+                            static_cast<int>(effect.move_points[0].x
+                                + cos(effect.move_angle[0]) * effect.move_radius.x),
+                            static_cast<int>(effect.move_points[0].y
+                                - sin(effect.move_angle[0]) * effect.move_radius.x));
+                        const CPoint second(
+                            static_cast<int>(effect.move_points[1].x
+                                + cos(effect.move_angle[1]) * effect.move_radius.y),
+                            static_cast<int>(effect.move_points[1].y
+                                - sin(effect.move_angle[1]) * effect.move_radius.y));
+                        if (m_time <= t1) {
+                            point = first;
+                        } else if (t1 < m_time && m_time < t2) {
+                            const double progress =
+                                static_cast<double>(m_time - t1) / (t2 - t1);
+                            const double angle = (1.0 - progress) * effect.move_angle[0]
+                                + progress * effect.move_angle[1];
+                            const double radius = (1.0 - progress) * effect.move_radius.x
+                                + progress * effect.move_radius.y;
+                            point.x = static_cast<int>(
+                                (1.0 - progress) * effect.move_points[0].x
+                                + progress * effect.move_points[1].x);
+                            point.y = static_cast<int>(
+                                (1.0 - progress) * effect.move_points[0].y
+                                + progress * effect.move_points[1].y);
+                            point.x += static_cast<int>(cos(angle) * radius);
+                            point.y -= static_cast<int>(sin(angle) * radius);
+                        } else {
+                            point = second;
+                        }
+                    }
+                    break;
+                case MOD_MOVE_QUADRATIC:
+                    {
+                        if (m_time <= t1 || effect.move_points[0] == effect.move_points[1]) {
+                            point = effect.move_points[0];
+                        } else if (t1 < m_time && m_time < t2) {
+                            const double progress =
+                                static_cast<double>(m_time - t1) / (t2 - t1);
+                            const double one_minus = 1.0 - progress;
+                            point.x = static_cast<int>(
+                                one_minus * one_minus * effect.move_points[0].x
+                                + 2.0 * progress * one_minus * effect.move_points[1].x
+                                + progress * progress * effect.move_points[2].x);
+                            point.y = static_cast<int>(
+                                one_minus * one_minus * effect.move_points[0].y
+                                + 2.0 * progress * one_minus * effect.move_points[1].y
+                                + progress * progress * effect.move_points[2].y);
+                        } else {
+                            point = effect.move_points[2];
+                        }
+                    }
+                    break;
+                case MOD_MOVE_CUBIC:
+                    {
+                        if (m_time <= t1 || effect.move_points[0] == effect.move_points[1]) {
+                            point = effect.move_points[0];
+                        } else if (t1 < m_time && m_time < t2) {
+                            const double progress =
+                                static_cast<double>(m_time - t1) / (t2 - t1);
+                            const double one_minus = 1.0 - progress;
+                            point.x = static_cast<int>(
+                                one_minus * one_minus * one_minus * effect.move_points[0].x
+                                + 3.0 * progress * one_minus * one_minus
+                                    * effect.move_points[1].x
+                                + 3.0 * progress * progress * one_minus
+                                    * effect.move_points[2].x
+                                + progress * progress * progress * effect.move_points[3].x);
+                            point.y = static_cast<int>(
+                                one_minus * one_minus * one_minus * effect.move_points[0].y
+                                + 3.0 * progress * one_minus * one_minus
+                                    * effect.move_points[1].y
+                                + 3.0 * progress * progress * one_minus
+                                    * effect.move_points[2].y
+                                + progress * progress * progress * effect.move_points[3].y);
+                        } else {
+                            point = effect.move_points[3];
+                        }
+                    }
+                    break;
+                default:
+                    point = effect.move_points[0];
+                    break;
+                }
+                const int x = (s->m_scrAlignment%3) == 1 ? point.x
+                    : (s->m_scrAlignment%3) == 0 ? point.x - spaceNeeded.cx
+                    : point.x - (spaceNeeded.cx+1)/2;
+                const int y = s->m_scrAlignment <= 3 ? point.y - spaceNeeded.cy
+                    : s->m_scrAlignment <= 6 ? point.y - (spaceNeeded.cy+1)/2 : point.y;
+                r = CRect(CPoint(x, y), spaceNeeded);
+                fPosOverride = true;
+            }
+            if (effect.feature_mask & MOD_EFFECT_MOVING_ORG) {
+                int t1 = effect.org_t[0];
+                int t2 = effect.org_t[1];
+                if (t2 < t1) std::swap(t1, t2);
+                if (t1 <= 0 && t2 <= 0) {
+                    t1 = 0;
+                    t2 = m_delay;
+                }
+                if (m_time <= t1 || t1 == t2) {
+                    org2 = effect.org_points[0];
+                } else if (t1 < m_time && m_time < t2) {
+                    const double progress =
+                        static_cast<double>(m_time - t1) / (t2 - t1);
+                    org2.x = static_cast<int>(
+                        (1.0 - progress) * effect.org_points[0].x
+                        + progress * effect.org_points[1].x);
+                    org2.y = static_cast<int>(
+                        (1.0 - progress) * effect.org_points[0].y
+                        + progress * effect.org_points[1].y);
+                } else {
+                    org2 = effect.org_points[1];
+                }
+                fOrgOverride = true;
+            }
+            if (effect.feature_mask & MOD_EFFECT_MOVING_CLIP) {
+                int t1 = effect.clip_t[0];
+                int t2 = effect.clip_t[1];
+                if (t2 < t1) std::swap(t1, t2);
+                if (t1 <= 0 && t2 <= 0) {
+                    t1 = 0;
+                    t2 = m_delay;
+                }
+                if (m_time <= t1 || t1 == t2) {
+                    mod_clip_offset = effect.clip_points[0];
+                } else if (t1 < m_time && m_time < t2) {
+                    const double progress =
+                        static_cast<double>(m_time - t1) / (t2 - t1);
+                    mod_clip_offset.x = static_cast<int>(
+                        (1.0 - progress) * effect.clip_points[0].x
+                        + progress * effect.clip_points[1].x);
+                    mod_clip_offset.y = static_cast<int>(
+                        (1.0 - progress) * effect.clip_points[0].y
+                        + progress * effect.clip_points[1].y);
+                } else {
+                    mod_clip_offset = effect.clip_points[1];
+                }
+                has_mod_clip_offset = true;
+            }
+        }
         if(!fPosOverride && !fOrgOverride && !s->m_fAnimated)
             r = m_sla.AllocRect(s, segment, entry, stse.layer, m_collisions);
         CPoint org;
@@ -3339,7 +4274,9 @@ HRESULT CRenderedTextSubtitle::ParseScript(REFERENCE_TIME rt, double fps, CSubti
         clipRect_coor2.right  = clipRect.right  * m_target_scale_x;
         clipRect_coor2.top    = clipRect.top    * m_target_scale_y;
         clipRect_coor2.bottom = clipRect.bottom * m_target_scale_y;
-        CSubtitle2& sub2 = outputSub2List->GetAt(outputSub2List->AddTail( CSubtitle2(s, clipRect_coor2, org, org2, p2, alpha, m_time) ));
+        CSubtitle2& sub2 = outputSub2List->GetAt(outputSub2List->AddTail(
+            CSubtitle2(s, clipRect_coor2, org, org2, p2, alpha, m_time, rt,
+                mod_clip_offset, has_mod_clip_offset) ));
     }
 
     return (subs.GetCount()) ? S_OK : S_FALSE;
@@ -4043,7 +4980,13 @@ void CRenderedTextSubtitle::RenderOneSubtitle( const SIZECoor2& output_size,
             (output_size.cy + video_org.y+margin_rect.top +margin_rect.bottom)>>3);
     }
 
-    SharedPtrCClipperPaintMachine clipper( DEBUG_NEW CClipperPaintMachine(s->m_pClipper) );
+    CPoint clipper_offset(0, 0);
+    if (sub2.has_clip_offset) {
+        clipper_offset.x = static_cast<int>(sub2.clip_offset.x * s->m_target_scale_x);
+        clipper_offset.y = static_cast<int>(sub2.clip_offset.y * s->m_target_scale_y);
+    }
+    SharedPtrCClipperPaintMachine clipper(
+        DEBUG_NEW CClipperPaintMachine(s->m_pClipper, clipper_offset) );
 
     CRect iclipRect[4];
     iclipRect[0] = CRect(0             , 0              , output_size.cx>>3, clipRect.top     );
@@ -4071,10 +5014,10 @@ void CRenderedTextSubtitle::RenderOneSubtitle( const SIZECoor2& output_size,
                 tmp3.AddTail();
                 tmp4.AddTail();
             }
-            bbox2 |= l->PaintAll(&tmp1, iclipRect[0], margin, clipper, p, org2, time, alpha);
-            bbox2 |= l->PaintAll(&tmp2, iclipRect[1], margin, clipper, p, org2, time, alpha);
-            bbox2 |= l->PaintAll(&tmp3, iclipRect[2], margin, clipper, p, org2, time, alpha);
-            bbox2 |= l->PaintAll(&tmp4, iclipRect[3], margin, clipper, p, org2, time, alpha);
+            bbox2 |= l->PaintAll(&tmp1, iclipRect[0], margin, clipper, p, org2, time, alpha, sub2.rt);
+            bbox2 |= l->PaintAll(&tmp2, iclipRect[1], margin, clipper, p, org2, time, alpha, sub2.rt);
+            bbox2 |= l->PaintAll(&tmp3, iclipRect[2], margin, clipper, p, org2, time, alpha, sub2.rt);
+            bbox2 |= l->PaintAll(&tmp4, iclipRect[3], margin, clipper, p, org2, time, alpha, sub2.rt);
             tmpCompDrawItemList.AddTailList(&tmp1);
             tmpCompDrawItemList.AddTailList(&tmp2);
             tmpCompDrawItemList.AddTailList(&tmp3);
@@ -4086,7 +5029,7 @@ void CRenderedTextSubtitle::RenderOneSubtitle( const SIZECoor2& output_size,
             {
                 tmpCompDrawItemList.AddTail();
             }
-            bbox2 |= l->PaintAll(&tmpCompDrawItemList, clipRect, margin, clipper, p, org2, time, alpha);
+            bbox2 |= l->PaintAll(&tmpCompDrawItemList, clipRect, margin, clipper, p, org2, time, alpha, sub2.rt);
         }
         compDrawItemList->AddTailList(&tmpCompDrawItemList);
         p.y += l->m_ascent + l->m_descent;

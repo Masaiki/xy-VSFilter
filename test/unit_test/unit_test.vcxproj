@@ -79,6 +79,7 @@
     <ClInclude Include="test_font_fallback.h" />
     <ClInclude Include="test_media_side_data.h" />
     <ClInclude Include="test_video_info2_color_info.h" />
+    <ClInclude Include="test_vsfilter_mod.h" />
     <ClInclude Include="test_instrinsics_macro.h" />
     <ClInclude Include="test_overall.h" />
     <ClInclude Include="test_subsample_and_interlace.h" />

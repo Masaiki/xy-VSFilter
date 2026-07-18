@@ -88,6 +88,7 @@ bool TextInfoCacheKey::operator==( const TextInfoCacheKey& key ) const
     AddFuncCalls(TextInfoCacheKey_EQUAL);
     return m_str_id == key.m_str_id
         && m_text_renderer_mode == key.m_text_renderer_mode
+        && m_font_orientation == key.m_font_orientation
         && ( m_style==key.m_style ||
         (static_cast<const STSStyleBase&>(m_style).operator==(key.m_style)
         && m_style.get().fontScaleX == key.m_style.get().fontScaleX
@@ -108,6 +109,8 @@ ULONG TextInfoCacheKey::UpdateHashValue()
     m_hash_value += hash_value( m_style.get().fontSpacing );
     m_hash_value += (m_hash_value<<5);
     m_hash_value += m_text_renderer_mode;
+    m_hash_value += (m_hash_value<<5);
+    m_hash_value += hash_value(m_font_orientation);
     return m_hash_value;
 }
 
@@ -137,6 +140,9 @@ ULONG PathDataCacheKey::UpdateHashValue()
     m_hash_value += hash_value(m_scaley);
     m_hash_value += (m_hash_value<<5);
     m_hash_value += m_text_renderer_mode;
+    m_hash_value += (m_hash_value<<5);
+    const uint64_t mod_hash = static_cast<uint64_t>(m_mod_hash);
+    m_hash_value += static_cast<ULONG>(mod_hash ^ (mod_hash >> 32));
     m_hash_value += (m_hash_value<<5);
     m_hash_value += style.charSet;
     m_hash_value += (m_hash_value<<5);
@@ -296,6 +302,9 @@ ULONG OverlayNoOffsetKey::UpdateHashValue()
 bool ClipperAlphaMaskCacheKey::operator==( const ClipperAlphaMaskCacheKey& key ) const
 {
     AddFuncCalls(ClipperAlphaMaskCacheKey_EQUAL);
+    if (m_offset != key.m_offset) {
+        return false;
+    }
     bool result = false;
     if (m_clipper==key.m_clipper)
     {
@@ -322,6 +331,10 @@ ULONG ClipperAlphaMaskCacheKey::UpdateHashValue()
         m_hash_value = ClipperTraits::Hash(*m_clipper);
     else
         m_hash_value = 0;
+    m_hash_value += (m_hash_value << 5);
+    m_hash_value += m_offset.x;
+    m_hash_value += (m_hash_value << 5);
+    m_hash_value += m_offset.y;
     return m_hash_value;
 }
 
@@ -343,7 +356,19 @@ ULONG DrawItemHashKey::UpdateHashValue()
     m_hash_value += (m_hash_value<<5);
     m_hash_value += (m_xsub<<16) + m_ysub;
     m_hash_value += (m_hash_value<<5);
-    m_hash_value += m_switchpts[0];//fix me: other m_switchpts elements?
+    for (int i = 0; i < countof(m_switchpts); ++i)
+    {
+        m_hash_value += m_switchpts[i];
+        m_hash_value += (m_hash_value<<5);
+    }
+    if (m_mod_paint_source)
+    {
+        const size_t mod_hash = m_mod_paint_source->GetHash();
+        m_hash_value += static_cast<ULONG>(mod_hash);
+#ifdef _WIN64
+        m_hash_value += static_cast<ULONG>(mod_hash >> 32);
+#endif
+    }
     return m_hash_value;
 }
 
@@ -355,6 +380,7 @@ DrawItemHashKey::DrawItemHashKey( const DrawItem& draw_item)
     , m_ysub(draw_item.ysub)
     , m_fBody(draw_item.fBody)
     , m_fBorder(draw_item.fBorder)
+    , m_mod_paint_source(draw_item.mod_paint_source)
 {
     for(int i=0;i<countof(m_switchpts);i++)
         m_switchpts[i] = draw_item.switchpts[i];
@@ -370,7 +396,10 @@ bool DrawItemHashKey::operator==( const DrawItemHashKey& key ) const
         m_fBody == key.m_fBody &&
         m_fBorder == key.m_fBorder &&
         !memcmp(m_switchpts, key.m_switchpts, sizeof(m_switchpts)) &&
-        *m_overlay_key==*key.m_overlay_key && 
+        ((m_mod_paint_source.get() == key.m_mod_paint_source.get())
+            || (m_mod_paint_source && key.m_mod_paint_source
+                && *m_mod_paint_source == *key.m_mod_paint_source)) &&
+        *m_overlay_key==*key.m_overlay_key &&
         m_clipper_key==key.m_clipper_key);
 }
 

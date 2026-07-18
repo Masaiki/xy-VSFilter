@@ -32,6 +32,7 @@
 
 #include "../../../subtitles/SubtitleRenderBackend.h"
 #include "../../../subtitles/TextRendererMode.h"
+#include "../../../subtitles/VsFilterCompatibility.h"
 
 namespace
 {
@@ -66,6 +67,38 @@ int GetTextRendererModeComboValue(const CComboBox& combo)
     const int index = combo.GetCurSel();
     return index == CB_ERR ? TEXT_RENDERER_LEGACY_GDI
                            : NormalizeTextRendererMode(static_cast<int>(combo.GetItemData(index)));
+}
+
+void PopulateVsFilterCompatibilityModeCombo(CComboBox& combo, int selected_mode)
+{
+    struct Entry
+    {
+        LPCTSTR label;
+        VsFilterCompatibilityMode mode;
+    };
+    const Entry entries[] = {
+        { _T("xy-VSFilter (default)"), VSFILTER_COMPATIBILITY_XY },
+        { _T("VSFilterMod"), VSFILTER_COMPATIBILITY_MOD },
+    };
+
+    selected_mode = NormalizeVsFilterCompatibilityMode(selected_mode);
+    int selected_index = 0;
+    combo.ResetContent();
+    for (const auto& entry : entries) {
+        const int index = combo.AddString(entry.label);
+        combo.SetItemData(index, entry.mode);
+        if (entry.mode == selected_mode) {
+            selected_index = index;
+        }
+    }
+    combo.SetCurSel(selected_index);
+}
+
+int GetVsFilterCompatibilityModeComboValue(const CComboBox& combo)
+{
+    const int index = combo.GetCurSel();
+    return index == CB_ERR ? VSFILTER_COMPATIBILITY_XY
+                           : NormalizeVsFilterCompatibilityMode(static_cast<int>(combo.GetItemData(index)));
 }
 
 }
@@ -1024,6 +1057,7 @@ CDVSBasePPage(NAME("DirectVobSub More Property Page"), pUnk, IDD_DVSMOREPAGE, ID
 
     BindControl(IDC_CHECKBOX_VS_ASS_RENDERING, m_vsassrendering);
     BindControl(IDC_COMBO_TEXT_RENDERER_MODE, m_text_renderer_mode_combo);
+    BindControl(IDC_COMBO_VSFILTER_COMPATIBILITY_MODE, m_vsfilter_compatibility_mode_combo);
 }
 
 bool CDVSMorePPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -1037,6 +1071,11 @@ bool CDVSMorePPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
             case BN_CLICKED:
                 {
+                    if(LOWORD(wParam) == IDC_CHECKBOX_VS_ASS_RENDERING)
+                    {
+                        m_vsfilter_compatibility_mode_combo.EnableWindow(!!m_vsassrendering.GetCheck());
+                        return(true);
+                    }
                     if(LOWORD(wParam) == IDC_CACHES_INFO_BTN)
                     {
                         AFX_MANAGE_STATE(AfxGetStaticModuleState());
@@ -1123,6 +1162,8 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to set option");
         hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_TEXT_RENDERER_MODE, m_text_renderer_mode);
         CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_VSFILTER_COMPATIBILITY_MODE, m_vsfilter_compatibility_mode);
+        CHECK_N_LOG(hr, "Failed to set option");
     }
     else
     {
@@ -1148,6 +1189,9 @@ void CDVSMorePPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to get option");
         hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_TEXT_RENDERER_MODE, &m_text_renderer_mode);
         m_text_renderer_mode = NormalizeTextRendererMode(m_text_renderer_mode);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_VSFILTER_COMPATIBILITY_MODE, &m_vsfilter_compatibility_mode);
+        m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_vsfilter_compatibility_mode);
         CHECK_N_LOG(hr, "Failed to get option");
     }
 }
@@ -1183,6 +1227,7 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
 
         m_fVSAssRendering = !!m_vsassrendering.GetCheck();
         m_text_renderer_mode = GetTextRendererModeComboValue(m_text_renderer_mode_combo);
+        m_vsfilter_compatibility_mode = GetVsFilterCompatibilityModeComboValue(m_vsfilter_compatibility_mode_combo);
     }
     else
     {
@@ -1241,6 +1286,8 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
 
         m_vsassrendering.SetCheck(m_fVSAssRendering);
         PopulateTextRendererModeCombo(m_text_renderer_mode_combo, m_text_renderer_mode);
+        PopulateVsFilterCompatibilityModeCombo(m_vsfilter_compatibility_mode_combo, m_vsfilter_compatibility_mode);
+        m_vsfilter_compatibility_mode_combo.EnableWindow(m_fVSAssRendering);
     }
 }
 
@@ -1739,6 +1786,7 @@ CXySubFilterMainPPage::CXySubFilterMainPPage(LPUNKNOWN pUnk, HRESULT* phr)
     BindControl(IDC_CSRI_BROWSE, m_csriBrowseButton);
     BindControl(IDC_CSRI_RESET, m_csriResetButton);
     BindControl(IDC_COMBO_RENDER_BACKEND, m_backendCombo);
+    BindControl(IDC_COMBO_VSFILTER_COMPATIBILITY_MODE, m_vsfilterCompatibilityModeCombo);
     BindControl(IDC_ACTUAL_RENDER_BACKEND, m_actualBackendLabel);
 }
 
@@ -1828,6 +1876,15 @@ bool CXySubFilterMainPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                         m_embload.EnableWindow(m_load.GetCurSel() == 1);
                         return(true);
                     }
+                    else if(LOWORD(wParam) == IDC_COMBO_RENDER_BACKEND)
+                    {
+                        const int index = m_backendCombo.GetCurSel();
+                        const auto backend = index == CB_ERR
+                            ? SUBTITLE_RENDER_BACKEND_LIBASS
+                            : NormalizeBackend(static_cast<int>(m_backendCombo.GetItemData(index)));
+                        m_vsfilterCompatibilityModeCombo.EnableWindow(backend == SUBTITLE_RENDER_BACKEND_VSFILTER);
+                        return(true);
+                    }
                 }
                 break;
             }
@@ -1883,6 +1940,8 @@ void CXySubFilterMainPPage::UpdateObjectData(bool fSave)
         }
         hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, m_backend);
         CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_VSFILTER_COMPATIBILITY_MODE, m_vsfilter_compatibility_mode);
+        CHECK_N_LOG(hr, "Failed to set option");
     }
     else
     {
@@ -1921,6 +1980,9 @@ void CXySubFilterMainPPage::UpdateObjectData(bool fSave)
         CHECK_N_LOG(hr, "Failed to get option");
         hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, &m_backend);
         CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_VSFILTER_COMPATIBILITY_MODE, &m_vsfilter_compatibility_mode);
+        m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_vsfilter_compatibility_mode);
+        CHECK_N_LOG(hr, "Failed to get option");
     }
 }
 
@@ -1950,6 +2012,7 @@ void CXySubFilterMainPPage::UpdateControlData(bool fSave)
         m_fWebLoad = !!m_webload.GetCheck();
         m_fEmbeddedLoad = !!m_embload.GetCheck();
         if (m_backendCombo.GetCurSel() >= 0) m_backend = m_backendCombo.GetItemData(m_backendCombo.GetCurSel());
+        m_vsfilter_compatibility_mode = GetVsFilterCompatibilityModeComboValue(m_vsfilterCompatibilityModeCombo);
     }
     else
     {
@@ -2001,6 +2064,9 @@ void CXySubFilterMainPPage::UpdateControlData(bool fSave)
             if (entry.value == m_backend) backend_index = index;
         }
         m_backendCombo.SetCurSel(backend_index);
+        PopulateVsFilterCompatibilityModeCombo(m_vsfilterCompatibilityModeCombo, m_vsfilter_compatibility_mode);
+        m_vsfilterCompatibilityModeCombo.EnableWindow(
+            NormalizeBackend(m_backend) == SUBTITLE_RENDER_BACKEND_VSFILTER);
 
         int actual_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
         if (SUCCEEDED(m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_ACTUAL_SUBTITLE_RENDER_BACKEND, &actual_backend))) {

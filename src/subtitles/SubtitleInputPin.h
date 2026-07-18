@@ -25,6 +25,7 @@
 #include "csri_loader.h"
 #include "SubtitleRenderBackend.h"
 #include "TextRendererMode.h"
+#include "VsFilterCompatibility.h"
 
 //
 // CSubtitleInputPinHelper
@@ -88,5 +89,6 @@ public:
     
     SubtitleRenderBackend m_render_backend;
     TextRendererMode m_text_renderer_mode;
+    VsFilterCompatibilityMode m_vsfilter_compatibility_mode;
     std::shared_ptr<CSRI_Loader> m_csri_loader;
 };

@@ -32,6 +32,7 @@
 #include "../../../SubPic/SimpleSubPicProviderImpl.h"
 #include "../../../SubPic/PooledSubPic.h"
 #include "../../../subpic/SimpleSubPicWrapper.h"
+#include "../../../subtitles/VsFilterCompatibility.h"
 
 #include <initguid.h>
 #include "..\..\..\..\include\moreuuids.h"
@@ -112,11 +113,13 @@ CDirectVobSubFilter::CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUI
 
     m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
     m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
+    m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE] = static_cast<int>(NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]));
 
     HRESULT hr = S_OK;
     auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
     pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
     pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
+    pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
     m_pTextInput.Add(pin);
     ASSERT(SUCCEEDED(hr));
 
@@ -1569,6 +1572,7 @@ bool CDirectVobSubFilter::Open()
             CAutoPtr<CRenderedTextSubtitle> pRTS(new CRenderedTextSubtitle(&m_csSubLock));
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             if (pRTS) pRTS->SetTextRendererMode(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
+            if (pRTS) pRTS->SetVsFilterCompatibilityMode(NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]));
             pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
                 ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
             });
@@ -1866,6 +1870,7 @@ void CDirectVobSubFilter::AddSubStream(ISubStream* pSubStream)
         auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
         pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
         pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
+        pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
 		m_pTextInput.Add(pin);
 	}
 }
@@ -2295,6 +2300,24 @@ HRESULT CDirectVobSubFilter::OnOptionChanged( unsigned field )
             auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
             if (rts) {
                 rts->SetTextRendererMode(mode);
+            }
+        }
+        InvalidateSubtitle();
+        break;
+    }
+    case INT_VSFILTER_COMPATIBILITY_MODE:
+    {
+        const auto mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+        m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE] = static_cast<int>(mode);
+        for(int i = 0; i < m_pTextInput.GetCount(); i++)
+            m_pTextInput[i]->m_vsfilter_compatibility_mode = mode;
+        POSITION pos = m_pSubStreams.GetHeadPosition();
+        while(pos)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+            if (rts) {
+                rts->SetVsFilterCompatibilityMode(mode);
             }
         }
         InvalidateSubtitle();

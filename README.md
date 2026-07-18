@@ -18,7 +18,37 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
 3. In Visual Studio, manully set the Runtime Library of libass and its dependencies to "/MT" for Release and "/MTd" for Debug. See [here](https://docs.microsoft.com/en-us/cpp/build/reference/md-mt-ld-use-run-time-library?view=msvc-170) for more.
 4. Build project xy_sub_filter.
 
+## VSFilterMod compatibility
+
+The `VSFilter` rendering backend has an explicit `VSFilter compatibility`
+setting:
+
+- `xy-VSFilter (default)` preserves the existing xy-VSFilter behavior.
+- `VSFilterMod` enables the MOD-only tag semantics.
+
+The setting is disabled, but retained, while another rendering backend is
+selected. It is never selected automatically from subtitle contents.
+
+Implemented MOD commands include `\1img` through `\4img`, `\1vc` through
+`\4vc`, `\1va` through `\4va`, `\distort`, `\frs`, `\fsvp`, `\jitter`,
+`\mover`, `\moves3`, `\moves4`, `\movevc`, `\rnd`, `\rndx`, `\rndy`,
+`\rndz`, `\rnds`, and `\z`, together with the VSFilterMod forms of `\fsc`,
+`\pos`, and `\org`. External PNG files, ASS `[Graphics]` resources, subtitle
+directory lookup, and the Aegisub resource path are supported.
+
+Ordinary solid-color subtitles continue to use the existing SSE2 rasterizer
+path. MOD state is allocated only after a MOD feature is applied, PNG files are
+decoded through WIC once per resource state, and only gradient/image draw items
+use the variable-paint pixel loop. Switching compatibility mode clears rendered
+subtitle and bitmap state while retaining the shared lexical ASS-tag cache.
+
 ## Note
 This project (XySubFilter with libass) is a **variant** of XySubFilter, which uses [libass](https://github.com/libass/libass) to render **SSA/ASS**, so
 1. This project may have some compatibility issues with XySubFilter when rendering SSA/ASS, which is largely dependent on the libass ( of course, we welcome issues, if you don't know whether this comes from libass or from itself )
 2. As for the rest of the project ( such as srt, sup and other basic parts ), I basically left it unchanged, so basically it inherits all the strengths and weaknesses of the original project
+
+## License
+
+The VSFilterMod-derived compatibility work is covered by GPLv3. See
+[NOTICE-VSFilterMod.md](NOTICE-VSFilterMod.md) for source, commit, copyright,
+and distribution details.

@@ -16,6 +16,41 @@
 
 using namespace std;
 
+namespace
+{
+BYTE MultiplyAlpha(BYTE lhs, BYTE rhs)
+{
+    const unsigned value = static_cast<unsigned>(lhs) * rhs;
+    return static_cast<BYTE>((value + 1 + ((value + 1) >> 8)) >> 8);
+}
+
+void BlendPackedPixel(DWORD* destination, DWORD color, BYTE alpha)
+{
+    const int inverse_alpha = 256 - alpha;
+    const int source_alpha = alpha + 1;
+    *destination =
+        ((((*destination & 0x00ff00ff) * inverse_alpha
+            + (color & 0x00ff00ff) * source_alpha) & 0xff00ff00) >> 8)
+        | ((((*destination & 0x0000ff00) * inverse_alpha
+            + (color & 0x0000ff00) * source_alpha) & 0x00ff0000) >> 8)
+        | ((((*destination >> 8) & 0x00ff0000) * inverse_alpha) & 0xff000000);
+}
+
+void BlendPlanarPixel(BYTE* destination_a, BYTE* destination_y,
+    BYTE* destination_u, BYTE* destination_v, DWORD color, BYTE alpha)
+{
+    const int inverse_alpha = 256 - alpha;
+    const int source_alpha = alpha + 1;
+    *destination_y = static_cast<BYTE>(
+        (*destination_y * inverse_alpha + ((color >> 16) & 0xff) * source_alpha) >> 8);
+    *destination_u = static_cast<BYTE>(
+        (*destination_u * inverse_alpha + ((color >> 8) & 0xff) * source_alpha) >> 8);
+    *destination_v = static_cast<BYTE>(
+        (*destination_v * inverse_alpha + (color & 0xff) * source_alpha) >> 8);
+    *destination_a = static_cast<BYTE>((*destination_a * inverse_alpha) >> 8);
+}
+}
+
 //////////////////////////////////////////////////////////////////////////
 //
 // DrawItem
@@ -48,6 +83,9 @@ CRectCoor2 DrawItem::GetDirtyRect()
 
 CRectCoor2 DrawItem::Draw( XyBitmap* bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect )
 {
+    if (draw_item.mod_paint_source) {
+        return ModPaintDraw(bitmap, draw_item, clip_rect);
+    }
 
     // PF 20180411 disable use_addition=true for planar
     // because bitmap->type == XyBitmap::PLANNA is not supported and
@@ -77,6 +115,102 @@ CRectCoor2 DrawItem::AlphaBltDraw( XyBitmap* bitmap, DrawItem& draw_item, const 
     return result;
 }
 
+CRectCoor2 DrawItem::ModPaintDraw(XyBitmap* bitmap, DrawItem& draw_item,
+    const CRectCoor2& clip_rect)
+{
+    CRect result;
+    SharedPtrGrayImage2 alpha_mask;
+    draw_item.clipper->Paint(&alpha_mask);
+
+    SharedPtrOverlay overlay;
+    ASSERT(draw_item.overlay_paint_machine);
+    draw_item.overlay_paint_machine->Paint(&overlay);
+
+    const DWORD coverage_switchpts[6] = {0xff000000, 0xffffffff, 0, 0, 0, 0};
+    const SharedPtrByte& coverage = Rasterizer::CompositeAlphaMask(
+        overlay, draw_item.clip_rect & clip_rect, alpha_mask.get(),
+        draw_item.xsub, draw_item.ysub, coverage_switchpts,
+        draw_item.fBody, draw_item.fBorder, &result);
+    if (!coverage || result.IsRectEmpty() || !bitmap) {
+        return result;
+    }
+
+    const int overlay_x = (draw_item.xsub + overlay->mOffsetX + 4) >> 3;
+    const int overlay_y = (draw_item.ysub + overlay->mOffsetY + 4) >> 3;
+    const int xo = result.left - overlay_x;
+    const int yo = result.top - overlay_y;
+    const int width = result.Width();
+    const int height = result.Height();
+    const BYTE* source = coverage.get() + overlay->mOverlayPitch * yo + xo;
+    const bool single_layer = draw_item.switchpts[1] == 0xffffffff;
+    const int switch_x = static_cast<int>(draw_item.switchpts[3]);
+    const int subpixel_x = draw_item.xsub & 7;
+    const int subpixel_y = draw_item.ysub & 7;
+    const int mod_gradient_height = overlay->mVsFilterModGradientHeight > 0
+        ? overlay->mVsFilterModGradientHeight
+        : overlay->mOverlayHeight;
+    const CRect effective_clip = draw_item.clip_rect & clip_rect;
+    const int mod_bottom = overlay_y + mod_gradient_height;
+    const int mod_visible_bottom = min(mod_bottom, effective_clip.bottom);
+    const int mod_y_offset = max(0, mod_visible_bottom - result.bottom);
+    const int image_clip_diff = max(0, mod_bottom - mod_visible_bottom);
+
+    ASSERT(result.left >= bitmap->x && result.top >= bitmap->y
+        && result.right <= bitmap->x + bitmap->w
+        && result.bottom <= bitmap->y + bitmap->h);
+
+    if (bitmap->type == XyBitmap::PLANNA) {
+        const int destination_offset = bitmap->pitch * (result.top - bitmap->y)
+            + result.left - bitmap->x;
+        BYTE* destination_a = bitmap->plans[0] + destination_offset;
+        BYTE* destination_y = bitmap->plans[1] + destination_offset;
+        BYTE* destination_u = bitmap->plans[2] + destination_offset;
+        BYTE* destination_v = bitmap->plans[3] + destination_offset;
+        for (int row = 0; row < height; ++row) {
+            const int paint_y = height - row - 1 + mod_y_offset;
+            for (int column = 0; column < width; ++column) {
+                const int paint_x = xo + column;
+                const int layer = single_layer || paint_x < switch_x + 1 ? 0 : 1;
+                const DWORD color = draw_item.mod_paint_source->GetColor(
+                    layer, paint_x, paint_y, overlay->mOverlayWidth,
+                    mod_gradient_height, subpixel_x, subpixel_y,
+                    image_clip_diff);
+                const BYTE alpha = MultiplyAlpha(source[column],
+                    static_cast<BYTE>(color >> 24));
+                BlendPlanarPixel(&destination_a[column], &destination_y[column],
+                    &destination_u[column], &destination_v[column], color, alpha);
+            }
+            source += overlay->mOverlayPitch;
+            destination_a += bitmap->pitch;
+            destination_y += bitmap->pitch;
+            destination_u += bitmap->pitch;
+            destination_v += bitmap->pitch;
+        }
+    } else {
+        const int destination_offset = bitmap->pitch * (result.top - bitmap->y)
+            + (result.left - bitmap->x) * 4;
+        BYTE* destination_row = bitmap->plans[0] + destination_offset;
+        for (int row = 0; row < height; ++row) {
+            DWORD* destination = reinterpret_cast<DWORD*>(destination_row);
+            const int paint_y = height - row - 1 + mod_y_offset;
+            for (int column = 0; column < width; ++column) {
+                const int paint_x = xo + column;
+                const int layer = single_layer || paint_x < switch_x + 1 ? 0 : 1;
+                const DWORD color = draw_item.mod_paint_source->GetColor(
+                    layer, paint_x, paint_y, overlay->mOverlayWidth,
+                    mod_gradient_height, subpixel_x, subpixel_y,
+                    image_clip_diff);
+                const BYTE alpha = MultiplyAlpha(source[column],
+                    static_cast<BYTE>(color >> 24));
+                BlendPackedPixel(&destination[column], color, alpha);
+            }
+            source += overlay->mOverlayPitch;
+            destination_row += bitmap->pitch;
+        }
+    }
+    return result;
+}
+
 CRectCoor2 DrawItem::AdditionDraw( XyBitmap *bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect )
 {
     TRACE_DRAW("AdditionDraw");
@@ -98,7 +232,8 @@ CRectCoor2 DrawItem::AdditionDraw( XyBitmap *bitmap, DrawItem& draw_item, const 
 }
 
 DrawItem* DrawItem::CreateDrawItem( const SharedPtrOverlayPaintMachine& overlay_paint_machine, const CRect& clipRect,
-    const SharedPtrCClipperPaintMachine &clipper, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder )
+    const SharedPtrCClipperPaintMachine &clipper, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder,
+    const SharedPtrConstModPaintSource& mod_paint_source )
 {
     DrawItem* result              = DEBUG_NEW DrawItem();
     result->overlay_paint_machine = overlay_paint_machine;
@@ -110,6 +245,7 @@ DrawItem* DrawItem::CreateDrawItem( const SharedPtrOverlayPaintMachine& overlay_
     memcpy(result->switchpts, switchpts, sizeof(result->switchpts));
     result->fBody   = fBody;
     result->fBorder = fBorder;
+    result->mod_paint_source = mod_paint_source;
 
     result->use_addition_draw = false;
 

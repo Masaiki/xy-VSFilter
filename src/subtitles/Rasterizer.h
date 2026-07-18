@@ -155,6 +155,7 @@ public:
     {
         mOffsetX=mOffsetY=mWidth=mHeight=0;
         mOverlayWidth=mOverlayHeight=mOverlayPitch=0;
+        mVsFilterModGradientHeight=0;
         mfWideOutlineEmpty = false;
     }
     ~Overlay()
@@ -168,6 +169,7 @@ public:
         mBorder.reset((BYTE*)NULL);
         mOffsetX=mOffsetY=mWidth=mHeight=0;
         mOverlayWidth=mOverlayHeight=mOverlayPitch=0;
+        mVsFilterModGradientHeight=0;
         mfWideOutlineEmpty = false;
     }
 
@@ -181,8 +183,9 @@ public:
     SharedPtrByte mBorder;
     int mOffsetX, mOffsetY;
     int mWidth, mHeight;
-        
+
     int mOverlayWidth, mOverlayHeight, mOverlayPitch;
+    int mVsFilterModGradientHeight;
 
     bool mfWideOutlineEmpty;//specially for blur
 };

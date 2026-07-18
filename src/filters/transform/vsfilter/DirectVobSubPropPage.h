@@ -168,8 +168,10 @@ class CDVSMorePPage : public CDVSBasePPage
 
     bool m_fVSAssRendering;
     int m_text_renderer_mode;
+    int m_vsfilter_compatibility_mode;
     CButton m_vsassrendering;
     CComboBox m_text_renderer_mode_combo;
+    CComboBox m_vsfilter_compatibility_mode_combo;
 protected:
     virtual bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
     virtual void UpdateControlData(bool fSave);
@@ -267,12 +269,14 @@ class CXySubFilterMainPPage : public CDVSBasePPage
     bool m_fOnlyShowForcedVobSubs;
     CSimpleTextSubtitle::EPARCompensationType m_ePARCompensationType;
     int m_backend;
+    int m_vsfilter_compatibility_mode;
     int m_LoadLevel;
     bool m_fExternalLoad, m_fWebLoad, m_fEmbeddedLoad;
 
     CEdit m_fnedit;
     CComboBox m_langs;
     CComboBox m_backendCombo;
+    CComboBox m_vsfilterCompatibilityModeCombo;
     CButton m_oplacement;
     CSpinButtonCtrl m_subposx, m_subposy;
     CButton m_styles, m_force_default_style, m_forcedsubs;

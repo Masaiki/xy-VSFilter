@@ -435,6 +435,7 @@ CSubtitleInputPin::CSubtitleInputPin(CBaseFilter* pFilter, CCritSec* pLock, CCri
     , m_helper(NULL)
     , m_render_backend(SUBTITLE_RENDER_BACKEND_LIBASS)
     , m_text_renderer_mode(TEXT_RENDERER_LEGACY_GDI)
+    , m_vsfilter_compatibility_mode(VSFILTER_COMPATIBILITY_XY)
 {
     m_bCanReconnectWhenActive = TRUE;
 }
@@ -478,6 +479,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
         CRenderedTextSubtitle* pRTS = DEBUG_NEW CRenderedTextSubtitle(m_pSubLock);
         pRTS && (pRTS->m_render_backend = m_render_backend);
         if (pRTS) pRTS->SetTextRendererMode(m_text_renderer_mode);
+        if (pRTS) pRTS->SetVsFilterCompatibilityMode(m_vsfilter_compatibility_mode);
         pRTS->m_name = CString(GetPinName(pReceivePin)) + _T(" (embeded)");
         pRTS->m_dstScreenSize = CSize(384, 288);
         ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);
@@ -525,6 +527,7 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
             CRenderedTextSubtitle* pRTS = DEBUG_NEW CRenderedTextSubtitle(m_pSubLock);
             pRTS && (pRTS->m_render_backend = m_render_backend);
             if (pRTS) pRTS->SetTextRendererMode(m_text_renderer_mode);
+            if (pRTS) pRTS->SetVsFilterCompatibilityMode(m_vsfilter_compatibility_mode);
             pRTS->m_name = name;
             pRTS->m_lcid = lcid;
             pRTS->m_dstScreenSize = CSize(384, 288);

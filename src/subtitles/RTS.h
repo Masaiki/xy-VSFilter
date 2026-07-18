@@ -30,6 +30,7 @@
 #include <boost/smart_ptr.hpp>
 #include "mru_cache.h"
 #include "xy_int_map.h"
+#include "mod_style.h"
 
 //how hard positioned is the ass cmd 
 enum AssCmdPosLevel
@@ -44,7 +45,7 @@ class CMyFont : public CFont
 public:
     int m_ascent, m_descent;
 
-    CMyFont(const STSStyleBase& style);
+    CMyFont(const STSStyleBase& style, double orientation = 0);
 };
 
 typedef ::boost::flyweights::flyweight<::boost::flyweights::key_value<STSStyleBase, CMyFont>, ::boost::flyweights::no_locking> FwCMyFont;
@@ -73,6 +74,7 @@ class CWord
 {
     bool NeedTransform  ();
     void Transform      (PathData* path_data, const CPointCoor2& org);
+    void TransformMod   (PathData* path_data, const CPointCoor2& org);
 //  void Transform_C    (PathData* path_data, const CPointCoor2 &org );
 //  void Transform_SSE2 (PathData* path_data, const CPointCoor2 &org );
     bool CreateOpaqueBox();
@@ -85,7 +87,8 @@ public:
     // str[0] = 0 -> m_fLineBreak = true (in this case we only need and use the height of m_font from the whole class)
     CWord(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
         , double target_scale_x=1.0, double target_scale_y=1.0
-        , bool round_to_whole_pixel_after_scale_to_target = false);
+        , bool round_to_whole_pixel_after_scale_to_target = false
+        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState());
     CWord(const CWord&);
     virtual ~CWord();
 
@@ -105,6 +108,7 @@ protected:
 public:
     bool              m_fWhiteSpaceChar, m_fLineBreak;
     FwSTSStyle        m_style;
+    SharedPtrConstModStyleState m_mod_style;
     SharedPtrCPolygon m_pOpaqueBox;
     int               m_ktype, m_kstart, m_kend;
     int               m_width, m_ascent, m_descent;
@@ -132,11 +136,12 @@ protected:
     virtual bool CreatePath(PathData* path_data);
 
     static void GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str,
-                            TextRendererMode text_renderer_mode);
+                            TextRendererMode text_renderer_mode, double font_orientation);
 public:
     CText(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
         , double target_scale_x=1.0, double target_scale_y=1.0
-        , TextRendererMode text_renderer_mode=TEXT_RENDERER_LEGACY_GDI);
+        , TextRendererMode text_renderer_mode=TEXT_RENDERER_LEGACY_GDI
+        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState());
     CText(const CText& src);
 
     virtual SharedPtrCWord Copy();
@@ -166,7 +171,8 @@ public:
     CPolygon(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
         , double scalex, double scaley, int baseline
         , double target_scale_x=1.0, double target_scale_y=1.0
-        , bool round_to_whole_pixel_after_scale_to_target = false);
+        , bool round_to_whole_pixel_after_scale_to_target = false
+        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState());
 	// can't use a const reference because we need to use CAtlArray::Copy which expects a non-const reference
     CPolygon(CPolygon&); 
     virtual ~CPolygon();
@@ -252,10 +258,10 @@ public:
     void AddWord2Tail(SharedPtrCWord words);
     bool IsEmpty();
 
-    CRectCoor2 PaintAll(CompositeDrawItemList* output, const CRectCoor2& clipRect, 
+    CRectCoor2 PaintAll(CompositeDrawItemList* output, const CRectCoor2& clipRect,
         const CPointCoor2& margin,
-        const SharedPtrCClipperPaintMachine &clipper, 
-        CPoint p, const CPoint& org, const int time, const int alpha);
+        const SharedPtrCClipperPaintMachine &clipper,
+        CPoint p, const CPoint& org, const int time, const int alpha, REFERENCE_TIME rt);
 };
 
 class CSubtitle: private CAtlList<CLine*>
@@ -272,6 +278,7 @@ public:
     bool                     m_fAnimated2; //If this Subtitle has animate effect
     int                      m_relativeTo;
     Effect*                  m_effects[EF_NUMBEROFEFFECTS];
+    SharedPtrModEffectState      m_mod_effects;
     CAtlList<SharedPtrCWord> m_words;
     SharedPtrCClipper        m_pClipper;
     CRect                    m_rect, m_clip;
@@ -295,11 +302,13 @@ public:
 
 struct CSubtitle2
 {
-    CSubtitle2():s(NULL){}
+    CSubtitle2():s(NULL), clip_offset(0, 0), has_clip_offset(false), rt(0){}
 
     CSubtitle2(CSubtitle* s_,const CRectCoor2& clipRect_, const CPoint& org_, const CPoint& org2_
-        , const CPoint& p_, int alpha_, int time_)
+        , const CPoint& p_, int alpha_, int time_, REFERENCE_TIME rt_
+        , const CPoint& clip_offset_ = CPoint(0, 0), bool has_clip_offset_ = false)
         : s(s_), clipRect(clipRect_), org(org_), org2(org2_), p(p_), alpha(alpha_), time(time_)
+        , clip_offset(clip_offset_), has_clip_offset(has_clip_offset_), rt(rt_)
     {
 
     }
@@ -311,6 +320,9 @@ struct CSubtitle2
     const CPoint     p;
     int              alpha;
     int              time;
+    CPoint           clip_offset;
+    bool             has_clip_offset;
+    REFERENCE_TIME   rt;
 };
 
 typedef CAtlList<CSubtitle2> CSubtitle2List;
@@ -392,10 +404,36 @@ public:
         CMD_xshad,
         CMD_ybord,
         CMD_yshad,
+        CMD_1img,
+        CMD_2img,
+        CMD_3img,
+        CMD_4img,
+        CMD_1vc,
+        CMD_2vc,
+        CMD_3vc,
+        CMD_4vc,
+        CMD_1va,
+        CMD_2va,
+        CMD_3va,
+        CMD_4va,
+        CMD_distort,
+        CMD_frs,
+        CMD_fsvp,
+        CMD_jitter,
+        CMD_mover,
+        CMD_moves3,
+        CMD_moves4,
+        CMD_movevc,
+        CMD_rnd,
+        CMD_rndx,
+        CMD_rndy,
+        CMD_rndz,
+        CMD_rnds,
+        CMD_z,
         CMD_COUNT
     };
     static const int MIN_CMD_LENGTH = 1;//c etc
-    static const int MAX_CMD_LENGTH = 5;//alpha, iclip, xbord, xshad, ybord, yshad
+    static const int MAX_CMD_LENGTH = 7;//distort
     static CAtlMap<CStringW, AssCmdType, CStringElementTraits<CStringW>> m_cmdMap;
 
     static CAtlArray<AssCmdPosLevel> m_cmd_pos_level;
@@ -437,21 +475,25 @@ private:
     static void InitCmdMap();
 
     void ParseEffect (CSubtitle* sub, const CString& str);
-    void ParseString (CSubtitle* sub, CStringW str, const FwSTSStyle& style);
-    void ParsePolygon(CSubtitle* sub, const CStringW& str, const FwSTSStyle& style);
+    void ParseString (CSubtitle* sub, CStringW str, const FwSTSStyle& style, const SharedPtrConstModStyleState& mod_style);
+    void ParsePolygon(CSubtitle* sub, const CStringW& str, const FwSTSStyle& style, const SharedPtrConstModStyleState& mod_style);
 
     static bool ParseSSATag(AssTagList *assTags, const CStringW& str);
-    bool ParseSSATag(CSubtitle* sub, const AssTagList& assTags, STSStyle& style, const STSStyle& org, bool fAnimate = false);
-    bool ParseSSATag(CSubtitle* sub, const CStringW& str, STSStyle& style, const STSStyle& org, bool fAnimate = false);
+    bool ParseSSATag(CSubtitle* sub, const AssTagList& assTags, STSStyle& style, const STSStyle& org,
+        SharedPtrModStyleState& mod_style, bool fAnimate = false);
+    bool ParseSSATag(CSubtitle* sub, const CStringW& str, STSStyle& style, const STSStyle& org,
+        SharedPtrModStyleState& mod_style, bool fAnimate = false);
 
     bool ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org);
 
     double CalcAnimation(double dst, double src, bool fAnimate);
+    bool IsVsFilterModMode() const;
 
     CSubtitle* GetSubtitle(int entry);
 
     void ClearUnCachedSubtitle(CSubtitle2List& sub2List);
     void ShrinkCache();
+    void Deinit(bool clear_ass_tag_cache, bool reset_geometry);
 private:
     static std::size_t s_max_cache_size;
 protected:
@@ -469,6 +511,7 @@ public:
         const SIZE& original_video_size); // will call Deinit()
     void Deinit();
     void SetTextRendererMode(TextRendererMode mode);
+    void SetVsFilterCompatibilityMode(VsFilterCompatibilityMode mode);
 
     DECLARE_IUNKNOWN
     STDMETHODIMP NonDelegatingQueryInterface(REFIID riid, void** ppv);

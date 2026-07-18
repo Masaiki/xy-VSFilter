@@ -1,5 +1,6 @@
 #define CSRIAPI extern "C" __declspec(dllimport)
 #include "csri.h"
+#include <cstdint>
 #include <vector>
 
 using namespace std;
@@ -25,7 +26,8 @@ void OverallTest( float fps /*= 25*/, int width/*=1280*/, int height/*=720*/, do
     memset(&frame, 0, sizeof(frame));
     frame.pixfmt = CSRI_F_BGR_;
 	frame.planes[0] = &buf[0]+16;
-    frame.planes[0] = (unsigned char*)((int)(frame.planes[0]) & ~15);
+    frame.planes[0] = reinterpret_cast<unsigned char*>(
+        reinterpret_cast<uintptr_t>(frame.planes[0]) & ~static_cast<uintptr_t>(15));
     frame.strides[0] = ((width+15)&~15);
     
     for (double time=start;time<end;time+=1/fps)

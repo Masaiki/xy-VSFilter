@@ -44,6 +44,9 @@
     <ClInclude Include="test_video_info2_color_info.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test_vsfilter_mod.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="test_instrinsics_macro.h">
       <Filter>Header Files</Filter>
     </ClInclude>

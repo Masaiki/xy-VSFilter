@@ -1420,6 +1420,106 @@ static bool LoadUUEFont(CTextFile* file)
     return(true);
 }
 
+static bool DecodeUUEGraphic(const CStringW& encoded, std::vector<BYTE>& output)
+{
+    const int len = encoded.GetLength();
+    if (len == 0 || (len & 3) == 1) {
+        return false;
+    }
+
+    std::vector<BYTE> data(static_cast<size_t>(len));
+    for (int i = 0; i < len; ++i) {
+        data[i] = static_cast<BYTE>(encoded[i] - 33);
+    }
+
+    size_t decoded_length = 0;
+    const int complete = len & ~3;
+    for (int i = 0; i < complete; i += 4) {
+        output.push_back(static_cast<BYTE>(
+            ((data[i] & 63) << 2) | ((data[i + 1] >> 4) & 3)));
+        output.push_back(static_cast<BYTE>(
+            ((data[i + 1] & 15) << 4) | ((data[i + 2] >> 2) & 15)));
+        output.push_back(static_cast<BYTE>(
+            ((data[i + 2] & 3) << 6) | (data[i + 3] & 63)));
+        decoded_length += 3;
+    }
+
+    if ((len & 3) == 2) {
+        output.push_back(static_cast<BYTE>(
+            ((data[complete] & 63) << 2) | ((data[complete + 1] >> 4) & 3)));
+        ++decoded_length;
+    } else if ((len & 3) == 3) {
+        output.push_back(static_cast<BYTE>(
+            ((data[complete] & 63) << 2) | ((data[complete + 1] >> 4) & 3)));
+        output.push_back(static_cast<BYTE>(
+            ((data[complete + 1] & 15) << 4) | ((data[complete + 2] >> 2) & 15)));
+        decoded_length += 2;
+    }
+    return decoded_length == output.size();
+}
+
+static void RegisterEmbeddedGraphic(CSimpleTextSubtitle& subtitle,
+    const CStringW& resource_id, const CStringW& encoded)
+{
+    if (resource_id.IsEmpty() || encoded.IsEmpty()) {
+        return;
+    }
+
+    std::vector<BYTE> decoded;
+    decoded.reserve(static_cast<size_t>(encoded.GetLength()) * 3 / 4 + 2);
+    if (DecodeUUEGraphic(encoded, decoded) && !decoded.empty()) {
+        subtitle.m_mod_image_cache.RegisterEmbedded(resource_id, &decoded[0], decoded.size());
+    }
+}
+
+static bool LoadUUEGraphic(CTextFile* file, CSimpleTextSubtitle& subtitle,
+    CStringW resource_id)
+{
+    CStringW line;
+    CStringW encoded;
+    resource_id.Trim();
+    while (file->ReadString(line)) {
+        FastTrim(line);
+        if (line.IsEmpty()) {
+            break;
+        }
+        if (line[0] == L'[') {
+            break;
+        }
+
+        CStringW lower(line);
+        lower.MakeLower();
+        if (lower.Find(L"filename:") == 0) {
+            RegisterEmbeddedGraphic(subtitle, resource_id, encoded);
+            resource_id = line.Mid(9);
+            resource_id.Trim();
+            encoded.Empty();
+            continue;
+        }
+        encoded += line;
+    }
+
+    RegisterEmbeddedGraphic(subtitle, resource_id, encoded);
+    return true;
+}
+
+static bool IsAegisubProcess()
+{
+    std::vector<wchar_t> path(32768);
+    const DWORD length = GetModuleFileNameW(NULL, &path[0], static_cast<DWORD>(path.size()));
+    if (length == 0 || length >= path.size()) {
+        return false;
+    }
+
+    CStringW executable(&path[0], static_cast<int>(length));
+    executable.MakeLower();
+    const int slash = executable.ReverseFind(L'\\');
+    if (slash >= 0) {
+        executable = executable.Mid(slash + 1);
+    }
+    return executable.Find(L"aegisub") >= 0;
+}
+
 static bool OpenSubStationAlpha(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet)
 {
     bool fRet = false;
@@ -1535,7 +1635,6 @@ if(sver <= 4)   {for(size_t i = 0; i < 3; i++) style->alpha[i] = alpha; style->a
 if(sver >= 5)   for(size_t i = 0; i < 4; i++) {style->alpha[i] = (BYTE)(style->colors[i]>>24); style->colors[i] &= 0xffffff;}
 if(sver >= 5)   style->fontScaleX = max(style->fontScaleX, 0);
 if(sver >= 5)   style->fontScaleY = max(style->fontScaleY, 0);
-if(sver >= 5)   style->fontSpacing = max(style->fontSpacing, 0);
                 style->fontAngleX = style->fontAngleY = 0;
                 style->borderStyle = style->borderStyle == 1 ? 0 : style->borderStyle == 3 ? 1 : 0;
                 style->outlineWidthX = max(style->outlineWidthX, 0);
@@ -1629,6 +1728,21 @@ if(sver <= 4)   style->scrAlignment = (style->scrAlignment&4) ? ((style->scrAlig
         else if(entry == L"fontname")
         {
             LoadUUEFont(file);
+        }
+        else if(entry == L"filename")
+        {
+            LoadUUEGraphic(file, ret, GetStr(buff));
+        }
+        else if(entry == L"update details" && IsAegisubProcess())
+        {
+            CStringW resource_path = GetStr(buff);
+            resource_path.Trim();
+            if (!resource_path.IsEmpty()
+                    && resource_path[resource_path.GetLength() - 1] != L'\\'
+                    && resource_path[resource_path.GetLength() - 1] != L'/') {
+                resource_path += L'\\';
+            }
+            ret.m_mod_resource_path = resource_path;
         }
         else if(entry == L"ycbcr matrix")
         {
@@ -1762,7 +1876,6 @@ static bool OpenXombieSub(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet
 
                 style->fontScaleX = max(style->fontScaleX, 0);
                 style->fontScaleY = max(style->fontScaleY, 0);
-                style->fontSpacing = max(style->fontSpacing, 0);
                 style->borderStyle = style->borderStyle == 1 ? 0 : style->borderStyle == 3 ? 1 : 0;
                 style->outlineWidthX = max(style->outlineWidthX, 0);
                 style->outlineWidthY = max(style->outlineWidthY, 0);
@@ -1975,6 +2088,7 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
     m_ass_context          = {};
     m_render_backend       = SUBTITLE_RENDER_BACKEND_LIBASS;
     m_text_renderer_mode   = TEXT_RENDERER_LEGACY_GDI;
+    m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_XY;
     m_csri_context = {};
 }
 
@@ -1988,6 +2102,9 @@ void CSimpleTextSubtitle::Copy(CSimpleTextSubtitle& sts)
     Empty();
 
     m_name                         = sts.m_name;
+    m_path                         = sts.m_path;
+    m_mod_resource_path            = sts.m_mod_resource_path;
+    m_mod_image_cache              = sts.m_mod_image_cache;
     m_mode                         = sts.m_mode;
     m_dstScreenSize                = sts.m_dstScreenSize;
     m_defaultWrapStyle             = sts.m_defaultWrapStyle;
@@ -1996,7 +2113,9 @@ void CSimpleTextSubtitle::Copy(CSimpleTextSubtitle& sts)
     m_encoding                     = sts.m_encoding;
     m_defaultStyle                 = sts.m_defaultStyle;
     m_fForcedDefaultStyle          = sts.m_fForcedDefaultStyle;
+    m_render_backend               = NormalizeBackend(sts.m_render_backend);
     m_text_renderer_mode           = NormalizeTextRendererMode(sts.m_text_renderer_mode);
+    m_vsfilter_compatibility_mode  = NormalizeVsFilterCompatibilityMode(sts.m_vsfilter_compatibility_mode);
     CopyStyles     (sts.m_styles  );
     m_segments.Copy(sts.m_segments);
     m_entries.Copy (sts.m_entries );
@@ -2041,6 +2160,8 @@ bool CSimpleTextSubtitle::CopyStyles(const CSTSStyleMap& styles, bool fAppend)
 void CSimpleTextSubtitle::Empty()
 {
     m_dstScreenSize = CSize(0, 0);
+    m_mod_resource_path.Empty();
+    m_mod_image_cache.Clear();
     m_styles.Free();
     m_segments.RemoveAll();
     m_entries.RemoveAll();

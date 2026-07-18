@@ -81,6 +81,7 @@
     <ClCompile Include="HdmvSub.cpp" />
     <ClCompile Include="hdmv_subtitle_provider.cpp" />
     <ClCompile Include="libass_context.cpp" />
+    <ClCompile Include="mod_style.cpp" />
     <ClCompile Include="Rasterizer.cpp">
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
@@ -129,6 +130,7 @@
     <ClInclude Include="hdmv_subtitle_provider.h" />
     <ClInclude Include="libass_context.h" />
     <ClInclude Include="mru_cache.h" />
+    <ClInclude Include="mod_style.h" />
     <ClInclude Include="Rasterizer.h" />
     <ClInclude Include="RealTextParser.h" />
     <ClInclude Include="RenderedHdmvSubtitle.h" />
@@ -143,6 +145,7 @@
     <ClInclude Include="SubtitleInputPin.h" />
     <ClInclude Include="SubtitleRenderBackend.h" />
     <ClInclude Include="TextRendererMode.h" />
+    <ClInclude Include="VsFilterCompatibility.h" />
     <ClInclude Include="TextFile.h" />
     <ClInclude Include="USFSubtitles.h" />
     <ClInclude Include="VobSubFile.h" />

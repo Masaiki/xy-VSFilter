@@ -33,6 +33,9 @@
     <ClCompile Include="RTS.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mod_style.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="SSF.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -240,6 +243,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TextRendererMode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mod_style.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VsFilterCompatibility.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -9,6 +9,7 @@
 #include "../../../SubPic/SimpleSubPicProviderImpl.h"
 #include "../../../subpic/SimpleSubPicWrapper.h"
 #include "../../../subpic/color_conv_table.h"
+#include "../../../subtitles/VsFilterCompatibility.h"
 
 #include "CAutoTiming.h"
 #include "xy_logger.h"
@@ -240,6 +241,7 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, phr);
     pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
     pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
+    pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
     pin->m_csri_loader = m_csri_loader;
     m_pSubtitleInputPin.Add(pin);
     ASSERT(SUCCEEDED(*phr));
@@ -693,6 +695,25 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
             auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
             if (rts) {
                 rts->SetTextRendererMode(mode);
+            }
+        }
+        m_context_id++;
+        InvalidateSubtitle();
+        break;
+    }
+    case INT_VSFILTER_COMPATIBILITY_MODE:
+    {
+        const auto mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+        m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE] = static_cast<int>(mode);
+        for(int i = 0; i < m_pSubtitleInputPin.GetCount(); i++)
+            m_pSubtitleInputPin[i]->m_vsfilter_compatibility_mode = mode;
+        POSITION pos = m_pSubStreams.GetHeadPosition();
+        while(pos)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+            if (rts) {
+                rts->SetVsFilterCompatibilityMode(mode);
             }
         }
         m_context_id++;
@@ -1990,6 +2011,7 @@ bool XySubFilter::Open()
             CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&m_csFilter));
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             if (pRTS) pRTS->SetTextRendererMode(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
+            if (pRTS) pRTS->SetVsFilterCompatibilityMode(NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]));
             pRTS && (pRTS->m_csri_context.m_loader = m_csri_loader);
             pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
                 ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
@@ -2613,6 +2635,7 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
         auto pin = DEBUG_NEW SubtitleInputPin2(this, m_pLock, &m_csFilter, &hr);
         pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
         pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
+        pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
         pin->m_csri_loader = m_csri_loader;
         m_pSubtitleInputPin.Add(pin);
     }

@@ -27,6 +27,7 @@ public:
     DWORD switchpts[6];
     bool  fBody;
     bool  fBorder;
+    SharedPtrConstModPaintSource mod_paint_source;
 
     bool  use_addition_draw;
 
@@ -36,13 +37,15 @@ public:
     static CRectCoor2 Draw        ( XyBitmap *bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect );
     static CRectCoor2 AlphaBltDraw( XyBitmap *bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect );
     static CRectCoor2 AdditionDraw( XyBitmap *bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect );
+    static CRectCoor2 ModPaintDraw( XyBitmap *bitmap, DrawItem& draw_item, const CRectCoor2& clip_rect );
     const SharedPtrDrawItemHashKey& GetHashKey();
 
     static DrawItem* CreateDrawItem(const SharedPtrOverlayPaintMachine& overlay_paint_machine,
         const CRect& clipRect,
         const SharedPtrCClipperPaintMachine &clipper,
         int xsub, int ysub,
-        const DWORD* switchpts, bool fBody, bool fBorder);
+        const DWORD* switchpts, bool fBody, bool fBorder,
+        const SharedPtrConstModPaintSource& mod_paint_source = SharedPtrConstModPaintSource());
 };
 
 typedef ::boost::shared_ptr<DrawItem> SharedPtrDrawItem;

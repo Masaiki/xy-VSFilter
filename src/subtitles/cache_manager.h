@@ -28,9 +28,18 @@ public:
 class TextInfoCacheKey
 {
 public:
+    TextInfoCacheKey()
+        : m_str_id(0)
+        , m_text_renderer_mode(TEXT_RENDERER_LEGACY_GDI)
+        , m_font_orientation(0)
+        , m_hash_value(0)
+    {
+    }
+
     XyFwStringW::IdType m_str_id;
     FwSTSStyle m_style;
     TextRendererMode m_text_renderer_mode;
+    double m_font_orientation;
 
     ULONG m_hash_value;
 public:
@@ -61,6 +70,7 @@ public:
         }
         const CText* text = dynamic_cast<const CText*>(&word);
         m_text_renderer_mode = text ? text->m_text_renderer_mode : TEXT_RENDERER_LEGACY_GDI;
+        m_mod_hash = word.m_mod_style ? word.m_mod_style->path_hash : 0;
         m_str_id = word.m_str.GetId();
     }
     PathDataCacheKey(const PathDataCacheKey& key)
@@ -69,6 +79,7 @@ public:
         ,m_scaley(key.m_scaley)
         ,m_style(key.m_style)
         ,m_text_renderer_mode(key.m_text_renderer_mode)
+        ,m_mod_hash(key.m_mod_hash)
         ,m_hash_value(key.m_hash_value){}
     bool operator==(const PathDataCacheKey& key)const
     {
@@ -76,6 +87,7 @@ public:
             && fabs(m_scalex-key.m_scalex)<0.000001
             && fabs(m_scaley-key.m_scaley)<0.000001
             && m_text_renderer_mode==key.m_text_renderer_mode
+            && m_mod_hash==key.m_mod_hash
             && ( m_style==key.m_style || CompareSTSStyle(m_style, key.m_style) );
     }
     bool operator==(const CWord& key)const
@@ -97,6 +109,7 @@ protected:
     XyFwStringW::IdType m_str_id;
     FwSTSStyle m_style;
     TextRendererMode m_text_renderer_mode;
+    size_t m_mod_hash;
 };
 
 class ScanLineData2CacheKey: public PathDataCacheKey
@@ -195,7 +208,9 @@ public:
 class ClipperAlphaMaskCacheKey
 {
 public:
-    ClipperAlphaMaskCacheKey(const SharedPtrCClipper& clipper):m_clipper(clipper){}
+    ClipperAlphaMaskCacheKey(const SharedPtrCClipper& clipper,
+        const CPoint& offset = CPoint(0, 0))
+        : m_clipper(clipper), m_offset(offset) {}
     bool operator==(const ClipperAlphaMaskCacheKey& key)const;
 
     ULONG UpdateHashValue();
@@ -207,6 +222,7 @@ public:
     ULONG m_hash_value;
 
     SharedPtrCClipper m_clipper;
+    CPoint m_offset;
 };
 
 struct DrawItem;
@@ -233,6 +249,7 @@ private:
     DWORD m_switchpts[6];
     bool m_fBody;
     bool m_fBorder;
+    SharedPtrConstModPaintSource m_mod_paint_source;
 };
 
 class GroupedDrawItemsHashKey
