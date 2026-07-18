@@ -196,7 +196,7 @@ static __forceinline void pix_alpha_blend_yv12_luma_sse2(byte* dst, const byte* 
     __m128i ones;
 #ifdef _DEBUG
     ones = _mm_setzero_si128();//disable warning C4700
-#endif
+#endif // _DEBUG
     ones = _mm_cmpeq_epi32(ones,ones);
     ones = _mm_cmpeq_epi8(ones,alpha128);
 
@@ -240,8 +240,8 @@ static __forceinline void pix_alpha_blend_yv12_chroma_sse2(byte* dst, const byte
 
     __m128i ones;
 #ifdef _DEBUG
-    ones = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
     ones = _mm_cmpeq_epi32(ones,ones);
     ones = _mm_cmpeq_epi8(ones, alpha128_1);
     
@@ -270,8 +270,8 @@ static __forceinline void mix_16_y_p010_sse2(BYTE* dst, const BYTE* src, const B
 
     __m128i alpha_ff;
 #ifdef _DEBUG
-    alpha_ff = _mm_setzero_si128();//disable warning C4700
-#endif
+    alpha_ff = _mm_setzero_si128();
+#endif // _DEBUG
     alpha_ff = _mm_cmpeq_epi32(alpha_ff,alpha_ff);
 
     alpha_ff = _mm_cmpeq_epi8(alpha_ff, alpha);                                           
@@ -279,13 +279,16 @@ static __forceinline void mix_16_y_p010_sse2(BYTE* dst, const BYTE* src, const B
     __m128i lo = _mm_unpacklo_epi8(alpha_ff, alpha);//(alpha<<8)+0x100 will overflow
     //so we do it another way
     //first, (alpha<<8)+0xff
-    __m128i ones = _mm_setzero_si128();
+    __m128i ones;
+#ifdef _DEBUG
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
     ones = _mm_cmpeq_epi16(dst_y, ones);
 
     __m128i ones2;
 #ifdef _DEBUG
-    ones2 = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones2 = _mm_setzero_si128();
+#endif // _DEBUG
     ones2 = _mm_cmpeq_epi32(ones2,ones2);
 
     ones = _mm_xor_si128(ones, ones2);                            
@@ -356,8 +359,8 @@ static __forceinline void mix_16_uv_p010_sse2(BYTE* dst, const BYTE* src, const 
 
     __m128i alpha_ff;
 #ifdef _DEBUG
-    alpha_ff = _mm_setzero_si128();//disable warning C4700
-#endif
+    alpha_ff = _mm_setzero_si128();
+#endif // _DEBUG
     alpha_ff = _mm_cmpeq_epi32(alpha_ff,alpha_ff);
 
     alpha_ff = _mm_cmpeq_epi8(alpha_ff, alpha);                                           
@@ -365,13 +368,16 @@ static __forceinline void mix_16_uv_p010_sse2(BYTE* dst, const BYTE* src, const 
     __m128i lo = _mm_unpacklo_epi8(alpha_ff, alpha);//(alpha<<8)+0x100 will overflow
     //so we do it another way
     //first, (alpha<<8)+0xff
-    __m128i ones = _mm_setzero_si128();
+    __m128i ones;
+#ifdef _DEBUG
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
     ones = _mm_cmpeq_epi16(dst_y, ones);
 
     __m128i ones2;
 #ifdef _DEBUG
-    ones2 = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones2 = _mm_setzero_si128();
+#endif // _DEBUG
     ones2 = _mm_cmpeq_epi32(ones2,ones2);
     ones = _mm_xor_si128(ones, ones2);                            
     ones = _mm_srli_epi16(ones, 15);
@@ -437,8 +443,8 @@ static __forceinline void mix_16_uv_nvxx_sse2(BYTE* dst, const BYTE* src, const 
 
     __m128i ones;
 #ifdef _DEBUG
-    ones = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
     ones = _mm_cmpeq_epi32(ones,ones);
     ones = _mm_cmpeq_epi8(ones,alpha128_1);
 
@@ -641,8 +647,8 @@ static __forceinline void hleft_vmid_mix_uv_yv12_sse2(byte* dst, int w00, const 
 
         __m128i ones;
 #ifdef _DEBUG
-        ones = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
         ones = _mm_cmpeq_epi32(ones,ones);
         ones = _mm_cmpeq_epi8(ones, alpha128_1);
 
@@ -760,8 +766,8 @@ static __forceinline void hleft_vmid_mix_uv_p010_sse2(BYTE* dst, int w00, const 
 
         __m128i alpha_ff;
 #ifdef _DEBUG
-        alpha_ff = _mm_setzero_si128();//disable warning C4700
-#endif
+    alpha_ff = _mm_setzero_si128();
+#endif // _DEBUG
         alpha_ff = _mm_cmpeq_epi32(alpha_ff,alpha_ff);
 
         alpha_ff = _mm_cmpeq_epi8(alpha_ff, alpha);                                           
@@ -769,13 +775,16 @@ static __forceinline void hleft_vmid_mix_uv_p010_sse2(BYTE* dst, int w00, const 
         __m128i lo = _mm_unpacklo_epi8(alpha_ff, alpha);//(alpha<<8)+0x100 will overflow
         //so we do it another way
         //first, (alpha<<8)+0xff
-        __m128i ones = _mm_setzero_si128();
+        __m128i ones;
+#ifdef _DEBUG
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
         ones = _mm_cmpeq_epi16(dst_y, ones);
 
         __m128i ones2;
 #ifdef _DEBUG
-        ones2 = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones2 = _mm_setzero_si128();
+#endif // _DEBUG
         ones2 = _mm_cmpeq_epi32(ones2,ones2);
         ones = _mm_xor_si128(ones, ones2);                            
         ones = _mm_srli_epi16(ones, 15);
@@ -886,8 +895,8 @@ static __forceinline void hleft_vmid_mix_uv_nv12_sse2(BYTE* dst, int w00, const 
 
         __m128i ones;
 #ifdef _DEBUG
-        ones = _mm_setzero_si128();//disable warning C4700
-#endif
+    ones = _mm_setzero_si128();
+#endif // _DEBUG
         ones = _mm_cmpeq_epi32(ones,ones);
         ones = _mm_cmpeq_epi8(ones,alpha128_1);
 

@@ -175,13 +175,18 @@ CMyFont::CMyFont(const STSStyleBase& style, double orientation)
 CWord::CWord( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
     , bool round_to_whole_pixel_after_scale_to_target/*=false*/
-    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/)
+    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/
+    , double mod_scale_x/*=1.0*/, double mod_scale_y/*=1.0*/
+    , bool mod_compatibility_mode/*=false*/)
     : m_style(style), m_str(DEBUG_NEW CStringW(str))
     , m_mod_style(mod_style)
     , m_width(0), m_ascent(0), m_descent(0)
     , m_ktype(ktype), m_kstart(kstart), m_kend(kend)
     , m_fLineBreak(false), m_fWhiteSpaceChar(false)
     , m_target_scale_x(target_scale_x), m_target_scale_y(target_scale_y)
+    , m_is_opaque_box(false)
+    , m_mod_scale_x(mod_scale_x), m_mod_scale_y(mod_scale_y)
+    , m_mod_compatibility_mode(mod_compatibility_mode)
     , m_round_to_whole_pixel_after_scale_to_target(round_to_whole_pixel_after_scale_to_target)
     //, m_pOpaqueBox(NULL)
 {
@@ -205,8 +210,12 @@ CWord::CWord( const CWord& src):m_str(src.m_str)
     m_width                                      = src.m_width;
     m_ascent                                     = src.m_ascent;
     m_descent                                    = src.m_descent;
+    m_is_opaque_box                              = src.m_is_opaque_box;
     m_target_scale_x                             = src.m_target_scale_x;
     m_target_scale_y                             = src.m_target_scale_y;
+    m_mod_scale_x                                = src.m_mod_scale_x;
+    m_mod_scale_y                                = src.m_mod_scale_y;
+    m_mod_compatibility_mode                     = src.m_mod_compatibility_mode;
     m_round_to_whole_pixel_after_scale_to_target = src.m_round_to_whole_pixel_after_scale_to_target;
 }
 
@@ -259,7 +268,8 @@ void CWord::PaintFromNoneBluredOverlay(SharedPtrOverlay raterize_result, const O
             m_style.get().fGaussianBlur, 
             m_target_scale_x, 
             m_target_scale_y, 
-            *overlay))
+            *overlay,
+            m_mod_compatibility_mode))
         {
             *overlay = raterize_result;
         }
@@ -275,7 +285,8 @@ void CWord::PaintFromNoneBluredOverlay(SharedPtrOverlay raterize_result, const O
 bool CWord::PaintFromScanLineData2(const CPointCoor2& psub, const ScanLineData2& scan_line_data2, const OverlayKey& key, SharedPtrOverlay* overlay)
 {
     SharedPtrOverlay raterize_result(DEBUG_NEW Overlay());
-    if(!Rasterizer::Rasterize(scan_line_data2, psub.x, psub.y, raterize_result)) 
+    if(!Rasterizer::Rasterize(scan_line_data2, psub.x, psub.y, raterize_result,
+            m_mod_compatibility_mode)) 
     {     
         return false;
     }
@@ -353,7 +364,7 @@ bool CWord::PaintFromPathData(const CPointCoor2& psub, const CPointCoor2& trans_
         SharedPtrScanLineData2 scan_line_data2( tmp );
         if(m_style.get().borderStyle == 0 && (m_style.get().outlineWidthX+m_style.get().outlineWidthY > 0))
         {
-            if(!tmp->CreateWidenedRegion(border_x, border_y)) 
+            if(!tmp->CreateWidenedRegion(border_x, border_y, m_mod_compatibility_mode)) 
             {
                 return false;
             }
@@ -433,6 +444,14 @@ bool CWord::DoPaint(const CPointCoor2& psub, const CPointCoor2& trans_org, Share
 
 bool CWord::NeedTransform()
 {
+    // VSFilterMod runs its SSE transform for every word, including the
+    // identity/default case.  Keeping the identity path out of the transform
+    // would preserve xy's geometry but produces different edge coverage in
+    // MOD mode (especially after outline/blur).  Legacy mode retains the
+    // existing predicate and therefore its cache/performance path.
+    if (m_mod_compatibility_mode) {
+        return true;
+    }
     const bool mod_transform = m_mod_style
         && (m_mod_style->feature_mask & (MOD_FEATURE_Z | MOD_FEATURE_RANDOM | MOD_FEATURE_DISTORT));
     return mod_transform ||
@@ -461,8 +480,7 @@ bool CWord::NeedTransform()
 void CWord::Transform(PathData* path_data, const CPointCoor2 &org )
 {
     ASSERT(path_data);
-    if (m_mod_style
-            && (m_mod_style->feature_mask & (MOD_FEATURE_Z | MOD_FEATURE_RANDOM | MOD_FEATURE_DISTORT))) {
+    if (m_mod_compatibility_mode) {
         TransformMod(path_data, org);
         return;
     }
@@ -603,18 +621,151 @@ void CWord::TransformMod(PathData* path_data, const CPointCoor2& org)
 {
     ASSERT(path_data);
     const STSStyle& style = m_style.get();
-    const ModStyleState& mod = *m_mod_style;
+    const ModStyleState empty_mod;
+    const ModStyleState& mod = m_mod_style ? *m_mod_style : empty_mod;
 
     // VSFilterMod's hot path performs these calculations in SSE float
-    // precision and uses its historical pi constant.
-    const float scalex = static_cast<float>(style.fontScaleX / 100.0);
-    const float scaley = static_cast<float>(style.fontScaleY / 100.0);
-    const float caz = static_cast<float>(cos((3.1415 / 180.0) * style.fontAngleZ));
-    const float saz = static_cast<float>(sin((3.1415 / 180.0) * style.fontAngleZ));
-    const float cax = static_cast<float>(cos((3.1415 / 180.0) * style.fontAngleX));
-    const float sax = static_cast<float>(sin((3.1415 / 180.0) * style.fontAngleX));
-    const float cay = static_cast<float>(cos((3.1415 / 180.0) * style.fontAngleY));
-    const float say = static_cast<float>(sin((3.1415 / 180.0) * style.fontAngleY));
+    // precision and uses its historical pi constant.  Keep the trigonometric
+    // values as doubles until _mm_set1_ps performs the same conversion as the
+    // upstream call to _mm_set_ps1(double).
+    const double scalex_double = style.fontScaleX / 100.0;
+    const double scaley_double = style.fontScaleY / 100.0;
+    const double caz_double = cos((3.1415 / 180.0) * style.fontAngleZ);
+    const double saz_double = sin((3.1415 / 180.0) * style.fontAngleZ);
+    const double cax_double = cos((3.1415 / 180.0) * style.fontAngleX);
+    const double sax_double = sin((3.1415 / 180.0) * style.fontAngleX);
+    const double cay_double = cos((3.1415 / 180.0) * style.fontAngleY);
+    const double say_double = sin((3.1415 / 180.0) * style.fontAngleY);
+    const float scalex = static_cast<float>(m_is_opaque_box ? 1.0 : scalex_double);
+    const float scaley = static_cast<float>(m_is_opaque_box ? 1.0 : scaley_double);
+    const float caz = static_cast<float>(caz_double);
+    const float saz = static_cast<float>(saz_double);
+    const float cax = static_cast<float>(cax_double);
+    const float sax = static_cast<float>(sax_double);
+    const float cay = static_cast<float>(cay_double);
+    const float say = static_cast<float>(say_double);
+
+    // VSFilterMod's normal MOD path is an SSE2 four-point loop.  Keep the
+    // same operation order for common ASS transforms; scalar MOD features
+    // below intentionally retain their separate random/distort handling.
+    if (!(mod.feature_mask & (MOD_FEATURE_Z | MOD_FEATURE_RANDOM | MOD_FEATURE_DISTORT))) {
+        const __m128 xshift = _mm_set1_ps(static_cast<float>(style.fontShiftX));
+        const __m128 yshift = _mm_set1_ps(static_cast<float>(style.fontShiftY));
+        const __m128 xscale = _mm_set1_ps(scalex);
+        const __m128 yscale = _mm_set1_ps(scaley);
+        const __m128 source_org_x = _mm_set1_ps(
+            static_cast<float>(org.x / m_target_scale_x));
+        const __m128 source_org_y = _mm_set1_ps(
+            static_cast<float>(org.y / m_target_scale_y));
+        const __m128 render_org_x = _mm_set1_ps(static_cast<float>(org.x));
+        const __m128 render_org_y = _mm_set1_ps(static_cast<float>(org.y));
+        const __m128 caz_vec = _mm_set1_ps(static_cast<float>(caz_double));
+        const __m128 saz_vec = _mm_set1_ps(static_cast<float>(saz_double));
+        const __m128 cax_vec = _mm_set1_ps(static_cast<float>(cax_double));
+        const __m128 sax_vec = _mm_set1_ps(static_cast<float>(sax_double));
+        const __m128 cay_vec = _mm_set1_ps(static_cast<float>(cay_double));
+        const __m128 say_vec = _mm_set1_ps(static_cast<float>(say_double));
+        const __m128 xzoomf = _mm_set1_ps(static_cast<float>(m_mod_scale_x * 20000.0));
+        const __m128 yzoomf = _mm_set1_ps(static_cast<float>(m_mod_scale_y * 20000.0));
+        const __m128 min_focal = _mm_set1_ps(1000.0f);
+        const __m128 half = _mm_set1_ps(0.5f);
+
+        for (int base = 0; base < path_data->mPathPoints; base += 4) {
+            const int count = min(4, path_data->mPathPoints - base);
+            const float x0 = static_cast<float>(path_data->mpPathPoints[base].x);
+            const float y0 = static_cast<float>(path_data->mpPathPoints[base].y);
+            const float x1 = count > 1
+                ? static_cast<float>(path_data->mpPathPoints[base + 1].x) : 0.0f;
+            const float y1 = count > 1
+                ? static_cast<float>(path_data->mpPathPoints[base + 1].y) : 0.0f;
+            const float x2 = count > 2
+                ? static_cast<float>(path_data->mpPathPoints[base + 2].x) : 0.0f;
+            const float y2 = count > 2
+                ? static_cast<float>(path_data->mpPathPoints[base + 2].y) : 0.0f;
+            const float x3 = count > 3
+                ? static_cast<float>(path_data->mpPathPoints[base + 3].x) : 0.0f;
+            const float y3 = count > 3
+                ? static_cast<float>(path_data->mpPathPoints[base + 3].y) : 0.0f;
+
+            // _mm_set_ps mirrors VSFilterMod's lane order: point 0 is lane 3
+            // and the results are written back in reverse lane order.
+            __m128 point_x = _mm_set_ps(x0, x1, x2, x3);
+            __m128 point_y = _mm_set_ps(y0, y1, y2, y3);
+
+            __m128 tmp_x;
+            if (style.fontShiftX != 0) {
+                tmp_x = _mm_mul_ps(xshift, point_y);
+                tmp_x = _mm_add_ps(tmp_x, point_x);
+            } else {
+                tmp_x = point_x;
+            }
+            tmp_x = _mm_mul_ps(tmp_x, xscale);
+            tmp_x = _mm_sub_ps(tmp_x, source_org_x);
+
+            __m128 tmp_y;
+            if (style.fontShiftY != 0) {
+                tmp_y = _mm_mul_ps(yshift, point_x);
+                tmp_y = _mm_add_ps(tmp_y, point_y);
+            } else {
+                tmp_y = point_y;
+            }
+            tmp_y = _mm_mul_ps(tmp_y, yscale);
+            tmp_y = _mm_sub_ps(tmp_y, source_org_y);
+
+            __m128 xx = _mm_mul_ps(tmp_x, caz_vec);
+            __m128 yy = _mm_mul_ps(tmp_y, saz_vec);
+            point_x = _mm_add_ps(xx, yy);
+            xx = _mm_mul_ps(tmp_x, saz_vec);
+            yy = _mm_mul_ps(tmp_y, caz_vec);
+            point_y = _mm_sub_ps(yy, xx);
+            __m128 point_z = _mm_set1_ps(static_cast<float>(mod.z));
+
+            __m128 zz = _mm_mul_ps(point_z, sax_vec);
+            yy = _mm_mul_ps(point_y, cax_vec);
+            tmp_y = point_y;
+            point_y = _mm_add_ps(yy, zz);
+            zz = _mm_mul_ps(point_z, cax_vec);
+            yy = _mm_mul_ps(tmp_y, sax_vec);
+            point_z = _mm_sub_ps(yy, zz);
+
+            xx = _mm_mul_ps(point_x, cay_vec);
+            zz = _mm_mul_ps(point_z, say_vec);
+            tmp_x = point_x;
+            point_x = _mm_add_ps(xx, zz);
+            xx = _mm_mul_ps(tmp_x, say_vec);
+            zz = _mm_mul_ps(point_z, cay_vec);
+            point_z = _mm_sub_ps(xx, zz);
+
+            __m128 denominator = _mm_add_ps(point_z, xzoomf);
+            xx = _mm_mul_ps(point_x, xzoomf);
+            point_x = _mm_div_ps(xx, _mm_max_ps(denominator, min_focal));
+            denominator = _mm_add_ps(point_z, yzoomf);
+            yy = _mm_mul_ps(point_y, yzoomf);
+            point_y = _mm_div_ps(yy, _mm_max_ps(denominator, min_focal));
+
+            point_x = _mm_add_ps(point_x, render_org_x);
+            point_y = _mm_add_ps(point_y, render_org_y);
+            point_x = _mm_add_ps(point_x, half);
+            point_y = _mm_add_ps(point_y, half);
+
+            float output_x[4];
+            float output_y[4];
+            _mm_storeu_ps(output_x, point_x);
+            _mm_storeu_ps(output_y, point_y);
+            for (int k = 0; k < count; ++k) {
+                path_data->mpPathPoints[base + k].x = static_cast<LONG>(output_x[3 - k]);
+                path_data->mpPathPoints[base + k].y = static_cast<LONG>(output_y[3 - k]);
+                if (m_round_to_whole_pixel_after_scale_to_target
+                        && (m_target_scale_x != 1.0 || m_target_scale_y != 1.0)) {
+                    path_data->mpPathPoints[base + k].x =
+                        (path_data->mpPathPoints[base + k].x + 32) & ~63;
+                    path_data->mpPathPoints[base + k].y =
+                        (path_data->mpPathPoints[base + k].y + 32) & ~63;
+                }
+            }
+        }
+        return;
+    }
 
     LONG min_x = LONG_MAX;
     LONG min_y = LONG_MAX;
@@ -703,11 +854,13 @@ void CWord::TransformMod(PathData* path_data, const CPointCoor2& org)
         yy = y;
         zz = x * say - z * cay;
 
-        const float denominator = max(zz + 20000.0f, 1000.0f);
-        const float projected_x = xx * static_cast<float>(20000.0 * m_target_scale_x)
-            / denominator;
-        const float projected_y = yy * static_cast<float>(20000.0 * m_target_scale_y)
-            / denominator;
+        // VSFilterMod uses the script-to-render scale as the focal length.
+        // Keeping this separate from m_target_scale is important when the
+        // video is rendered at a different size than PlayRes.
+        const float xzoomf = static_cast<float>(m_mod_scale_x * 20000.0);
+        const float yzoomf = static_cast<float>(m_mod_scale_y * 20000.0);
+        const float projected_x = xx * xzoomf / max(zz + xzoomf, 1000.0f);
+        const float projected_y = yy * yzoomf / max(zz + yzoomf, 1000.0f);
 
         path_data->mpPathPoints[i].x = static_cast<LONG>(
             projected_x + static_cast<float>(org.x) + 0.5f);
@@ -738,7 +891,11 @@ bool CWord::CreateOpaqueBox()
         m_width+w, m_ascent+m_descent+h,
                -w, m_ascent+m_descent+h);
     m_pOpaqueBox.reset( DEBUG_NEW CPolygon(FwSTSStyle(style), str, 0, 0, 0, 1.0/MAX_SUB_PIXEL, 1.0/MAX_SUB_PIXEL, 0,
-        m_target_scale_x, m_target_scale_y, false, m_mod_style) );
+        m_target_scale_x, m_target_scale_y, false, m_mod_style,
+        m_mod_compatibility_mode) );
+    if (m_pOpaqueBox) {
+        m_pOpaqueBox->m_is_opaque_box = true;
+    }
     return(!!m_pOpaqueBox);
 }
 
@@ -758,7 +915,11 @@ bool CWord::operator==( const CWord& rhs ) const
         m_ascent          == rhs.m_ascent          &&
         m_descent         == rhs.m_descent         &&
         m_target_scale_x  == rhs.m_target_scale_x  &&
-        m_target_scale_y  == rhs.m_target_scale_y);
+        m_target_scale_y  == rhs.m_target_scale_y &&
+        m_mod_scale_x     == rhs.m_mod_scale_x     &&
+        m_mod_scale_y     == rhs.m_mod_scale_y &&
+        m_is_opaque_box   == rhs.m_is_opaque_box &&
+        m_mod_compatibility_mode == rhs.m_mod_compatibility_mode);
     //m_pOpaqueBox
 }
 
@@ -768,8 +929,11 @@ bool CWord::operator==( const CWord& rhs ) const
 CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
     , TextRendererMode text_renderer_mode/*=TEXT_RENDERER_LEGACY_GDI*/
-    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/ )
-    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, false, mod_style)
+    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/
+    , double mod_scale_x/*=1.0*/, double mod_scale_y/*=1.0*/
+    , bool mod_compatibility_mode/*=false*/ )
+    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, false, mod_style,
+        mod_scale_x, mod_scale_y, mod_compatibility_mode)
     , m_text_renderer_mode(NormalizeTextRendererMode(text_renderer_mode))
 {
     if(m_str.Get() == L" ")
@@ -935,8 +1099,11 @@ CPolygon::CPolygon( const FwSTSStyle& style, const CStringW& str, int ktype, int
     , double scalex, double scaley, int baseline 
     , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
     , bool round_to_whole_pixel_after_scale_to_target/*=false*/
-    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/)
-    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y, round_to_whole_pixel_after_scale_to_target, mod_style)
+    , const SharedPtrConstModStyleState& mod_style/*=SharedPtrConstModStyleState()*/
+    , bool mod_compatibility_mode/*=false*/)
+    : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y,
+        round_to_whole_pixel_after_scale_to_target, mod_style, scalex, scaley,
+        mod_compatibility_mode)
     , m_scalex(scalex), m_scaley(scaley), m_baseline(baseline)
 {
     ParseStr();
@@ -1495,14 +1662,14 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
                 outputItem.shadow.reset( 
                     DrawItem::CreateDrawItem(shadow_pm, clipRect, clipper, shadowPos.x, shadowPos.y, sw,
                     w->m_ktype > 0 || w->m_style.get().alpha[0] < 0xff,
-                    hasOutline, mod_paint)
+                    hasOutline, mod_paint, w->m_mod_compatibility_mode)
                     );
             }
             else if(w->m_style.get().borderStyle == 1)
             {
                 outputItem.shadow.reset( 
                     DrawItem::CreateDrawItem( shadow_pm, clipRect, clipper, shadowPos.x, shadowPos.y, sw,
-                    true, false, mod_paint)
+                    true, false, mod_paint, w->m_mod_compatibility_mode)
                     );
             }
         }
@@ -1527,14 +1694,14 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
                     DrawItem::CreateDrawItem(outline_pm, clipRect, clipper, outlinePos.x, outlinePos.y, sw, 
                     !w->m_style.get().alpha[0] && !w->m_style.get().alpha[1]
                         && !alpha && !body_has_gradient_alpha,
-                    true, mod_paint)
+                    true, mod_paint, w->m_mod_compatibility_mode)
                     );
             }
             else if(w->m_style.get().borderStyle == 1)
             {
                 outputItem.outline.reset( 
                     DrawItem::CreateDrawItem(outline_pm, clipRect, clipper, outlinePos.x, outlinePos.y, sw,
-                    true, false, mod_paint)
+                    true, false, mod_paint, w->m_mod_compatibility_mode)
                     );
             }
         }
@@ -1593,8 +1760,9 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
                     mod_primary_layer, mod_secondary_layer, mod_solid, alpha)
                 : SharedPtrConstModPaintSource();
             outputItem.body.reset( 
-                DrawItem::CreateDrawItem(body_pm, clipRect, clipper, bodyPos.x, bodyPos.y, sw,
-                    true, false, mod_paint)
+                DrawItem::CreateDrawItem(body_pm, clipRect, clipper,
+                    bodyPos.x, bodyPos.y, sw,
+                    true, false, mod_paint, w->m_mod_compatibility_mode)
                 );
         }
         bbox |= CompositeDrawItem::GetDirtyRect(outputItem);
@@ -1917,6 +2085,7 @@ CAtlArray<AssCmdPosLevel> CRenderedTextSubtitle::m_cmd_pos_level;
 CRenderedTextSubtitle::CRenderedTextSubtitle(CCritSec* pLock)
     : CSubPicProviderImpl(pLock)
     , m_target_scale_x(1.0), m_target_scale_y(1.0)
+    , m_direct_render_target(NULL)
 {
     if( m_cmdMap.IsEmpty() )
     {
@@ -2307,7 +2476,8 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(ite < j)
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, str.Mid(ite, j-ite), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style,
+                  sub->m_scalex, sub->m_scaley, IsVsFilterModMode()))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2321,7 +2491,8 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(c == L'\n')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style,
+                  sub->m_scalex, sub->m_scaley, IsVsFilterModMode()))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2335,7 +2506,8 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         else if(c == L' ')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(c), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode, mod_style,
+                  sub->m_scalex, sub->m_scaley, IsVsFilterModMode()))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2358,7 +2530,7 @@ void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, const CStringW& str, co
 
     if (PCWord tmp_ptr = DEBUG_NEW CPolygon(style, str, m_ktype, m_kstart, m_kend, sub->m_scalex/(1<<(m_nPolygon-1))
         , sub->m_scaley/(1<<(m_nPolygon-1)), m_polygonBaselineOffset
-        , m_target_scale_x, m_target_scale_y, false, mod_style))
+        , m_target_scale_x, m_target_scale_y, false, mod_style, IsVsFilterModMode()))
     {
         SharedPtrCWord w(tmp_ptr);
         ///Todo: fix me
@@ -2409,7 +2581,8 @@ bool CRenderedTextSubtitle::ParseSSATag( AssTagList *assTags, const CStringW& st
         if(cmd.IsEmpty()) continue;
 
         CAtlArray<CStringW>& params = assTag.strParams;
-        if(str[j] == L'(')
+        const bool has_bracket = (str[j] == L'(');
+        if(has_bracket)
         {
             j++;
             CStringW::PCXSTR str_start = str.GetString() + j;
@@ -2458,6 +2631,7 @@ bool CRenderedTextSubtitle::ParseSSATag( AssTagList *assTags, const CStringW& st
                 }
             }
         }
+        const size_t bracket_param_count = params.GetCount();
 
         AssCmdType cmd_type = CMD_COUNT;
         int cmd_length = min(MAX_CMD_LENGTH, cmd.GetLength());
@@ -2564,8 +2738,26 @@ bool CRenderedTextSubtitle::ParseSSATag( AssTagList *assTags, const CStringW& st
             break;
         }
 
+        // Default (non-MOD) mode falls back to the longest shorter prefix that
+        // maps to a legacy command, mirroring how a renderer without MOD support
+        // would lex the tag (e.g. \rnd20 -> \r with param "nd20"). Bracket params
+        // stay in strParams; inline params are re-sliced from cmd at legacy_len.
+        assTag.legacyCmdType = CMD_COUNT;
+        if (cmd_type >= CMD_1img && cmd_type < CMD_COUNT) {
+            for (int legacy_len = cmd_length - 1; legacy_len >= MIN_CMD_LENGTH; legacy_len--) {
+                AssCmdType legacy_type;
+                if (m_cmdMap.Lookup(cmd.Left(legacy_len), legacy_type) && legacy_type < CMD_1img) {
+                    assTag.legacyCmdType = legacy_type;
+                    if (!has_bracket || bracket_param_count == 0) {
+                        assTag.legacyParam = cmd.Mid(legacy_len);
+                    }
+                    break;
+                }
+            }
+        }
+
         assTag.cmdType = cmd_type;
-        
+
         nTags++;
     }
     return(true);
@@ -2584,14 +2776,22 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
         const CAtlArray<CStringW>& params = assTag.strParams;
 
         const bool mod_only_command = cmd_type >= CMD_1img && cmd_type < CMD_COUNT;
+        const bool use_legacy_fallback = mod_only_command && !IsVsFilterModMode()
+            && assTag.legacyCmdType != CMD_COUNT;
         if (mod_only_command && !IsVsFilterModMode()) {
-            continue;
+            if (!use_legacy_fallback) {
+                continue;
+            }
+            cmd_type = assTag.legacyCmdType;
         }
+        const bool use_legacy_param = use_legacy_fallback && !assTag.legacyParam.IsEmpty();
 
         sub->m_hard_position_level = sub->m_hard_position_level > m_cmd_pos_level[cmd_type] ?
                                      sub->m_hard_position_level : m_cmd_pos_level[cmd_type];
         // TODO: call ParseStyleModifier(cmd, params, ..) and move the rest there
-        const CStringW& p = params.GetCount() > 0 ? params[0] : CStringW("");
+        const CStringW& p = use_legacy_param
+            ? assTag.legacyParam
+            : params.GetCount() > 0 ? params[0] : CStringW("");
         switch ( cmd_type )
         {
         case CMD_1c:
@@ -3373,13 +3573,16 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
                 ModStyleState& mod = EnsureWritableModStyleState(mod_style);
                 const double value = !p.IsEmpty() ? wcstod(p, NULL) * MAX_SUB_PIXEL : 0;
                 if (cmd_type == CMD_rnd || cmd_type == CMD_rndx) {
-                    mod.random_x = CalcAnimation(value, mod.random_x, fAnimate);
+                    // VSFilterMod's MOD_RANDOM fields are integers. Preserve
+                    // that truncation after animated tags so the random
+                    // sequence and resulting offsets use the same amplitude.
+                    mod.random_x = static_cast<int>(CalcAnimation(value, mod.random_x, fAnimate));
                 }
                 if (cmd_type == CMD_rnd || cmd_type == CMD_rndy) {
-                    mod.random_y = CalcAnimation(value, mod.random_y, fAnimate);
+                    mod.random_y = static_cast<int>(CalcAnimation(value, mod.random_y, fAnimate));
                 }
                 if (cmd_type == CMD_rnd || cmd_type == CMD_rndz) {
-                    mod.random_z = CalcAnimation(value, mod.random_z, fAnimate);
+                    mod.random_z = static_cast<int>(CalcAnimation(value, mod.random_z, fAnimate));
                 }
                 if (mod.random_x != 0 || mod.random_y != 0 || mod.random_z != 0) {
                     mod.feature_mask |= MOD_FEATURE_RANDOM;
@@ -4293,7 +4496,16 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx(SubPicDesc& spd, REFERENCE_TIME rt,
     }
 
     CComPtr<IXySubRenderFrame> sub_render_frame;
+    const bool direct_mod_rgb32 = IsVsFilterModMode() && spd.type == MSP_RGB32;
+    if (direct_mod_rgb32) {
+        m_direct_render_target = &spd;
+    }
     HRESULT hr = RenderEx(&sub_render_frame, spd.type, video_rect, video_rect, output_size, rt, fps);
+    if (direct_mod_rgb32) {
+        m_direct_render_target = NULL;
+        rectList.AddTail(CRectCoor2(0, 0, spd.w, spd.h));
+        return hr;
+    }
     if (SUCCEEDED(hr) && sub_render_frame)
     {
         int count = 0;
@@ -4566,10 +4778,7 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
         __m128i d3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(dst + 32));
         __m128i d4 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(dst + 48));
 
-        __m128i ra;
-#ifdef _DEBUG
-        ra = _mm_setzero_si128();
-#endif // _DEBUG
+        __m128i ra = _mm_setzero_si128();
         __m128i a1 = _mm_unpacklo_epi8(a, zero);
         a1 = _mm_add_epi16(a1, ones);
         a1 = _mm_mullo_epi16(a1, c_a);
@@ -4913,6 +5122,12 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
     ClearUnCachedSubtitle(sub2List);
 
     TRACE_RENDERER_REQUEST("Begin Draw");
+    if (m_direct_render_target) {
+        CompositeDrawItem::DrawDirect(*m_direct_render_target, compDrawItemListList);
+        ShrinkCache();
+        TRACE_RENDERER_REQUEST("Finished direct MOD draw");
+        return hr;
+    }
     XySubRenderFrame *sub_render_frame;
     CompositeDrawItem::Draw(&sub_render_frame, compDrawItemListList);
     sub_render_frame->MoveTo(video_rect.left, video_rect.top);

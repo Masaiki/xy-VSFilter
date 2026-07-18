@@ -133,7 +133,8 @@ public:
         mPathOffsetX = offset.x;
         mPathOffsetY = offset.y;
     }
-    bool CreateWidenedRegion(int borderX, int borderY);
+    bool CreateWidenedRegion(int borderX, int borderY,
+        bool vsfilter_mod_compatibility = false);
 private:
     SharedPtrConstScanLineData m_scan_line_data;
     int mPathOffsetX, mPathOffsetY;	
@@ -155,7 +156,8 @@ public:
     {
         mOffsetX=mOffsetY=mWidth=mHeight=0;
         mOverlayWidth=mOverlayHeight=mOverlayPitch=0;
-        mVsFilterModGradientHeight=0;
+        mVsFilterModGradientWidth=mVsFilterModGradientHeight=0;
+        mVsFilterModGradientOffsetX=mVsFilterModGradientOffsetY=0;
         mfWideOutlineEmpty = false;
     }
     ~Overlay()
@@ -169,7 +171,8 @@ public:
         mBorder.reset((BYTE*)NULL);
         mOffsetX=mOffsetY=mWidth=mHeight=0;
         mOverlayWidth=mOverlayHeight=mOverlayPitch=0;
-        mVsFilterModGradientHeight=0;
+        mVsFilterModGradientWidth=mVsFilterModGradientHeight=0;
+        mVsFilterModGradientOffsetX=mVsFilterModGradientOffsetY=0;
         mfWideOutlineEmpty = false;
     }
 
@@ -185,7 +188,8 @@ public:
     int mWidth, mHeight;
 
     int mOverlayWidth, mOverlayHeight, mOverlayPitch;
-    int mVsFilterModGradientHeight;
+    int mVsFilterModGradientWidth, mVsFilterModGradientHeight;
+    int mVsFilterModGradientOffsetX, mVsFilterModGradientOffsetY;
 
     bool mfWideOutlineEmpty;//specially for blur
 };
@@ -207,6 +211,9 @@ class XyBitmap;
 class Rasterizer
 {
 private:
+    static bool ModBlur(const Overlay& input_overlay, float be_strength,
+        double gaussian_blur_strength, SharedPtrOverlay output_overlay);
+
     typedef unsigned char byte;
 
     struct DM
@@ -224,7 +231,8 @@ public:
     static const float GAUSSIAN_BLUR_THREHOLD;
 public:
 
-    static bool Rasterize(const ScanLineData2& scan_line_data2, int xsub, int ysub, SharedPtrOverlay overlay);
+    static bool Rasterize(const ScanLineData2& scan_line_data2, int xsub, int ysub,
+        SharedPtrOverlay overlay, bool vsfilter_mod_compatibility = false);
 
     static bool IsItReallyBlur(float be_strength, double gaussian_blur_strength);
     static bool OldFixedPointBlur(const Overlay& input_overlay, float be_strength, double gaussian_blur_strength, 
@@ -232,6 +240,9 @@ public:
 
     static bool Blur(const Overlay& input_overlay, float be_strength, double gaussian_blur_strength, 
         double target_scale_x, double target_scale_y, SharedPtrOverlay output_overlay);
+    static bool Blur(const Overlay& input_overlay, float be_strength, double gaussian_blur_strength,
+        double target_scale_x, double target_scale_y, SharedPtrOverlay output_overlay,
+        bool vsfilter_mod_compatibility);
 
     static bool BeBlur(const Overlay& input_overlay, float be_strength, float target_scale_x, float target_scale_y, 
         SharedPtrOverlay output_overlay);
@@ -243,6 +254,15 @@ public:
     static SharedPtrByte CompositeAlphaMask(const SharedPtrOverlay& overlay, const CRect& clipRect, 
         const GrayImage2* alpha_mask, 
         int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder, 
+        CRect *outputDirtyRect);
+
+    // Keep the native 6-bit coverage used by VSFilterMod's gradient/image
+    // kernels.  CompositeAlphaMask intentionally expands coverage to 8-bit
+    // for the legacy packed-pixel path, which introduces an extra rounding
+    // step when several MOD layers overlap.
+    static SharedPtrByte CompositeModAlphaMask(const SharedPtrOverlay& overlay,
+        const CRect& clipRect, const GrayImage2* alpha_mask,
+        int xsub, int ysub, bool fBody, bool fBorder,
         CRect *outputDirtyRect);
 
     static void Draw(XyBitmap* bitmap, 

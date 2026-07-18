@@ -71,6 +71,16 @@ public:
         const CText* text = dynamic_cast<const CText*>(&word);
         m_text_renderer_mode = text ? text->m_text_renderer_mode : TEXT_RENDERER_LEGACY_GDI;
         m_mod_hash = word.m_mod_style ? word.m_mod_style->path_hash : 0;
+        m_mod_compatibility_mode = word.m_mod_compatibility_mode;
+        if (m_mod_compatibility_mode) {
+            m_mod_scale_x = word.m_mod_scale_x;
+            m_mod_scale_y = word.m_mod_scale_y;
+            m_is_opaque_box = word.m_is_opaque_box;
+        } else {
+            m_mod_scale_x = 0;
+            m_mod_scale_y = 0;
+            m_is_opaque_box = false;
+        }
         m_str_id = word.m_str.GetId();
     }
     PathDataCacheKey(const PathDataCacheKey& key)
@@ -80,6 +90,10 @@ public:
         ,m_style(key.m_style)
         ,m_text_renderer_mode(key.m_text_renderer_mode)
         ,m_mod_hash(key.m_mod_hash)
+        ,m_mod_compatibility_mode(key.m_mod_compatibility_mode)
+        ,m_mod_scale_x(key.m_mod_scale_x)
+        ,m_mod_scale_y(key.m_mod_scale_y)
+        ,m_is_opaque_box(key.m_is_opaque_box)
         ,m_hash_value(key.m_hash_value){}
     bool operator==(const PathDataCacheKey& key)const
     {
@@ -88,6 +102,10 @@ public:
             && fabs(m_scaley-key.m_scaley)<0.000001
             && m_text_renderer_mode==key.m_text_renderer_mode
             && m_mod_hash==key.m_mod_hash
+            && m_mod_compatibility_mode==key.m_mod_compatibility_mode
+            && m_mod_scale_x==key.m_mod_scale_x
+            && m_mod_scale_y==key.m_mod_scale_y
+            && m_is_opaque_box==key.m_is_opaque_box
             && ( m_style==key.m_style || CompareSTSStyle(m_style, key.m_style) );
     }
     bool operator==(const CWord& key)const
@@ -110,6 +128,9 @@ protected:
     FwSTSStyle m_style;
     TextRendererMode m_text_renderer_mode;
     size_t m_mod_hash;
+    bool m_mod_compatibility_mode;
+    double m_mod_scale_x, m_mod_scale_y;
+    bool m_is_opaque_box;
 };
 
 class ScanLineData2CacheKey: public PathDataCacheKey
@@ -249,6 +270,7 @@ private:
     DWORD m_switchpts[6];
     bool m_fBody;
     bool m_fBorder;
+    bool m_vsfilter_mod_compatibility;
     SharedPtrConstModPaintSource m_mod_paint_source;
 };
 

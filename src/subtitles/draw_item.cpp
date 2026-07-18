@@ -18,10 +18,9 @@ using namespace std;
 
 namespace
 {
-BYTE MultiplyAlpha(BYTE lhs, BYTE rhs)
+BYTE MultiplyModCoverage(BYTE coverage, BYTE color_alpha)
 {
-    const unsigned value = static_cast<unsigned>(lhs) * rhs;
-    return static_cast<BYTE>((value + 1 + ((value + 1) >> 8)) >> 8);
+    return static_cast<BYTE>((static_cast<unsigned>(coverage) * color_alpha + 32) >> 6);
 }
 
 void BlendPackedPixel(DWORD* destination, DWORD color, BYTE alpha)
@@ -92,7 +91,12 @@ CRectCoor2 DrawItem::Draw( XyBitmap* bitmap, DrawItem& draw_item, const CRectCoo
     // asserts FATAL in AdditionDraw (use case: Avisynth TextSub plugin for YV12)
     bool PLANAR = (bitmap->type == XyBitmap::PLANNA);
 
-    return !PLANAR && draw_item.use_addition_draw ? AdditionDraw(bitmap, draw_item, clip_rect) 
+    // VSFilterMod composites each item with the normal alpha path.  The xy
+    // AdditionDraw overlap optimization changes layer ordering/coverage and
+    // must not be reused for MOD compatibility items.
+    return !PLANAR && draw_item.use_addition_draw
+        && !draw_item.vsfilter_mod_compatibility
+        ? AdditionDraw(bitmap, draw_item, clip_rect)
                                        : AlphaBltDraw(bitmap, draw_item, clip_rect);
 }
 
@@ -111,7 +115,8 @@ CRectCoor2 DrawItem::AlphaBltDraw( XyBitmap* bitmap, DrawItem& draw_item, const 
         &result);
 
     Rasterizer::Draw(bitmap, overlay, result, alpha.get(),
-        draw_item.xsub, draw_item.ysub, draw_item.switchpts, draw_item.fBody, draw_item.fBorder);
+        draw_item.xsub, draw_item.ysub, draw_item.switchpts, draw_item.fBody,
+        draw_item.fBorder);
     return result;
 }
 
@@ -126,10 +131,9 @@ CRectCoor2 DrawItem::ModPaintDraw(XyBitmap* bitmap, DrawItem& draw_item,
     ASSERT(draw_item.overlay_paint_machine);
     draw_item.overlay_paint_machine->Paint(&overlay);
 
-    const DWORD coverage_switchpts[6] = {0xff000000, 0xffffffff, 0, 0, 0, 0};
-    const SharedPtrByte& coverage = Rasterizer::CompositeAlphaMask(
+    const SharedPtrByte& coverage = Rasterizer::CompositeModAlphaMask(
         overlay, draw_item.clip_rect & clip_rect, alpha_mask.get(),
-        draw_item.xsub, draw_item.ysub, coverage_switchpts,
+        draw_item.xsub, draw_item.ysub,
         draw_item.fBody, draw_item.fBorder, &result);
     if (!coverage || result.IsRectEmpty() || !bitmap) {
         return result;
@@ -146,12 +150,21 @@ CRectCoor2 DrawItem::ModPaintDraw(XyBitmap* bitmap, DrawItem& draw_item,
     const int switch_x = static_cast<int>(draw_item.switchpts[3]);
     const int subpixel_x = draw_item.xsub & 7;
     const int subpixel_y = draw_item.ysub & 7;
+    const int mod_gradient_width = overlay->mVsFilterModGradientWidth > 0
+        ? overlay->mVsFilterModGradientWidth
+        : overlay->mOverlayWidth;
     const int mod_gradient_height = overlay->mVsFilterModGradientHeight > 0
         ? overlay->mVsFilterModGradientHeight
         : overlay->mOverlayHeight;
-    const CRect effective_clip = draw_item.clip_rect & clip_rect;
-    const int mod_bottom = overlay_y + mod_gradient_height;
-    const int mod_visible_bottom = min(mod_bottom, effective_clip.bottom);
+    const int mod_overlay_x = (draw_item.xsub
+        + overlay->mVsFilterModGradientOffsetX + 4) >> 3;
+    const int mod_overlay_y = (draw_item.ysub
+        + overlay->mVsFilterModGradientOffsetY + 4) >> 3;
+    const int mod_bottom = mod_overlay_y + mod_gradient_height;
+    // The output bitmap may cover only a dirty tile. VSFilterMod's gradient and
+    // image coordinates are clipped by the subtitle clip, not by that transient
+    // destination tile, so keep paint coordinates stable across partial draws.
+    const int mod_visible_bottom = min(mod_bottom, draw_item.clip_rect.bottom);
     const int mod_y_offset = max(0, mod_visible_bottom - result.bottom);
     const int image_clip_diff = max(0, mod_bottom - mod_visible_bottom);
 
@@ -169,13 +182,13 @@ CRectCoor2 DrawItem::ModPaintDraw(XyBitmap* bitmap, DrawItem& draw_item,
         for (int row = 0; row < height; ++row) {
             const int paint_y = height - row - 1 + mod_y_offset;
             for (int column = 0; column < width; ++column) {
-                const int paint_x = xo + column;
+                const int paint_x = result.left - mod_overlay_x + column;
                 const int layer = single_layer || paint_x < switch_x + 1 ? 0 : 1;
                 const DWORD color = draw_item.mod_paint_source->GetColor(
-                    layer, paint_x, paint_y, overlay->mOverlayWidth,
+                    layer, paint_x, paint_y, mod_gradient_width,
                     mod_gradient_height, subpixel_x, subpixel_y,
                     image_clip_diff);
-                const BYTE alpha = MultiplyAlpha(source[column],
+                const BYTE alpha = MultiplyModCoverage(source[column],
                     static_cast<BYTE>(color >> 24));
                 BlendPlanarPixel(&destination_a[column], &destination_y[column],
                     &destination_u[column], &destination_v[column], color, alpha);
@@ -194,13 +207,13 @@ CRectCoor2 DrawItem::ModPaintDraw(XyBitmap* bitmap, DrawItem& draw_item,
             DWORD* destination = reinterpret_cast<DWORD*>(destination_row);
             const int paint_y = height - row - 1 + mod_y_offset;
             for (int column = 0; column < width; ++column) {
-                const int paint_x = xo + column;
+                const int paint_x = result.left - mod_overlay_x + column;
                 const int layer = single_layer || paint_x < switch_x + 1 ? 0 : 1;
                 const DWORD color = draw_item.mod_paint_source->GetColor(
-                    layer, paint_x, paint_y, overlay->mOverlayWidth,
+                    layer, paint_x, paint_y, mod_gradient_width,
                     mod_gradient_height, subpixel_x, subpixel_y,
                     image_clip_diff);
-                const BYTE alpha = MultiplyAlpha(source[column],
+                const BYTE alpha = MultiplyModCoverage(source[column],
                     static_cast<BYTE>(color >> 24));
                 BlendPackedPixel(&destination[column], color, alpha);
             }
@@ -233,7 +246,8 @@ CRectCoor2 DrawItem::AdditionDraw( XyBitmap *bitmap, DrawItem& draw_item, const 
 
 DrawItem* DrawItem::CreateDrawItem( const SharedPtrOverlayPaintMachine& overlay_paint_machine, const CRect& clipRect,
     const SharedPtrCClipperPaintMachine &clipper, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder,
-    const SharedPtrConstModPaintSource& mod_paint_source )
+    const SharedPtrConstModPaintSource& mod_paint_source,
+    bool vsfilter_mod_compatibility )
 {
     DrawItem* result              = DEBUG_NEW DrawItem();
     result->overlay_paint_machine = overlay_paint_machine;
@@ -245,6 +259,7 @@ DrawItem* DrawItem::CreateDrawItem( const SharedPtrOverlayPaintMachine& overlay_
     memcpy(result->switchpts, switchpts, sizeof(result->switchpts));
     result->fBody   = fBody;
     result->fBorder = fBorder;
+    result->vsfilter_mod_compatibility = vsfilter_mod_compatibility;
     result->mod_paint_source = mod_paint_source;
 
     result->use_addition_draw = false;
@@ -415,6 +430,97 @@ void CompositeDrawItem::Draw( XySubRenderFrame**output, CompositeDrawItemListLis
     {
         grouped_draw_items[i].Draw(&(sub_render_frame.m_bitmaps.GetAt(i)), &(sub_render_frame.m_bitmap_ids.GetAt(i)));
     }
+}
+
+void CompositeDrawItem::DrawDirect(SubPicDesc& target,
+    CompositeDrawItemListList& compDrawItemListList)
+{
+    if (!target.bits || target.bpp != 32 || target.w <= 0 || target.h <= 0) {
+        return;
+    }
+
+    CompositeDrawItemExTree draw_item_ex_tree;
+    XyRectExList rect_ex_list;
+    CreateDrawItemExTree(compDrawItemListList, &draw_item_ex_tree, &rect_ex_list);
+    DecideDrawMethod(compDrawItemListList, rect_ex_list);
+
+    XyRectExList grouped_rect_exs;
+    MergeRects(rect_ex_list, &grouped_rect_exs);
+
+    CAtlArray<GroupedDrawItems> grouped_draw_items;
+    grouped_draw_items.SetCount(grouped_rect_exs.GetCount());
+
+    POSITION pos = grouped_rect_exs.GetHeadPosition();
+    for (int rect_id = 0; pos; ++rect_id) {
+        XyRectEx& item = grouped_rect_exs.GetNext(pos);
+        POSITION pos_item = item.item_ex_list->GetHeadPosition();
+        while (pos_item) {
+            CompositeDrawItemEx* draw_item_ex = item.item_ex_list->GetNext(pos_item);
+            if (draw_item_ex->rect_id_list.GetTail() != rect_id) {
+                draw_item_ex->rect_id_list.AddTail(rect_id);
+            }
+        }
+        grouped_draw_items[rect_id].clip_rect = item;
+    }
+
+    for (unsigned i = 0; i < draw_item_ex_tree.GetCount(); ++i) {
+        CompositeDrawItemExVec& draw_item_ex_vec = draw_item_ex_tree[i];
+        for (unsigned j = 0; j < draw_item_ex_vec.GetCount(); ++j) {
+            CompositeDrawItemEx& draw_item_ex = draw_item_ex_vec[j];
+            if (!draw_item_ex.item->shadow) continue;
+            POSITION item_pos = draw_item_ex.rect_id_list.GetHeadPosition();
+            draw_item_ex.rect_id_list.GetNext(item_pos);
+            while (item_pos) {
+                grouped_draw_items[draw_item_ex.rect_id_list.GetNext(item_pos)]
+                    .draw_item_list.AddTail(draw_item_ex.item->shadow);
+            }
+        }
+        for (unsigned j = 0; j < draw_item_ex_vec.GetCount(); ++j) {
+            CompositeDrawItemEx& draw_item_ex = draw_item_ex_vec[j];
+            if (!draw_item_ex.item->outline) continue;
+            POSITION item_pos = draw_item_ex.rect_id_list.GetHeadPosition();
+            draw_item_ex.rect_id_list.GetNext(item_pos);
+            while (item_pos) {
+                grouped_draw_items[draw_item_ex.rect_id_list.GetNext(item_pos)]
+                    .draw_item_list.AddTail(draw_item_ex.item->outline);
+            }
+        }
+        for (unsigned j = 0; j < draw_item_ex_vec.GetCount(); ++j) {
+            CompositeDrawItemEx& draw_item_ex = draw_item_ex_vec[j];
+            if (!draw_item_ex.item->body) continue;
+            POSITION item_pos = draw_item_ex.rect_id_list.GetHeadPosition();
+            draw_item_ex.rect_id_list.GetNext(item_pos);
+            while (item_pos) {
+                grouped_draw_items[draw_item_ex.rect_id_list.GetNext(item_pos)]
+                    .draw_item_list.AddTail(draw_item_ex.item->body);
+            }
+        }
+    }
+
+    // Draw into the caller's RGB32 surface.  The normal frame path first
+    // renders onto an opaque-black premultiplied bitmap and then performs a
+    // second rounded blend in AlphaBltPack; VSFilterMod's CSRI path blends
+    // directly into the supplied BGR surface.  Keeping the destination here
+    // makes the MOD path use the same per-pixel operation and avoids losing
+    // low-alpha tails in the second blend.
+    XyBitmap direct;
+    direct.type = XyBitmap::PACK;
+    direct.x = 0;
+    direct.y = 0;
+    direct.w = target.w;
+    direct.h = target.h;
+    direct.pitch = target.pitch;
+    direct.bpp = target.bpp;
+    direct.bits = target.bits;
+    direct.plans[0] = target.bits;
+
+    for (unsigned i = 0; i < grouped_draw_items.GetCount(); ++i) {
+        grouped_draw_items[i].DrawDirect(&direct);
+    }
+
+    // XyBitmap owns its allocation by default; this wrapper points into the
+    // caller-owned CSRI frame and must not release it in its destructor.
+    direct.bits = NULL;
 }
 
 void CreateDrawItemExTree( CompositeDrawItemListList& input,
@@ -715,6 +821,18 @@ void GroupedDrawItems::Draw( SharedPtrXyBitmap *bitmap, int *bitmap_identity_num
         bitmap_cache->UpdateCache(pos);
     }
     *bitmap_identity_num  = key_id;
+}
+
+void GroupedDrawItems::DrawDirect(XyBitmap* bitmap)
+{
+    if (!bitmap) {
+        return;
+    }
+    POSITION pos = draw_item_list.GetHeadPosition();
+    while (pos) {
+        DrawItem& item = *draw_item_list.GetNext(pos);
+        DrawItem::Draw(bitmap, item, clip_rect);
+    }
 }
 
 void GroupedDrawItems::CreateHashKey(GroupedDrawItemsHashKey *key)

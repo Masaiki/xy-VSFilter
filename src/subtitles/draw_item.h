@@ -27,6 +27,7 @@ public:
     DWORD switchpts[6];
     bool  fBody;
     bool  fBorder;
+    bool  vsfilter_mod_compatibility;
     SharedPtrConstModPaintSource mod_paint_source;
 
     bool  use_addition_draw;
@@ -45,7 +46,8 @@ public:
         const SharedPtrCClipperPaintMachine &clipper,
         int xsub, int ysub,
         const DWORD* switchpts, bool fBody, bool fBorder,
-        const SharedPtrConstModPaintSource& mod_paint_source = SharedPtrConstModPaintSource());
+        const SharedPtrConstModPaintSource& mod_paint_source = SharedPtrConstModPaintSource(),
+        bool vsfilter_mod_compatibility = false);
 };
 
 typedef ::boost::shared_ptr<DrawItem> SharedPtrDrawItem;
@@ -69,6 +71,7 @@ public:
     static CRectCoor2 GetDirtyRect( CompositeDrawItem& item );
 
     static void Draw(XySubRenderFrame**output, CompositeDrawItemListList& compDrawItemListList);
+    static void DrawDirect(SubPicDesc& target, CompositeDrawItemListList& compDrawItemListList);
 };
 
 struct GroupedDrawItems
@@ -78,6 +81,7 @@ public:
     CRectCoor2 clip_rect;
 public:
     void Draw(SharedPtrXyBitmap *bitmap, int *bitmap_identity_num);
+    void DrawDirect(XyBitmap* bitmap);
 
     void CreateHashKey(GroupedDrawItemsHashKey *key);
 };

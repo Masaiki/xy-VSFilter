@@ -247,6 +247,8 @@ TEST(VsFilterModTest, SwitchesSemanticsWithoutDiscardingLexicalTagCache)
     ASSERT_GT(cached_tag_count, static_cast<size_t>(0));
 
     renderer.SetVsFilterCompatibilityMode(VSFILTER_COMPATIBILITY_MOD);
+    EXPECT_EQ(SUBTITLE_RENDER_BACKEND_VSFILTER, renderer.m_render_backend);
+    EXPECT_EQ(VSFILTER_COMPATIBILITY_MOD, renderer.m_vsfilter_compatibility_mode);
     EXPECT_EQ(cached_tag_count, tag_cache->GetCurItemNum());
 
     CSubtitle2List mod_subtitles;
@@ -285,4 +287,226 @@ TEST(VsFilterModTest, ModModeWithoutModTagsKeepsSidecarsEmpty)
         const SharedPtrCWord word = subtitles.GetHead().s->m_words.GetNext(position);
         EXPECT_EQ(nullptr, word->m_mod_style.get());
     }
+}
+
+TEST(VsFilterModTest, SeparatesRasterCachesByModGeometryState)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_MOD;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    renderer.Add(L"A", true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(500 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+    const SharedPtrCWord word = FindTextWord(subtitles.GetHead().s, 0);
+    ASSERT_NE(nullptr, word.get());
+
+    PathDataCacheKey base_key(*word);
+    base_key.UpdateHashValue();
+
+    word->m_mod_scale_x *= 2;
+    PathDataCacheKey scale_x_key(*word);
+    scale_x_key.UpdateHashValue();
+    EXPECT_FALSE(base_key == scale_x_key);
+    EXPECT_NE(base_key.GetHashValue(), scale_x_key.GetHashValue());
+
+    word->m_mod_scale_x /= 2;
+    word->m_mod_scale_y *= 2;
+    PathDataCacheKey scale_y_key(*word);
+    scale_y_key.UpdateHashValue();
+    EXPECT_FALSE(base_key == scale_y_key);
+    EXPECT_NE(base_key.GetHashValue(), scale_y_key.GetHashValue());
+
+    word->m_mod_scale_y /= 2;
+    word->m_is_opaque_box = true;
+    PathDataCacheKey opaque_box_key(*word);
+    opaque_box_key.UpdateHashValue();
+    EXPECT_FALSE(base_key == opaque_box_key);
+    EXPECT_NE(base_key.GetHashValue(), opaque_box_key.GetHashValue());
+}
+
+TEST(VsFilterModTest, AnimatedRandomAmplitudeUsesModIntegerStorage)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_MOD;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    renderer.Add(L"{\\t(0,1000,\\rnd20)}A", true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(333 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+    const SharedPtrCWord word = FindTextWord(subtitles.GetHead().s, 0);
+    ASSERT_NE(nullptr, word.get());
+    ASSERT_NE(nullptr, word->m_mod_style.get());
+    EXPECT_DOUBLE_EQ(53, word->m_mod_style->random_x);
+    EXPECT_DOUBLE_EQ(53, word->m_mod_style->random_y);
+    EXPECT_DOUBLE_EQ(53, word->m_mod_style->random_z);
+}
+
+// Default mode degrades MOD-only inline tags to the longest shorter prefix that
+// names a legacy command, with the re-sliced param left intact (e.g. \rnd20 ->
+// \r with "nd20"). The junk param makes the legacy case reset its property,
+// matching how a renderer without MOD support would lex the tag. \r with no
+// param resets to org, so each degraded word equals its \r-reset control.
+TEST(VsFilterModTest, DefaultModeDegradesInlineModTagsToLegacyReset)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_XY;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    renderer.Add(
+        L"{\\fs80\\rnd20}A\\N{\\r}a\\N"
+        L"{\\fs80\\fsvp10}B\\N{\\r}b\\N"
+        L"{\\frz30\\frs10}C\\N{\\r}c",
+        true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(500 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+
+    const SharedPtrCWord random_word = FindTextWord(subtitles.GetHead().s, 0);
+    const SharedPtrCWord random_control = FindTextWord(subtitles.GetHead().s, 1);
+    const SharedPtrCWord spacing_word = FindTextWord(subtitles.GetHead().s, 2);
+    const SharedPtrCWord spacing_control = FindTextWord(subtitles.GetHead().s, 3);
+    const SharedPtrCWord rotation_word = FindTextWord(subtitles.GetHead().s, 4);
+    const SharedPtrCWord rotation_control = FindTextWord(subtitles.GetHead().s, 5);
+    ASSERT_NE(nullptr, random_word.get());
+    ASSERT_NE(nullptr, random_control.get());
+    ASSERT_NE(nullptr, spacing_word.get());
+    ASSERT_NE(nullptr, spacing_control.get());
+    ASSERT_NE(nullptr, rotation_word.get());
+    ASSERT_NE(nullptr, rotation_control.get());
+
+    // \rnd20 -> \r "nd20" (style reset), \fsvp10 -> \fs "vp10" (fontSize reset,
+    // overriding \fs80), \frs10 -> \fr "s10" (fontAngleZ reset, overriding \frz30).
+    EXPECT_EQ(random_control->m_style.get().fontSize, random_word->m_style.get().fontSize);
+    EXPECT_EQ(spacing_control->m_style.get().fontSize, spacing_word->m_style.get().fontSize);
+    EXPECT_EQ(rotation_control->m_style.get().fontAngleZ, rotation_word->m_style.get().fontAngleZ);
+    EXPECT_EQ(nullptr, random_word->m_mod_style.get());
+    EXPECT_EQ(nullptr, spacing_word->m_mod_style.get());
+    EXPECT_EQ(nullptr, rotation_word->m_mod_style.get());
+}
+
+// Empty bracket parameters do not suppress the inline remainder that the old
+// longest-prefix lexer appended. With a non-zero style angle, \frs() must still
+// degrade to \fr with parameter "s" (numeric value 0), not to an empty \fr
+// which would restore the original angle.
+TEST(VsFilterModTest, DefaultModeKeepsLegacyRemainderForEmptyBrackets)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_XY;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    STSStyle* default_style = renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    ASSERT_NE(nullptr, default_style);
+    default_style->fontAngleZ = 17;
+    renderer.Add(L"{\\frs()}A\\N{\\fr0}a", true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(500 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+    const SharedPtrCWord fallback = FindTextWord(subtitles.GetHead().s, 0);
+    const SharedPtrCWord control = FindTextWord(subtitles.GetHead().s, 1);
+    ASSERT_NE(nullptr, fallback.get());
+    ASSERT_NE(nullptr, control.get());
+    EXPECT_DOUBLE_EQ(0, fallback->m_style.get().fontAngleZ);
+    EXPECT_EQ(control->m_style.get().fontAngleZ, fallback->m_style.get().fontAngleZ);
+    EXPECT_EQ(nullptr, fallback->m_mod_style.get());
+}
+
+// \rndx must skip the MOD prefix "rnd" (CMD_rnd) and fall back to \r, not degrade
+// into another MOD command. Guards the legacy_type < CMD_1img check.
+TEST(VsFilterModTest, DefaultModeDegradesRndxSkippingModPrefix)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_XY;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    renderer.Add(L"{\\rndx20}A\\N{\\r}a", true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(500 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+    const SharedPtrCWord word = FindTextWord(subtitles.GetHead().s, 0);
+    const SharedPtrCWord control = FindTextWord(subtitles.GetHead().s, 1);
+    ASSERT_NE(nullptr, word.get());
+    ASSERT_NE(nullptr, control.get());
+    EXPECT_EQ(control->m_style.get().fontSize, word->m_style.get().fontSize);
+    EXPECT_EQ(nullptr, word->m_mod_style.get());
+}
+
+// \mover(...) degrades to \move using the bracket params; a 4-arg mover satisfies
+// \move's count==4 guard and produces EF_MOVE, without touching MOD sidecars.
+TEST(VsFilterModTest, DefaultModeDegradesMoverToMoveEffect)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_XY;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    renderer.Add(L"{\\mover(10,20,30,40)}A", true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(500 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+    ASSERT_NE(nullptr, subtitles.GetHead().s->m_effects[EF_MOVE]);
+    EXPECT_EQ(nullptr, subtitles.GetHead().s->m_mod_effects.get());
+}
+
+// MOD-only tags whose shorter prefixes match no legacy command are skipped
+// entirely in default mode (legacyCmdType == CMD_COUNT -> continue).
+TEST(VsFilterModTest, DefaultModeSkipsModTagsWithoutLegacyPrefix)
+{
+    CCritSec lock;
+    CRenderedTextSubtitle renderer(&lock);
+    renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+    renderer.m_vsfilter_compatibility_mode = VSFILTER_COMPATIBILITY_XY;
+    renderer.m_dstScreenSize = CSize(640, 360);
+    renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+    renderer.Add(L"{\\z10}A\\N{\\jitter(1,2,3,4,5)}B", true, 0, 1000);
+    renderer.Sort();
+    ASSERT_TRUE(renderer.Init(CRect(0, 0, 640, 360), CRect(0, 0, 640, 360),
+        CSize(640, 360)));
+
+    CSubtitle2List subtitles;
+    ASSERT_EQ(S_OK, renderer.ParseScript(500 * 10000i64, 25.0, &subtitles));
+    ASSERT_FALSE(subtitles.IsEmpty());
+    const SharedPtrCWord z_word = FindTextWord(subtitles.GetHead().s, 0);
+    const SharedPtrCWord jitter_word = FindTextWord(subtitles.GetHead().s, 1);
+    ASSERT_NE(nullptr, z_word.get());
+    ASSERT_NE(nullptr, jitter_word.get());
+    EXPECT_EQ(nullptr, z_word->m_mod_style.get());
+    EXPECT_EQ(nullptr, jitter_word->m_mod_style.get());
+    EXPECT_EQ(nullptr, subtitles.GetHead().s->m_mod_effects.get());
 }

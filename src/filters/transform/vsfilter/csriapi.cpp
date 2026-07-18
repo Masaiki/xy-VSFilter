@@ -39,6 +39,24 @@ extern "C" struct csri_vsfilter_inst {
 };
 static const char *csri_vsfilter = "vsfilter";
 
+// CSRI open flag selecting the native VSFilter backend and its compatibility
+// mode. data.lval is read as a VsFilterCompatibilityMode value (XY or MOD).
+// Unknown to upstream CSRI clients, which ignore it per the CSRI
+// "renderer MUST ignore unknown flags" rule.
+static const char *csri_compat_flag = "xy.vsfilter.compat";
+
+static void ApplyOpenFlags(csri_vsfilter_inst *inst, struct csri_openflag *flags)
+{
+	for (struct csri_openflag *flag = flags; flag; flag = flag->next) {
+		if (flag->name && !strcmp(flag->name, csri_compat_flag)) {
+			inst->rts->m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+			inst->rts->SetVsFilterCompatibilityMode(
+				NormalizeVsFilterCompatibilityMode(
+					static_cast<VsFilterCompatibilityMode>(flag->data.lval)));
+		}
+	}
+}
+
 
 CSRIAPI csri_inst *csri_open_file(csri_rend *renderer, const char *filename, struct csri_openflag *flags)
 {
@@ -56,6 +74,7 @@ CSRIAPI csri_inst *csri_open_file(csri_rend *renderer, const char *filename, str
 	csri_vsfilter_inst *inst = new csri_vsfilter_inst();
 	inst->cs = new CCritSec();
 	inst->rts = new CRenderedTextSubtitle(inst->cs);
+	ApplyOpenFlags(inst, flags);
 	if (inst->rts->Open(CString(namebuf), DEFAULT_CHARSET)) {
 		delete[] namebuf;
 		inst->readorder = 0;
@@ -79,6 +98,7 @@ CSRIAPI csri_inst *csri_open_mem(csri_rend *renderer, const void *data, size_t l
 
 	inst->cs = new CCritSec();
 	inst->rts = new CRenderedTextSubtitle(inst->cs);
+	ApplyOpenFlags(inst, flags);
 	if (inst->rts->Open((BYTE*)data, (int)length, DEFAULT_CHARSET, _T("CSRI memory subtitles"))) {
 		inst->readorder = 0;
 		return inst;
@@ -140,7 +160,13 @@ CSRIAPI void csri_render(csri_inst *inst, struct csri_frame *frame, double time)
 	spd.h = vsf_inst->screen_res.cy;
 	switch (vsf_inst->pixfmt) {
 	case CSRI_F_BGR_:
-		spd.type = MSP_RGBA;
+		// VSFilterMod's CSRI path renders BGRX directly.  Keep xy's
+		// historical premultiplied-alpha surface in the default mode, but use
+		// the same RGB32 destination semantics in explicit MOD compatibility
+		// mode so the final blend/rounding is comparable as well as the mask.
+		spd.type = (vsf_inst->rts->m_render_backend == SUBTITLE_RENDER_BACKEND_VSFILTER
+			&& vsf_inst->rts->m_vsfilter_compatibility_mode == VSFILTER_COMPATIBILITY_MOD)
+			? MSP_RGB32 : MSP_RGBA;
 		spd.bpp = 32;
 		spd.bits = frame->planes[0];
 		spd.pitch = frame->strides[0];

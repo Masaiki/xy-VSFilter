@@ -144,6 +144,16 @@ ULONG PathDataCacheKey::UpdateHashValue()
     const uint64_t mod_hash = static_cast<uint64_t>(m_mod_hash);
     m_hash_value += static_cast<ULONG>(mod_hash ^ (mod_hash >> 32));
     m_hash_value += (m_hash_value<<5);
+    m_hash_value += m_mod_compatibility_mode;
+    m_hash_value += (m_hash_value<<5);
+    if (m_mod_compatibility_mode) {
+        m_hash_value += hash_value(m_mod_scale_x);
+        m_hash_value += (m_hash_value<<5);
+        m_hash_value += hash_value(m_mod_scale_y);
+        m_hash_value += (m_hash_value<<5);
+        m_hash_value += m_is_opaque_box;
+        m_hash_value += (m_hash_value<<5);
+    }
     m_hash_value += style.charSet;
     m_hash_value += (m_hash_value<<5);
     m_hash_value += CStringElementTraits<CString>::Hash(style.fontName);
@@ -354,6 +364,8 @@ ULONG DrawItemHashKey::UpdateHashValue()
     m_hash_value += (m_hash_value<<5);
     m_hash_value += m_fBody;
     m_hash_value += (m_hash_value<<5);
+    m_hash_value += m_vsfilter_mod_compatibility;
+    m_hash_value += (m_hash_value<<5);
     m_hash_value += (m_xsub<<16) + m_ysub;
     m_hash_value += (m_hash_value<<5);
     for (int i = 0; i < countof(m_switchpts); ++i)
@@ -380,6 +392,7 @@ DrawItemHashKey::DrawItemHashKey( const DrawItem& draw_item)
     , m_ysub(draw_item.ysub)
     , m_fBody(draw_item.fBody)
     , m_fBorder(draw_item.fBorder)
+    , m_vsfilter_mod_compatibility(draw_item.vsfilter_mod_compatibility)
     , m_mod_paint_source(draw_item.mod_paint_source)
 {
     for(int i=0;i<countof(m_switchpts);i++)
@@ -395,6 +408,7 @@ bool DrawItemHashKey::operator==( const DrawItemHashKey& key ) const
         m_ysub == key.m_ysub &&
         m_fBody == key.m_fBody &&
         m_fBorder == key.m_fBorder &&
+        m_vsfilter_mod_compatibility == key.m_vsfilter_mod_compatibility &&
         !memcmp(m_switchpts, key.m_switchpts, sizeof(m_switchpts)) &&
         ((m_mod_paint_source.get() == key.m_mod_paint_source.get())
             || (m_mod_paint_source && key.m_mod_paint_source

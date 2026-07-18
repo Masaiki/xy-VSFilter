@@ -147,6 +147,8 @@ private:
         ModPaintMode mode;
         DWORD solid_color;
         DWORD colors[4];
+        BYTE gradient_alpha[4];
+        BYTE gradient_fade_alpha;
         SharedPtrConstModImageResource image;
         BYTE image_opacity;
         int image_x_offset;

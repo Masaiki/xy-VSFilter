@@ -588,11 +588,13 @@ SharedPtrConstModStyleState FreezeModStyleState(SharedPtrModStyleState& state)
 ModPaintSource::Layer::Layer()
     : mode(MOD_PAINT_SOLID)
     , solid_color(0)
+    , gradient_fade_alpha(0xff)
     , image_opacity(0xff)
     , image_x_offset(0)
     , image_y_offset(0)
 {
     ZeroMemory(colors, sizeof(colors));
+    ZeroMemory(gradient_alpha, sizeof(gradient_alpha));
 }
 
 bool ModPaintSource::Layer::operator==(const Layer& rhs) const
@@ -600,6 +602,8 @@ bool ModPaintSource::Layer::operator==(const Layer& rhs) const
     return mode == rhs.mode
         && solid_color == rhs.solid_color
         && memcmp(colors, rhs.colors, sizeof(colors)) == 0
+        && memcmp(gradient_alpha, rhs.gradient_alpha, sizeof(gradient_alpha)) == 0
+        && gradient_fade_alpha == rhs.gradient_fade_alpha
         && SameImage(image, rhs.image)
         && image_opacity == rhs.image_opacity
         && image_x_offset == rhs.image_x_offset
@@ -641,7 +645,7 @@ DWORD ModPaintSource::GetColor(int layer, int x, int y_from_bottom, int width, i
         const double gradient_x = static_cast<double>(x) / width;
         const double gradient_y = static_cast<double>(y_from_bottom) / height;
         DWORD color = 0;
-        for (int channel = 0; channel < 4; ++channel) {
+        for (int channel = 0; channel < 3; ++channel) {
             const int shift = channel * 8;
             const BYTE value = InterpolateByte(
                 static_cast<BYTE>(paint.colors[0] >> shift),
@@ -651,6 +655,15 @@ DWORD ModPaintSource::GetColor(int layer, int x, int y_from_bottom, int width, i
                 gradient_x, gradient_y);
             color |= static_cast<DWORD>(value) << shift;
         }
+        const double alpha_value =
+            paint.gradient_alpha[0] * (1.0 - gradient_x) * gradient_y
+            + paint.gradient_alpha[1] * gradient_x * gradient_y
+            + paint.gradient_alpha[2] * (1.0 - gradient_y) * (1.0 - gradient_x)
+            + paint.gradient_alpha[3] * gradient_x * (1.0 - gradient_y);
+        const BYTE alpha = static_cast<BYTE>(static_cast<int>(alpha_value) & 0xff);
+        const BYTE opacity = static_cast<BYTE>(
+            (((0xff - alpha) * (0xff - paint.gradient_fade_alpha)) & 0xff00) >> 8);
+        color |= static_cast<DWORD>(opacity) << 24;
         return color;
     }
 
@@ -742,13 +755,12 @@ SharedPtrConstModPaintSource CreateModPaintSource(const ModStyleState& state,
 
         if (input.mode == MOD_PAINT_GRADIENT) {
             for (int corner = 0; corner < 4; ++corner) {
-                const BYTE opacity = static_cast<BYTE>(
-                    ((0xff - input.alpha[corner]) * (0xff - fade_alpha)) >> 8);
-                const DWORD argb = (static_cast<DWORD>(opacity) << 24)
-                    | ReverseColor(input.colors[corner]);
+                const DWORD argb = ReverseColor(input.colors[corner]);
                 output.colors[corner] =
                     XySubRenderFrameCreater::GetDefaultCreater()->TransColor(argb);
+                output.gradient_alpha[corner] = input.alpha[corner];
             }
+            output.gradient_fade_alpha = static_cast<BYTE>(fade_alpha);
         } else if (input.mode == MOD_PAINT_IMAGE && input.image) {
             output.image = input.image;
             output.image_opacity = static_cast<BYTE>(solid_colors[source_index] >> 24);
@@ -761,6 +773,8 @@ SharedPtrConstModPaintSource CreateModPaintSource(const ModStyleState& state,
         HashValue(result->m_hash, output.mode);
         HashValue(result->m_hash, output.solid_color);
         HashBytes(result->m_hash, output.colors, sizeof(output.colors));
+        HashBytes(result->m_hash, output.gradient_alpha, sizeof(output.gradient_alpha));
+        HashValue(result->m_hash, output.gradient_fade_alpha);
         HashValue(result->m_hash, output.image_opacity);
         HashValue(result->m_hash, output.image_x_offset);
         HashValue(result->m_hash, output.image_y_offset);

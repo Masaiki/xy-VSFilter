@@ -786,7 +786,8 @@ static void Bilinear(unsigned char *buf, int w, int h, int stride, int x_factor,
 
 extern "C" void* memsetSSE2(void* dest, int c, size_t count);
 
-bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int ysub, SharedPtrOverlay overlay)
+bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int ysub,
+    SharedPtrOverlay overlay, bool vsfilter_mod_compatibility)
 {
     using namespace ::boost::flyweights;
 
@@ -804,7 +805,11 @@ bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int y
     ysub &= 7;
     //xsub = ysub = 0;
     int width = scan_line_data.mWidth + xsub;
-    int height = scan_line_data.mHeight + ysub;
+    // VSFilterMod keeps the vertical subpixel offset out of the raster height
+    // and uses a fixed-height guard row.  The legacy xy path intentionally
+    // retains its historical +ysub/+7 rule.
+    int height = vsfilter_mod_compatibility ? scan_line_data.mHeight
+                                            : scan_line_data.mHeight + ysub;
     overlay->mfWideOutlineEmpty = scan_line_data2.mWideOutline.empty();
     if(!overlay->mfWideOutlineEmpty)
     {
@@ -821,13 +826,18 @@ bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int y
     overlay->mWidth = width;
     overlay->mHeight = height;
     overlay->mOverlayWidth = ((width+7)>>3) + 1;
-    overlay->mOverlayHeight = ((height+7)>>3) + 1;
+    overlay->mOverlayHeight = vsfilter_mod_compatibility
+        ? ((height + 14) >> 3) + 1
+        : ((height + 7) >> 3) + 1;
     // VSFilterMod omitted the vertical subpixel offset and used its own
     // rounding rule when choosing the full-height gradient denominator.
+    overlay->mVsFilterModGradientWidth = overlay->mOverlayWidth;
     const int mod_height = scan_line_data.mHeight
         + (overlay->mfWideOutlineEmpty ? 0
             : 2 * ((scan_line_data2.mWideBorder + 7) & ~7));
     overlay->mVsFilterModGradientHeight = ((mod_height + 14) >> 3) + 1;
+    overlay->mVsFilterModGradientOffsetX = overlay->mOffsetX;
+    overlay->mVsFilterModGradientOffsetY = overlay->mOffsetY;
     overlay->mOverlayPitch = (overlay->mOverlayWidth+15)&~15;
 
     BYTE* body = reinterpret_cast<BYTE*>(xy_malloc(overlay->mOverlayPitch * overlay->mOverlayHeight));
@@ -889,6 +899,21 @@ bool Rasterizer::Rasterize(const ScanLineData2& scan_line_data2, int xsub, int y
 
 const float Rasterizer::GAUSSIAN_BLUR_THREHOLD = 0.333333f;
 
+namespace
+{
+int GetVsFilterModBlurAdjust(float be_strength, double gaussian_blur_strength)
+{
+    int blur_adjust = 0;
+    if (gaussian_blur_strength > 0) {
+        blur_adjust += static_cast<int>(gaussian_blur_strength * 3 * 8 + 0.5) | 1;
+    }
+    if (be_strength > 0) {
+        blur_adjust += 8;
+    }
+    return (blur_adjust + 7) & ~7;
+}
+}
+
 bool Rasterizer::IsItReallyBlur( float be_strength, double gaussian_blur_strength )
 {
     if (be_strength<=0 && gaussian_blur_strength<=GAUSSIAN_BLUR_THREHOLD)
@@ -918,7 +943,10 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
     output_overlay->mHeight = input_overlay.mHeight;
     output_overlay->mOverlayWidth = input_overlay.mOverlayWidth;
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight;
+    output_overlay->mVsFilterModGradientWidth = input_overlay.mVsFilterModGradientWidth;
     output_overlay->mVsFilterModGradientHeight = input_overlay.mVsFilterModGradientHeight;
+    output_overlay->mVsFilterModGradientOffsetX = input_overlay.mVsFilterModGradientOffsetX;
+    output_overlay->mVsFilterModGradientOffsetY = input_overlay.mVsFilterModGradientOffsetY;
     output_overlay->mfWideOutlineEmpty = input_overlay.mfWideOutlineEmpty;
 
     double gaussian_blur_strength_x = gaussian_blur_strength*target_scale_x;
@@ -959,7 +987,12 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
         output_overlay->mHeight += (bluradjust_y<<1);
         output_overlay->mOverlayWidth += (bluradjust_x>>2);
         output_overlay->mOverlayHeight += (bluradjust_y>>2);
-        output_overlay->mVsFilterModGradientHeight += (bluradjust_y>>2);
+        const int mod_blur_adjust = GetVsFilterModBlurAdjust(
+            be_strength, gaussian_blur_strength);
+        output_overlay->mVsFilterModGradientWidth += (mod_blur_adjust >> 2);
+        output_overlay->mVsFilterModGradientHeight += (mod_blur_adjust >> 2);
+        output_overlay->mVsFilterModGradientOffsetX -= mod_blur_adjust;
+        output_overlay->mVsFilterModGradientOffsetY -= mod_blur_adjust;
     }
     else
     {
@@ -1048,11 +1081,156 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
     return true;
 }
 
+bool Rasterizer::ModBlur(const Overlay& input_overlay, float be_strength,
+    double gaussian_blur_strength, SharedPtrOverlay output_overlay)
+{
+    ASSERT(output_overlay);
+    if (!output_overlay || !IsItReallyBlur(be_strength, gaussian_blur_strength)) {
+        return false;
+    }
+
+    output_overlay->CleanUp();
+    output_overlay->mfWideOutlineEmpty = input_overlay.mfWideOutlineEmpty;
+    if (input_overlay.mOverlayWidth <= 0 || input_overlay.mOverlayHeight <= 0) {
+        return true;
+    }
+
+    // VSFilterMod stores \be as an integer and expands the raster by one
+    // pixel for each non-zero \be, regardless of its numeric strength.
+    const int mod_be = max(0, static_cast<int>(be_strength + 0.5f));
+    int blur_adjust = 0;
+    if (gaussian_blur_strength > 0) {
+        blur_adjust += static_cast<int>(gaussian_blur_strength * 3 * 8 + 0.5) | 1;
+    }
+    if (mod_be > 0) {
+        blur_adjust += 8;
+    }
+    blur_adjust = (blur_adjust + 7) & ~7;
+
+    output_overlay->mOffsetX = input_overlay.mOffsetX - blur_adjust;
+    output_overlay->mOffsetY = input_overlay.mOffsetY - blur_adjust;
+    output_overlay->mWidth = input_overlay.mWidth + (blur_adjust << 1);
+    output_overlay->mHeight = input_overlay.mHeight + (blur_adjust << 1);
+    // Keep the MOD guard-row rounding from Rasterizer::Rasterize when the
+    // blur expansion is applied after scan conversion.  Adding blur_adjust/4
+    // to a rounded input height can be one row short for non-multiple-of-8
+    // glyph bounds, which drops the faint tail of a Gaussian at fade-out.
+    output_overlay->mOverlayWidth = ((output_overlay->mWidth + 7) >> 3) + 1;
+    output_overlay->mOverlayHeight = ((output_overlay->mHeight + 14) >> 3) + 1;
+    output_overlay->mVsFilterModGradientWidth = output_overlay->mOverlayWidth;
+    output_overlay->mVsFilterModGradientHeight = output_overlay->mOverlayHeight;
+    output_overlay->mVsFilterModGradientOffsetX = output_overlay->mOffsetX;
+    output_overlay->mVsFilterModGradientOffsetY = output_overlay->mOffsetY;
+    output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth + 15) & ~15;
+
+    const size_t output_bytes = static_cast<size_t>(output_overlay->mOverlayPitch)
+        * output_overlay->mOverlayHeight;
+    BYTE* body = reinterpret_cast<BYTE*>(xy_malloc(output_bytes));
+    if (!body) {
+        return false;
+    }
+    output_overlay->mBody.reset(body, xy_free);
+    memset(body, 0, output_bytes);
+
+    BYTE* border = NULL;
+    if (!output_overlay->mfWideOutlineEmpty) {
+        border = reinterpret_cast<BYTE*>(xy_malloc(output_bytes));
+        if (!border) {
+            return false;
+        }
+        output_overlay->mBorder.reset(border, xy_free);
+        memset(border, 0, output_bytes);
+    }
+
+    const int copy_offset = blur_adjust >> 3;
+    for (int plane = 0; plane < 2; ++plane) {
+        const BYTE* source = plane == 0 ? input_overlay.mBody.get() : input_overlay.mBorder.get();
+        BYTE* destination = plane == 0 ? output_overlay->mBody.get() : output_overlay->mBorder.get();
+        if (!source || !destination) {
+            continue;
+        }
+        for (int row = 0; row < input_overlay.mOverlayHeight; ++row) {
+            memcpy(destination + (row + copy_offset) * output_overlay->mOverlayPitch + copy_offset,
+                source + row * input_overlay.mOverlayPitch,
+                input_overlay.mOverlayWidth);
+        }
+    }
+
+    BYTE* blur_plane = output_overlay->mfWideOutlineEmpty
+        ? output_overlay->mBody.get() : output_overlay->mBorder.get();
+    if (!blur_plane) {
+        return false;
+    }
+
+    if (gaussian_blur_strength > 0) {
+        GaussianKernel filter(gaussian_blur_strength);
+        if (output_overlay->mOverlayWidth >= filter.width
+                && output_overlay->mOverlayHeight >= filter.width) {
+            const size_t plane_bytes = static_cast<size_t>(output_overlay->mOverlayPitch)
+                * output_overlay->mOverlayHeight;
+            BYTE* temporary = new BYTE[plane_bytes];
+            if (!temporary) {
+                return false;
+            }
+            SeparableFilterX<1>(blur_plane, temporary,
+                output_overlay->mOverlayWidth, output_overlay->mOverlayHeight,
+                output_overlay->mOverlayPitch, filter.kernel, filter.width, filter.divisor);
+            SeparableFilterY<1>(temporary, blur_plane,
+                output_overlay->mOverlayWidth, output_overlay->mOverlayHeight,
+                output_overlay->mOverlayPitch, filter.kernel, filter.width, filter.divisor);
+            delete [] temporary;
+        }
+    }
+
+    // VSFilterMod applies an integer number of 3x3 [1 2 1] passes.  Keep the
+    // edge pixels unchanged, matching its copy-before-filter behaviour.
+    for (int pass = 0; pass < mod_be; ++pass) {
+        if (output_overlay->mOverlayWidth < 3 || output_overlay->mOverlayHeight < 3) {
+            break;
+        }
+        const size_t plane_bytes = static_cast<size_t>(output_overlay->mOverlayPitch)
+            * output_overlay->mOverlayHeight;
+        BYTE* temporary = new BYTE[plane_bytes];
+        if (!temporary) {
+            return false;
+        }
+        memcpy(temporary, blur_plane, plane_bytes);
+        for (int row = 1; row < output_overlay->mOverlayHeight - 1; ++row) {
+            const BYTE* source = temporary + row * output_overlay->mOverlayPitch + 1;
+            BYTE* destination = blur_plane + row * output_overlay->mOverlayPitch + 1;
+            for (int column = 1; column < output_overlay->mOverlayWidth - 1;
+                    ++column, ++source, ++destination) {
+                *destination = static_cast<BYTE>(
+                    (source[-1 - output_overlay->mOverlayPitch]
+                        + (source[-output_overlay->mOverlayPitch] << 1)
+                        + source[1 - output_overlay->mOverlayPitch]
+                        + (source[-1] << 1) + (source[0] << 2)
+                        + (source[1] << 1)
+                        + source[-1 + output_overlay->mOverlayPitch]
+                        + (source[output_overlay->mOverlayPitch] << 1)
+                        + source[1 + output_overlay->mOverlayPitch]) >> 4);
+            }
+        }
+        delete [] temporary;
+    }
+    return true;
+}
+
 // @return: true if actually a blur operation has done, or else false and output is leave unset.
-bool Rasterizer::Blur(const Overlay& input_overlay, float be_strength, 
-    double gaussian_blur_strength, 
-    double target_scale_x, double target_scale_y, 
+bool Rasterizer::Blur(const Overlay& input_overlay, float be_strength,
+    double gaussian_blur_strength,
+    double target_scale_x, double target_scale_y,
     SharedPtrOverlay output_overlay)
+{
+    return Blur(input_overlay, be_strength, gaussian_blur_strength,
+        target_scale_x, target_scale_y, output_overlay, false);
+}
+
+// @return: true if actually a blur operation has done, or else false and output is leave unset.
+bool Rasterizer::Blur(const Overlay& input_overlay, float be_strength,
+    double gaussian_blur_strength,
+    double target_scale_x, double target_scale_y,
+    SharedPtrOverlay output_overlay, bool vsfilter_mod_compatibility)
 {
     using namespace ::boost::flyweights;
 
@@ -1064,6 +1242,10 @@ bool Rasterizer::Blur(const Overlay& input_overlay, float be_strength,
     if (input_overlay.mOverlayWidth<=0 || input_overlay.mOverlayHeight<=0)
     {
         return true;
+    }
+
+    if (vsfilter_mod_compatibility) {
+        return ModBlur(input_overlay, be_strength, gaussian_blur_strength, output_overlay);
     }
 
     if (gaussian_blur_strength>0)
@@ -1129,8 +1311,15 @@ bool Rasterizer::GaussianBlur( const Overlay& input_overlay, double gaussian_blu
     output_overlay->mHeight        = input_overlay.mHeight + (bluradjust_y<<1);
     output_overlay->mOverlayWidth  = input_overlay.mOverlayWidth + (bluradjust_x>>2);
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight + (bluradjust_y>>2);
+    const int mod_blur_adjust = GetVsFilterModBlurAdjust(0, gaussian_blur_strength);
+    output_overlay->mVsFilterModGradientWidth =
+        input_overlay.mVsFilterModGradientWidth + (mod_blur_adjust >> 2);
     output_overlay->mVsFilterModGradientHeight =
-        input_overlay.mVsFilterModGradientHeight + (bluradjust_y>>2);
+        input_overlay.mVsFilterModGradientHeight + (mod_blur_adjust >> 2);
+    output_overlay->mVsFilterModGradientOffsetX =
+        input_overlay.mVsFilterModGradientOffsetX - mod_blur_adjust;
+    output_overlay->mVsFilterModGradientOffsetY =
+        input_overlay.mVsFilterModGradientOffsetY - mod_blur_adjust;
 
     output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth+15)&~15;
 
@@ -1193,8 +1382,15 @@ bool Rasterizer::BeBlur( const Overlay& input_overlay, float be_strength,
     output_overlay->mHeight        = input_overlay.mHeight + (bluradjust_y<<1);
     output_overlay->mOverlayWidth  = input_overlay.mOverlayWidth + (bluradjust_x>>2);
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight + (bluradjust_y>>2);
+    const int mod_blur_adjust = GetVsFilterModBlurAdjust(be_strength, 0);
+    output_overlay->mVsFilterModGradientWidth =
+        input_overlay.mVsFilterModGradientWidth + (mod_blur_adjust >> 2);
     output_overlay->mVsFilterModGradientHeight =
-        input_overlay.mVsFilterModGradientHeight + (bluradjust_y>>2);
+        input_overlay.mVsFilterModGradientHeight + (mod_blur_adjust >> 2);
+    output_overlay->mVsFilterModGradientOffsetX =
+        input_overlay.mVsFilterModGradientOffsetX - mod_blur_adjust;
+    output_overlay->mVsFilterModGradientOffsetY =
+        input_overlay.mVsFilterModGradientOffsetY - mod_blur_adjust;
 
     output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth+15)&~15;
 
@@ -1322,6 +1518,7 @@ static __forceinline void pixmix2_sse2(DWORD* dst, DWORD color, DWORD shapealpha
     r = _mm_packus_epi16(r, r);
     *dst = (DWORD)_mm_cvtsi128_si32(r);
 }
+
 ///////////////////////////////////////////////////////////////////////////
 
 static __forceinline void  packed_pix_mix_c   (BYTE* dst, const BYTE* alpha, int w, DWORD color);
@@ -1972,6 +2169,98 @@ SharedPtrByte Rasterizer::CompositeAlphaMask(const SharedPtrOverlay& overlay, co
     return result;
 }
 
+SharedPtrByte Rasterizer::CompositeModAlphaMask(const SharedPtrOverlay& overlay,
+    const CRect& clipRect, const GrayImage2* alpha_mask,
+    int xsub, int ysub, bool fBody, bool fBorder,
+    CRect *outputDirtyRect)
+{
+    SharedPtrByte result;
+    *outputDirtyRect = CRect(0, 0, 0, 0);
+    if (!overlay || (!fBody && !fBorder) || (fBorder && !overlay->mBorder)) {
+        return result;
+    }
+
+    CRect r = clipRect;
+    if (alpha_mask) {
+        r &= CRect(alpha_mask->left_top, alpha_mask->size);
+    }
+
+    int x = (xsub + overlay->mOffsetX + 4) >> 3;
+    int y = (ysub + overlay->mOffsetY + 4) >> 3;
+    int w = overlay->mOverlayWidth;
+    int h = overlay->mOverlayHeight;
+    int xo = 0;
+    int yo = 0;
+    if (x < r.left) {
+        xo = r.left - x;
+        w -= xo;
+        x = r.left;
+    }
+    if (y < r.top) {
+        yo = r.top - y;
+        h -= yo;
+        y = r.top;
+    }
+    if (x + w > r.right) {
+        w = r.right - x;
+    }
+    if (y + h > r.bottom) {
+        h = r.bottom - y;
+    }
+    if (w <= 0 || h <= 0) {
+        return result;
+    }
+    outputDirtyRect->SetRect(x, y, x + w, y + h);
+
+    BYTE* output = reinterpret_cast<BYTE*>(xy_malloc(
+        overlay->mOverlayPitch * overlay->mOverlayHeight));
+    if (!output) {
+        return result;
+    }
+    memset(output, 0, overlay->mOverlayPitch * overlay->mOverlayHeight);
+
+    const BYTE* alpha_data = alpha_mask ? alpha_mask->data.get() : NULL;
+    const int alpha_pitch = alpha_mask ? alpha_mask->pitch : 0;
+    if (alpha_data) {
+        alpha_data += alpha_pitch * (y - alpha_mask->left_top.y)
+            + (x - alpha_mask->left_top.x);
+    }
+
+    const BYTE* body = overlay->mBody.get();
+    const BYTE* border = overlay->mBorder.get();
+    for (int row = 0; row < h; ++row) {
+        const BYTE* body_row = body
+            ? body + (yo + row) * overlay->mOverlayPitch + xo : NULL;
+        const BYTE* border_row = border
+            ? border + (yo + row) * overlay->mOverlayPitch + xo : NULL;
+        BYTE* output_row = output
+            + (yo + row) * overlay->mOverlayPitch + xo;
+        const BYTE* alpha_row = alpha_data
+            ? alpha_data + row * alpha_pitch : NULL;
+        for (int column = 0; column < w; ++column) {
+            int coverage;
+            if (fBorder) {
+                coverage = border_row[column];
+                if (!fBody) {
+                    coverage -= body_row[column];
+                    if (coverage < 0) {
+                        coverage = 0;
+                    }
+                }
+            } else {
+                coverage = body_row[column];
+            }
+            if (alpha_row) {
+                coverage = (coverage * alpha_row[column] + (1 << 11)) >> 12;
+            }
+            output_row[column] = static_cast<BYTE>(coverage);
+        }
+    }
+
+    result.reset(output, xy_free);
+    return result;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -1990,7 +2279,6 @@ void DrawSingleColorPackPix(      DWORD *dst,
         dst = (unsigned long *)((char *)dst + dst_pitch);
     }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -2803,7 +3091,10 @@ Overlay* Overlay::GetSubpixelVariance(unsigned int xshift, unsigned int yshift)
 
     overlay->mOverlayWidth = ((overlay->mWidth+7)>>3) + 1;
     overlay->mOverlayHeight = ((overlay->mHeight + 7)>>3) + 1;
+    overlay->mVsFilterModGradientWidth = mVsFilterModGradientWidth;
     overlay->mVsFilterModGradientHeight = mVsFilterModGradientHeight;
+    overlay->mVsFilterModGradientOffsetX = mVsFilterModGradientOffsetX - xshift;
+    overlay->mVsFilterModGradientOffsetY = mVsFilterModGradientOffsetY - yshift;
     overlay->mOverlayPitch = (overlay->mOverlayWidth+15)&~15;
     
 
@@ -3346,7 +3637,7 @@ void ScanLineData::DeleteOutlines()
     mOutline.clear();
 }
 
-bool ScanLineData2::CreateWidenedRegion(int rx, int ry)
+bool ScanLineData2::CreateWidenedRegion(int rx, int ry, bool vsfilter_mod_compatibility)
 {
     if(rx < 0) rx = 0;
     if(ry < 0) ry = 0;
@@ -3354,7 +3645,21 @@ bool ScanLineData2::CreateWidenedRegion(int rx, int ry)
     mWideOutline.clear();
 
     const tSpanBuffer& out_line = m_scan_line_data->mOutline;
-    if (ry > 0)
+    if (ry > 0 && vsfilter_mod_compatibility)
+    {
+        // VSFilterMod widens an outline by applying the integer half-circle
+        // offsets in this order.  Keep this branch isolated from xy's
+        // WidenRegionCreater so the default renderer retains its existing
+        // geometry and cache behavior.
+        for (int y = -ry; y <= ry; ++y)
+        {
+            const int x = static_cast<int>(
+                0.5f + sqrtf(static_cast<float>(ry * ry - y * y))
+                    * static_cast<float>(rx) / static_cast<float>(ry));
+            OverlapRegion(mWideOutline, out_line, x, y);
+        }
+    }
+    else if (ry > 0)
     {
         WidenRegionCreater *widen_region_creater = WidenRegionCreater::GetDefaultWidenRegionCreater();
         widen_region_creater->xy_overlap_region(&mWideOutline, out_line, rx, ry);

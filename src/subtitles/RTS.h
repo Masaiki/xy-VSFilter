@@ -88,7 +88,9 @@ public:
     CWord(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
         , double target_scale_x=1.0, double target_scale_y=1.0
         , bool round_to_whole_pixel_after_scale_to_target = false
-        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState());
+        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState()
+        , double mod_scale_x = 1.0, double mod_scale_y = 1.0
+        , bool mod_compatibility_mode = false);
     CWord(const CWord&);
     virtual ~CWord();
 
@@ -110,9 +112,17 @@ public:
     FwSTSStyle        m_style;
     SharedPtrConstModStyleState m_mod_style;
     SharedPtrCPolygon m_pOpaqueBox;
+    // VSFilterMod's border-style 3 helper is rendered as a separate word and
+    // deliberately bypasses the source word's \\fscx/\\fscy in Transform().
+    bool              m_is_opaque_box;
     int               m_ktype, m_kstart, m_kend;
     int               m_width, m_ascent, m_descent;
     double            m_target_scale_x, m_target_scale_y;
+    // Script-to-render scale used by VSFilterMod's perspective projection.
+    double            m_mod_scale_x, m_mod_scale_y;
+    // Selects the VSFilterMod transform/blur semantics without forcing an
+    // otherwise empty ModStyleState allocation.
+    bool              m_mod_compatibility_mode;
     bool              m_round_to_whole_pixel_after_scale_to_target;//it is necessary to avoid some artifacts
 
     //friend class CWordCache;
@@ -141,7 +151,9 @@ public:
     CText(const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
         , double target_scale_x=1.0, double target_scale_y=1.0
         , TextRendererMode text_renderer_mode=TEXT_RENDERER_LEGACY_GDI
-        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState());
+        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState()
+        , double mod_scale_x = 1.0, double mod_scale_y = 1.0
+        , bool mod_compatibility_mode = false);
     CText(const CText& src);
 
     virtual SharedPtrCWord Copy();
@@ -172,7 +184,8 @@ public:
         , double scalex, double scaley, int baseline
         , double target_scale_x=1.0, double target_scale_y=1.0
         , bool round_to_whole_pixel_after_scale_to_target = false
-        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState());
+        , const SharedPtrConstModStyleState& mod_style = SharedPtrConstModStyleState()
+        , bool mod_compatibility_mode = false);
 	// can't use a const reference because we need to use CAtlArray::Copy which expects a non-const reference
     CPolygon(CPolygon&); 
     virtual ~CPolygon();
@@ -446,6 +459,11 @@ public:
         AssCmdType cmdType;
         CAtlArray<CStringW> strParams;
         AssTagList embeded;
+        // Legacy fallback for MOD-only commands in default (non-MOD) mode.
+        // legacyCmdType == CMD_COUNT means no legacy equivalent (skip the tag).
+        // legacyParam is set only for inline fallbacks; bracket fallbacks reuse strParams.
+        AssCmdType legacyCmdType = CMD_COUNT;
+        CStringW legacyParam;
     };
 public:
     static std::size_t SetMaxCacheSize(std::size_t max_cache_size);
@@ -471,6 +489,8 @@ private:
     int                      m_period;//1000/m_fps
     double                   m_target_scale_x, m_target_scale_y;
     bool                     m_movable;
+    // Set only while MOD CSRI rendering targets the caller's RGB32 surface.
+    SubPicDesc*              m_direct_render_target;
 
     static void InitCmdMap();
 
