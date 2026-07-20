@@ -3751,11 +3751,16 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 			subtitle_target_rect.right - subtitle_target_rect.left,
 			subtitle_target_rect.bottom - subtitle_target_rect.top,
 		};
-		m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt);
+		if (m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt) != 0) {
+			XY_LOG_ERROR("CSRI renderer rejected BGRA format " << fmt.width << "x" << fmt.height);
+			return E_FAIL;
+		}
 		auto xy_sub_render_frame = XySubRenderFrameCreater::GetDefaultCreater()->NewXySubRenderFrame(1);
 		XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(subtitle_target_rect);
 		xy_sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
 		xy_sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
+		// A new XyBitmap is transparent premultiplied BGRA with inverted alpha,
+		// which is also the in-place CSRI_F_BGRA surface expected by VSFilterMod.
 		csri_frame frame = {
 			fmt.pixfmt,
 			{
@@ -3771,15 +3776,9 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 				0,
 			},
 		};
-		switch (color_space)
-		{
-		case XY_CS_ARGB:
-			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
-			break;
-		case XY_CS_ARGB_F:
-			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+		m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+		if (color_space == XY_CS_ARGB_F) {
 			XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-			break;
 		}
 		(*subRenderFrame = xy_sub_render_frame)->AddRef();
 		return S_OK;
