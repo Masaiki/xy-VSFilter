@@ -27,6 +27,7 @@
 #include "DirectVobSubPropPage.h"
 #include "VSFilter.h"
 #include "systray.h"
+#include "../basevideofilter/MediaSideData.h"
 #include "../../../DSUtil/MediaTypes.h"
 #include "../../../SubPic/SimpleSubPicProviderImpl.h"
 #include "../../../SubPic/PooledSubPic.h"
@@ -110,10 +111,12 @@ CDirectVobSubFilter::CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUI
     };
 
     m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
+    m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
 
     HRESULT hr = S_OK;
     auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
     pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+    pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     m_pTextInput.Add(pin);
     ASSERT(SUCCEEDED(hr));
 
@@ -311,6 +314,8 @@ HRESULT CDirectVobSubFilter::Transform(IMediaSample* pIn)
 	pOut->SetDiscontinuity(pIn->IsDiscontinuity() == S_OK);
 	pOut->SetSyncPoint(pIn->IsSyncPoint() == S_OK);
 	pOut->SetPreroll(pIn->IsPreroll() == S_OK);
+	// Preserve per-frame HDR metadata after rendering subtitles into a new sample.
+	CopyHDRMediaSideData(pIn, pOut);
 	//
 
 	BITMAPINFOHEADER bihOut;
@@ -1563,6 +1568,7 @@ bool CDirectVobSubFilter::Open()
             XY_AUTO_TIMING(TEXT("CRenderedTextSubtitle::Open"));
             CAutoPtr<CRenderedTextSubtitle> pRTS(new CRenderedTextSubtitle(&m_csSubLock));
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
+            if (pRTS) pRTS->SetTextRendererMode(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
             pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
                 ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
             });
@@ -1859,6 +1865,7 @@ void CDirectVobSubFilter::AddSubStream(ISubStream* pSubStream)
 		HRESULT hr = S_OK;
         auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
         pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
+        pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
 		m_pTextInput.Add(pin);
 	}
 }
@@ -2273,6 +2280,24 @@ HRESULT CDirectVobSubFilter::OnOptionChanged( unsigned field )
                 rts->m_render_backend = backend;
             }
         }
+        break;
+    }
+    case INT_TEXT_RENDERER_MODE:
+    {
+        const auto mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
+        m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(mode);
+        for(int i = 0; i < m_pTextInput.GetCount(); i++)
+            m_pTextInput[i]->m_text_renderer_mode = mode;
+        POSITION pos = m_pSubStreams.GetHeadPosition();
+        while(pos)
+        {
+            CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+            auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+            if (rts) {
+                rts->SetTextRendererMode(mode);
+            }
+        }
+        InvalidateSubtitle();
         break;
     }
     }

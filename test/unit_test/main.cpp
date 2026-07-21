@@ -11,6 +11,9 @@
 //#include "test_xy_filter.h"
 //#include "xy_filter_benchmark.h"
 #include "test_color_conv_table.h"
+#include "test_font_fallback.h"
+#include "test_media_side_data.h"
+#include "test_video_info2_color_info.h"
 #include "test_overall.h"
 
 

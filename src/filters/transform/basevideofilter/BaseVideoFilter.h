@@ -102,6 +102,9 @@ class CBaseVideoInputAllocator : public CMemAllocator
 {
 	CMediaType m_mt;
 
+protected:
+	HRESULT Alloc(void);
+
 public:
 	CBaseVideoInputAllocator(HRESULT* phr);
 	void SetMediaType(const CMediaType& mt);

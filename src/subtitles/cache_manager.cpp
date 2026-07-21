@@ -86,8 +86,9 @@ ULONG ClipperTraits::Hash( const CClipper& key )
 bool TextInfoCacheKey::operator==( const TextInfoCacheKey& key ) const
 {
     AddFuncCalls(TextInfoCacheKey_EQUAL);
-    return m_str_id == key.m_str_id 
-        && ( m_style==key.m_style || 
+    return m_str_id == key.m_str_id
+        && m_text_renderer_mode == key.m_text_renderer_mode
+        && ( m_style==key.m_style ||
         (static_cast<const STSStyleBase&>(m_style).operator==(key.m_style)
         && m_style.get().fontScaleX == key.m_style.get().fontScaleX
         && m_style.get().fontScaleY == key.m_style.get().fontScaleY
@@ -105,6 +106,8 @@ ULONG TextInfoCacheKey::UpdateHashValue()
     m_hash_value += hash_value( m_style.get().fontScaleY );
     m_hash_value += (m_hash_value<<5);
     m_hash_value += hash_value( m_style.get().fontSpacing );
+    m_hash_value += (m_hash_value<<5);
+    m_hash_value += m_text_renderer_mode;
     return m_hash_value;
 }
 
@@ -132,6 +135,8 @@ ULONG PathDataCacheKey::UpdateHashValue()
     m_hash_value += hash_value(m_scalex);
     m_hash_value += (m_hash_value<<5);
     m_hash_value += hash_value(m_scaley);
+    m_hash_value += (m_hash_value<<5);
+    m_hash_value += m_text_renderer_mode;
     m_hash_value += (m_hash_value<<5);
     m_hash_value += style.charSet;
     m_hash_value += (m_hash_value<<5);

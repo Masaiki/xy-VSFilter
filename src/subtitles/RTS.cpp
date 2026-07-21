@@ -27,6 +27,7 @@
 #include <time.h>
 #include <vector>
 #include "RTS.h"
+#include "GdiTextRenderer.h"
 #include "draw_item.h"
 #include "cache_manager.h"
 #include "subpixel_position_controler.h"
@@ -599,8 +600,10 @@ bool CWord::operator==( const CWord& rhs ) const
 // CText
 
 CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstart, int kend
-    , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/ )
+    , double target_scale_x/*=1.0*/, double target_scale_y/*=1.0*/
+    , TextRendererMode text_renderer_mode/*=TEXT_RENDERER_LEGACY_GDI*/ )
     : CWord(style, str, ktype, kstart, kend, target_scale_x, target_scale_y)
+    , m_text_renderer_mode(NormalizeTextRendererMode(text_renderer_mode))
 {
     if(m_str.Get() == L" ")
     {
@@ -610,13 +613,14 @@ CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstar
     TextInfoCacheKey text_info_key;
     text_info_key.m_str_id = m_str.GetId();
     text_info_key.m_style  = m_style;
+    text_info_key.m_text_renderer_mode = m_text_renderer_mode;
     text_info_key.UpdateHashValue();
     TextInfoMruCache* text_info_cache = CacheManager::GetTextInfoCache();
     POSITION pos = text_info_cache->Lookup(text_info_key);
     if(pos==NULL)
     {
         TextInfo* tmp=DEBUG_NEW TextInfo();
-        GetTextInfo(tmp, m_style, m_str.Get());
+        GetTextInfo(tmp, m_style, m_str.Get(), m_text_renderer_mode);
         text_info.reset(tmp);
         text_info_cache->UpdateCache(text_info_key, text_info);
     }
@@ -630,7 +634,9 @@ CText::CText( const FwSTSStyle& style, const CStringW& str, int ktype, int kstar
     this->m_width   = text_info->m_width;
 }
 
-CText::CText( const CText& src ):CWord(src)
+CText::CText( const CText& src )
+    : CWord(src)
+    , m_text_renderer_mode(src.m_text_renderer_mode)
 {
     m_width = src.m_width;
 }
@@ -644,7 +650,7 @@ SharedPtrCWord CText::Copy()
 bool CText::Append(const SharedPtrCWord& w)
 {
     boost::shared_ptr<CText> p = boost::dynamic_pointer_cast<CText>(w);
-    return (p && CWord::Append(w));
+    return (p && m_text_renderer_mode == p->m_text_renderer_mode && CWord::Append(w));
 }
 
 bool CText::CreatePath(PathData* path_data)
@@ -662,10 +668,11 @@ bool CText::CreatePath(PathData* path_data)
         for(LPCWSTR s = str; *s; s++)
         {
             CSize extent;
-            if(!GetTextExtentPoint32W(g_hDC, s, 1, &extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return(false);}
+            GdiTextRenderer text_renderer(g_hDC, s, 1, m_text_renderer_mode);
+            if(!text_renderer.GetExtent(&extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return(false);}
             path_data->PartialBeginPath(g_hDC, bFirstPath);
             bFirstPath = false;
-            TextOutW(g_hDC, 0, 0, s, 1);
+            if(!text_renderer.Draw(0, 0)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return(false);}
             path_data->PartialEndPath(g_hDC, width, 0);
             width += extent.cx + (int)m_style.get().fontSpacing;
         }
@@ -673,7 +680,8 @@ bool CText::CreatePath(PathData* path_data)
     else
     {
         CSize extent;
-        succeeded = !!GetTextExtentPoint32W(g_hDC, str, str.GetLength(), &extent);
+        GdiTextRenderer text_renderer(g_hDC, str, str.GetLength(), m_text_renderer_mode);
+        succeeded = text_renderer.GetExtent(&extent);
         if(!succeeded)
         {
             SelectFont(g_hDC, hOldFont); ASSERT(0); return(false);
@@ -683,7 +691,7 @@ bool CText::CreatePath(PathData* path_data)
         {
             SelectFont(g_hDC, hOldFont); ASSERT(0); return(false);
         }
-        succeeded = !!TextOutW(g_hDC, 0, 0, str, str.GetLength());
+        succeeded = text_renderer.Draw(0, 0);
         if(!succeeded)
         {
             SelectFont(g_hDC, hOldFont); ASSERT(0); return(false);
@@ -698,7 +706,8 @@ bool CText::CreatePath(PathData* path_data)
     return(true);
 }
 
-void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str )
+void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CStringW& str,
+                        TextRendererMode text_renderer_mode)
 {
     FwCMyFont font(style);
     output->m_ascent = (int)(style.get().fontScaleY/100*font.get().m_ascent);
@@ -711,7 +720,8 @@ void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CString
         for(LPCWSTR s = str; *s; s++)
         {
             CSize extent;
-            if(!GetTextExtentPoint32W(g_hDC, s, 1, &extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return;}
+            GdiTextRenderer text_renderer(g_hDC, s, 1, text_renderer_mode);
+            if(!text_renderer.GetExtent(&extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return;}
             output->m_width += extent.cx + (int)style.get().fontSpacing;
         }
         //          m_width -= (int)m_style.get().fontSpacing; // TODO: subtract only at the end of the line
@@ -719,7 +729,8 @@ void CText::GetTextInfo(TextInfo *output, const FwSTSStyle& style, const CString
     else
     {
         CSize extent;
-        if(!GetTextExtentPoint32W(g_hDC, str, wcslen(str), &extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return;}
+        GdiTextRenderer text_renderer(g_hDC, str, str.GetLength(), text_renderer_mode);
+        if(!text_renderer.GetExtent(&extent)) {SelectFont(g_hDC, hOldFont); ASSERT(0); return;}
         output->m_width += extent.cx;
     }
     output->m_width = (int)(style.get().fontScaleX/100*output->m_width + 4) >> 3;
@@ -1917,6 +1928,15 @@ void CRenderedTextSubtitle::Deinit()
     XyFwGroupedDrawItemsHashKey::GetCacher()->RemoveAll();
 }
 
+void CRenderedTextSubtitle::SetTextRendererMode(TextRendererMode mode)
+{
+    mode = NormalizeTextRendererMode(mode);
+    if (m_text_renderer_mode != mode) {
+        m_text_renderer_mode = mode;
+        Deinit();
+    }
+}
+
 void CRenderedTextSubtitle::ParseEffect(CSubtitle* sub, const CStringW& str)
 {
     CStringW::PCXSTR str_start = str.GetString();
@@ -1981,7 +2001,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(ite < j)
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, str.Mid(ite, j-ite), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -1995,7 +2015,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         if(c == L'\n')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -2009,7 +2029,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, const FwST
         else if(c == L' ')
         {
             if(PCWord tmp_ptr = DEBUG_NEW CText(style, CStringW(c), m_ktype, m_kstart, m_kend
-                , m_target_scale_x, m_target_scale_y))
+                , m_target_scale_x, m_target_scale_y, m_text_renderer_mode))
             {
                 SharedPtrCWord w(tmp_ptr);
                 sub->m_words.AddTail(w);
@@ -4014,11 +4034,16 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 			subtitle_target_rect.right - subtitle_target_rect.left,
 			subtitle_target_rect.bottom - subtitle_target_rect.top,
 		};
-		m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt);
+		if (m_csri_context.m_loader->csri_request_fmt(m_csri_context.m_inst.get(), &fmt) != 0) {
+			XY_LOG_ERROR("CSRI renderer rejected BGRA format " << fmt.width << "x" << fmt.height);
+			return E_FAIL;
+		}
 		auto xy_sub_render_frame = XySubRenderFrameCreater::GetDefaultCreater()->NewXySubRenderFrame(1);
 		XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(subtitle_target_rect);
 		xy_sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
 		xy_sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
+		// A new XyBitmap is transparent premultiplied BGRA with inverted alpha,
+		// which is also the in-place CSRI_F_BGRA surface expected by VSFilterMod.
 		csri_frame frame = {
 			fmt.pixfmt,
 			{
@@ -4034,15 +4059,9 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 				0,
 			},
 		};
-		switch (color_space)
-		{
-		case XY_CS_ARGB:
-			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
-			break;
-		case XY_CS_ARGB_F:
-			m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+		m_csri_context.m_loader->csri_render(m_csri_context.m_inst.get(), &frame, rt / 1e7);
+		if (color_space == XY_CS_ARGB_F) {
 			XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
-			break;
 		}
 		(*subRenderFrame = xy_sub_render_frame)->AddRef();
 		return S_OK;

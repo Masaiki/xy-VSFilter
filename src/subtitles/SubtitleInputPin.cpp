@@ -434,6 +434,7 @@ CSubtitleInputPin::CSubtitleInputPin(CBaseFilter* pFilter, CCritSec* pLock, CCri
     , m_pSubLock(pSubLock)
     , m_helper(NULL)
     , m_render_backend(SUBTITLE_RENDER_BACKEND_LIBASS)
+    , m_text_renderer_mode(TEXT_RENDERER_LEGACY_GDI)
 {
     m_bCanReconnectWhenActive = TRUE;
 }
@@ -476,13 +477,15 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
         XY_LOG_INFO("Create CTextSubtitleInputPinHepler");
         CRenderedTextSubtitle* pRTS = DEBUG_NEW CRenderedTextSubtitle(m_pSubLock);
         pRTS && (pRTS->m_render_backend = m_render_backend);
+        if (pRTS) pRTS->SetTextRendererMode(m_text_renderer_mode);
         pRTS->m_name = CString(GetPinName(pReceivePin)) + _T(" (embeded)");
         pRTS->m_dstScreenSize = CSize(384, 288);
         ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);
     }
     else if(mt.majortype == MEDIATYPE_Subtitle)
     {
-        SUBTITLEINFO* psi      = (SUBTITLEINFO*)mt.pbFormat;
+        SUBTITLEINFO* psi      = mt.pbFormat && mt.cbFormat >= sizeof(SUBTITLEINFO)
+            ? (SUBTITLEINFO*)mt.pbFormat : NULL;
         DWORD         dwOffset = 0;
         CString       name;
         LCID          lcid     = 0;
@@ -521,14 +524,22 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
             XY_LOG_INFO("Create CTextSubtitleInputPinHepler");
             CRenderedTextSubtitle* pRTS = DEBUG_NEW CRenderedTextSubtitle(m_pSubLock);
             pRTS && (pRTS->m_render_backend = m_render_backend);
+            if (pRTS) pRTS->SetTextRendererMode(m_text_renderer_mode);
             pRTS->m_name = name;
             pRTS->m_lcid = lcid;
             pRTS->m_dstScreenSize = CSize(384, 288);
 
-            if(dwOffset > 0 && mt.cbFormat - dwOffset > 0)
+            const DWORD codecPrivateOffset = dwOffset;
+            const bool hasSubtitleHeader = mt.Format()
+                && codecPrivateOffset >= sizeof(SUBTITLEINFO)
+                && codecPrivateOffset < mt.FormatLength()
+                && mt.FormatLength() - codecPrivateOffset <= INT_MAX;
+
+            if(hasSubtitleHeader)
             {
                 CMediaType mt1 = mt;
-                if(mt1.pbFormat[dwOffset+0] != 0xef
+                if(mt1.cbFormat - dwOffset >= 3
+                    && mt1.pbFormat[dwOffset+0] != 0xef
                     && mt1.pbFormat[dwOffset+1] != 0xbb
                     && mt1.pbFormat[dwOffset+2] != 0xfb)
                 {
@@ -544,11 +555,19 @@ STDMETHODIMP_(CSubtitleInputPinHelper*) CSubtitleInputPin::CreateHelper( const C
             pRTS->m_pPin = pReceivePin;
             pRTS->m_pGraph = GetGraphFromFilter(m_pFilter);
             if (mt.subtype != MEDIASUBTYPE_UTF8) {
-                pRTS->m_ass_context.LoadASSTrack(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
-            }
-            if (mt.subtype != MEDIASUBTYPE_UTF8 && m_csri_loader && m_csri_loader->is_loaded()) {
-                pRTS->m_csri_context.m_loader = m_csri_loader;
-                pRTS->m_csri_context.csri_load_memory(reinterpret_cast<char *>(mt.Format() + psi->dwOffset), mt.FormatLength() - psi->dwOffset);
+                if (m_csri_loader) {
+                    pRTS->m_csri_context.m_loader = m_csri_loader;
+                }
+                if (hasSubtitleHeader) {
+                    BYTE *header = mt.Format() + codecPrivateOffset;
+                    const size_t headerLength = mt.FormatLength() - codecPrivateOffset;
+                    pRTS->m_ass_context.LoadASSTrack(reinterpret_cast<char *>(header), (int)headerLength);
+                    if (m_csri_loader) {
+                        pRTS->m_csri_context.csri_load_memory(header, headerLength);
+                    }
+                } else {
+                    XY_LOG_WARN(L"Invalid ASS/SSA subtitle header for '" << pRTS->m_name.GetString() << L"'");
+                }
             }
             ret = DEBUG_NEW CTextSubtitleInputPinHepler(pRTS, m_mt);
         }
