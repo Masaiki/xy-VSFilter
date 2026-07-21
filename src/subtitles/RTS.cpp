@@ -3695,9 +3695,8 @@ namespace
         std::vector<int> tile_indices;
     };
 
-    RECT GetLibassAllocationRect(const ASS_Image &image, XyColorSpace color_space)
+    RECT NormalizeLibassAllocationRect(RECT rect, XyColorSpace color_space)
     {
-        RECT rect = { image.dst_x, image.dst_y, image.dst_x + image.w, image.dst_y + image.h };
         // YUV bitmap layouts require an even origin; every layout requires even dimensions.
         switch (color_space) {
         case XY_CS_AYUV_PLANAR:
@@ -3712,6 +3711,13 @@ namespace
         rect.right += (rect.right - rect.left) & 1;
         rect.bottom += (rect.bottom - rect.top) & 1;
         return rect;
+    }
+
+    RECT GetLibassAllocationRect(const ASS_Image &image, XyColorSpace color_space)
+    {
+        const RECT rect = { image.dst_x, image.dst_y,
+                            image.dst_x + image.w, image.dst_y + image.h };
+        return NormalizeLibassAllocationRect(rect, color_space);
     }
 
     std::vector<LibassTile> CollectLibassTiles(const ASS_Image *images, XyColorSpace color_space)
@@ -4094,7 +4100,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 
         // When uploading multiple bitmaps is allowed, group overlapping tiles into components and
         // upload a bitmap for each component to reduce the total bitmap size needed to be uploaded.
-        if (m_max_bitmap_count != 1) {
+        if (m_max_bitmap_count > 1) {
             const std::vector<LibassTile> tiles = CollectLibassTiles(img, color_space);
             std::vector<LibassComponent> components = FindOverlapComponents(tiles);
             MergeComponentsToLimit(components, static_cast<size_t>(m_max_bitmap_count));
@@ -4104,7 +4110,9 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 
             for (size_t component_index = 0; component_index < components.size(); ++component_index) {
                 const LibassComponent &component = components[component_index];
-                XyBitmap *bitmap = render_frame_creater->CreateBitmap(component.allocation_rect);
+                const RECT allocation_rect =
+                    NormalizeLibassAllocationRect(component.allocation_rect, color_space);
+                XyBitmap *bitmap = render_frame_creater->CreateBitmap(allocation_rect);
                 sub_render_frame->m_bitmaps.GetAt(component_index).reset(bitmap);
                 sub_render_frame->m_bitmap_ids.GetAt(component_index) = rt + component_index;
                 CompositeLibassComponent(*bitmap, component, tiles, color_space, *render_frame_creater);
@@ -4124,27 +4132,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             UnionRect(&clip_rect, &rect1, &rect2);
         }
 
-        auto rect_width = clip_rect.right - clip_rect.left;
-        auto rect_height = clip_rect.bottom - clip_rect.top;
-        switch (color_space)
-        {
-        case XY_CS_AYUV_PLANAR:
-        case XY_CS_AYUV:
-        case XY_CS_AUYV:
-            if (clip_rect.left & 1) {
-                --clip_rect.left;
-                ++rect_width;
-            }
-            if (clip_rect.top & 1) {
-                --clip_rect.top;
-                ++rect_height;
-            }
-            break;
-        case XY_CS_ARGB_F:
-        case XY_CS_ARGB:
-            break;
-        }
-        clip_rect = RECT{ clip_rect.left, clip_rect.top, clip_rect.left + (rect_width + (rect_width & 1)),  clip_rect.top + (rect_height + (rect_height & 1)) };
+        clip_rect = NormalizeLibassAllocationRect(clip_rect, color_space);
 
         XySubRenderFrameCreater *render_frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
         XySubRenderFrame *sub_render_frame = render_frame_creater->NewXySubRenderFrame(1);

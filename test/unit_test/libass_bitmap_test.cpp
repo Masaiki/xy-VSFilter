@@ -31,6 +31,10 @@ namespace
         "Dialogue: 3,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\p1\\pos(140,90)\\bord2\\shad0}m 0 0 l 80 0 80 40 0 40{\\p0}\n"
         "Dialogue: 4,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\p1\\pos(160,100)\\bord2\\shad0}m 0 0 l 80 0 80 40 0 40{\\p0}\n"
         "Dialogue: 5,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\p1\\pos(180,110)\\bord2\\shad0}m 0 0 l 80 0 80 40 0 40{\\p0}\n"
+        // Overlapping tiles with origins of different parity. Their individually padded rectangles
+        // are even-sized, but their component bounding box is odd-sized before normalization.
+        "Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\p1\\pos(80,60)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
+        "Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\\p1\\pos(81,61)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
         // Eight disconnected components, forcing the second-stage merge when the limit is four.
         "Dialogue: 0,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(20,30)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
         "Dialogue: 1,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(100,30)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
@@ -39,7 +43,11 @@ namespace
         "Dialogue: 4,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(20,130)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
         "Dialogue: 5,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(100,130)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
         "Dialogue: 6,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(180,130)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
-        "Dialogue: 7,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(260,130)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n";
+        "Dialogue: 7,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\\p1\\pos(260,130)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
+        // Single tiles that exercise final single-bitmap rectangle normalization.
+        "Dialogue: 0,0:00:04.00,0:00:05.00,Default,,0,0,0,,{\\p1\\pos(81,61)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
+        "Dialogue: 1,0:00:04.00,0:00:05.00,Default,,0,0,0,,{\\p1\\pos(82,62)\\bord0\\shad0}m 0 0 l 35 0 35 25 0 25{\\p0}\n"
+        "Dialogue: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,{\\p1\\pos(80,60)\\bord0\\shad0}m 0 0 l 36 0 36 26 0 26{\\p0}\n";
 
     const RECT kFrameRect = { 0, 0, 640, 360 };
     const SIZE kFrameSize = { 640, 360 };
@@ -90,6 +98,30 @@ namespace
             for (ASS_Image *image = images; image; image = image->next)
                 ++count;
             return count;
+        }
+
+        RECT RawBoundingRect(REFERENCE_TIME time)
+        {
+            ass_set_storage_size(subtitle_->m_ass_context.m_renderer.get(), kFrameSize.cx, kFrameSize.cy);
+            ass_set_frame_size(subtitle_->m_ass_context.m_renderer.get(), kFrameSize.cx, kFrameSize.cy);
+            int changed = 0;
+            ASS_Image *images = ass_render_frame(subtitle_->m_ass_context.m_renderer.get(),
+                                                 subtitle_->m_ass_context.m_track.get(),
+                                                 time / 10000, &changed);
+            if (!images) {
+                ADD_FAILURE() << "libass returned no images";
+                return RECT{};
+            }
+
+            RECT bounds = { images->dst_x, images->dst_y,
+                            images->dst_x + images->w, images->dst_y + images->h };
+            for (ASS_Image *image = images->next; image; image = image->next) {
+                bounds.left = min(bounds.left, image->dst_x);
+                bounds.top = min(bounds.top, image->dst_y);
+                bounds.right = max(bounds.right, image->dst_x + image->w);
+                bounds.bottom = max(bounds.bottom, image->dst_y + image->h);
+            }
+            return bounds;
         }
 
         CComPtr<IXySubRenderFrame> Render(REFERENCE_TIME time, int spd_type, int max_bitmap_count)
@@ -249,6 +281,80 @@ TEST_F(LibassBitmapTest, OverLimitComponentsAreMergedDownToTheLimit)
         ExpectColorSpace(grouped, format.color_space);
         EXPECT_EQ(limit, BitmapCount(grouped));
         ExpectPixelEquivalent(original, grouped, format.name);
+    }
+}
+
+TEST_F(LibassBitmapTest, MergedComponentBitmapsHaveEvenDimensions)
+{
+    const REFERENCE_TIME time = 35000000;
+    ASSERT_EQ(2, CountRawImages(time));
+
+    for (const FormatCase &format : kFormats) {
+        SCOPED_TRACE(format.name);
+        CComPtr<IXySubRenderFrame> frame = Render(time, format.spd_type, 16);
+        ASSERT_EQ(1, BitmapCount(frame));
+
+        SIZE size = {};
+        EXPECT_HRESULT_SUCCEEDED(frame->GetBitmap(0, NULL, NULL, &size, NULL, NULL));
+        EXPECT_EQ(0, size.cx & 1);
+        EXPECT_EQ(0, size.cy & 1);
+    }
+}
+
+TEST_F(LibassBitmapTest, SingleBitmapNormalizesOddDimensions)
+{
+    const REFERENCE_TIME time = 45000000;
+    ASSERT_EQ(2, CountRawImages(time));
+    const RECT raw = RawBoundingRect(time);
+    const LONG raw_width = raw.right - raw.left;
+    const LONG raw_height = raw.bottom - raw.top;
+    ASSERT_EQ(0, raw.left & 1);
+    ASSERT_EQ(0, raw.top & 1);
+    ASSERT_EQ(1, raw_width & 1);
+    ASSERT_EQ(1, raw_height & 1);
+
+    for (const FormatCase &format : kFormats) {
+        SCOPED_TRACE(format.name);
+        CComPtr<IXySubRenderFrame> frame = Render(time, format.spd_type, 1);
+        ASSERT_EQ(1, BitmapCount(frame));
+
+        POINT position = {};
+        SIZE size = {};
+        EXPECT_HRESULT_SUCCEEDED(frame->GetBitmap(0, NULL, &position, &size, NULL, NULL));
+        EXPECT_EQ(raw.left, position.x);
+        EXPECT_EQ(raw.top, position.y);
+        EXPECT_EQ(raw_width + 1, size.cx);
+        EXPECT_EQ(raw_height + 1, size.cy);
+    }
+}
+
+TEST_F(LibassBitmapTest, SingleYuvBitmapNormalizesOddOffset)
+{
+    const REFERENCE_TIME time = 55000000;
+    ASSERT_EQ(1, CountRawImages(time));
+    const RECT raw = RawBoundingRect(time);
+    const LONG raw_width = raw.right - raw.left;
+    const LONG raw_height = raw.bottom - raw.top;
+    ASSERT_EQ(1, raw.left & 1);
+    ASSERT_EQ(1, raw.top & 1);
+    ASSERT_EQ(0, raw_width & 1);
+    ASSERT_EQ(0, raw_height & 1);
+
+    for (const FormatCase &format : kFormats) {
+        if (format.color_space == XY_CS_ARGB || format.color_space == XY_CS_ARGB_F)
+            continue;
+
+        SCOPED_TRACE(format.name);
+        CComPtr<IXySubRenderFrame> frame = Render(time, format.spd_type, 1);
+        ASSERT_EQ(1, BitmapCount(frame));
+
+        POINT position = {};
+        SIZE size = {};
+        EXPECT_HRESULT_SUCCEEDED(frame->GetBitmap(0, NULL, &position, &size, NULL, NULL));
+        EXPECT_EQ(raw.left - 1, position.x);
+        EXPECT_EQ(raw.top - 1, position.y);
+        EXPECT_EQ(raw_width + 2, size.cx);
+        EXPECT_EQ(raw_height + 2, size.cy);
     }
 }
 
