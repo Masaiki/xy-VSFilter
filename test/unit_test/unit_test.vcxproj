@@ -47,6 +47,7 @@
   <PropertyGroup>
     <OutDir>$(OutDir)$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
+    <LibraryPath>$(SolutionDir)msvc\lib\$(PlatformTarget);$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)src\thirdparty\gtest\include;$(SolutionDir)src\subtitles;$(SolutionDir)src\DSUtil;$(SolutionDir)src\thirdparty\boost_lib\;$(SolutionDir)src\thirdparty\log4cplus\include\;$(SolutionDir)src\subpic\;$(SolutionDir)src\filters\transform\vsfilter\;$(SolutionDir)src\filters\BaseClasses;$(SolutionDir)include\;$(SolutionDir)msvc\include\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
@@ -70,6 +71,7 @@
     <ClCompile Include="main.cpp">
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
+    <ClCompile Include="libass_bitmap_test.cpp" />
     <ClCompile Include="overall_test.cpp" />
   </ItemGroup>
   <ItemGroup>

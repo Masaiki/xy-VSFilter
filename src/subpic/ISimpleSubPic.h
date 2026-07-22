@@ -61,3 +61,9 @@ public IUnknown {
     STDMETHOD_(bool, IsMovable) () PURE;
 };
 
+interface __declspec(uuid("d87e9bd0-4293-4d32-8f17-5ec2b3f92bca"))
+ISubPicProviderEx3 :
+public IUnknown {
+    STDMETHOD (SetMaxBitmapCount) (int max_bitmap_count) PURE;
+};
+

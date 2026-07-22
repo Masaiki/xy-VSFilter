@@ -1650,7 +1650,7 @@ CDVS4XySubFilter::CDVS4XySubFilter( const Option *options, CCritSec * pLock )
     m_xy_str_opt[STRING_YUV_MATRIX] = "None";
 
     m_xy_int_opt[INT_MAX_BITMAP_COUNT] = theApp.GetProfileInt(ResStr(IDS_R_PERFORMANCE), ResStr(IDS_RP_MAX_BITMAP_COUNT)
-        , 8);
+        , 16);
     if (m_xy_int_opt[INT_MAX_BITMAP_COUNT]<= 1)
     {
         m_xy_int_opt[INT_MAX_BITMAP_COUNT] = 1;

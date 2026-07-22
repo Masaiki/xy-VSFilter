@@ -431,6 +431,9 @@ HRESULT XySubRenderProviderWrapper2::Render( REFERENCE_TIME now, POSITION pos )
     }
 
     int spd_type = m_use_dst_alpha ? MSP_RGBA : MSP_RGBA_F;
+    CComQIPtr<ISubPicProviderEx3> provider3 = m_provider;
+    if (provider3)
+        provider3->SetMaxBitmapCount(m_max_bitmap_count2);
     hr = m_provider->RenderEx(&m_xy_sub_render_frame, spd_type, 
         m_output_rect, m_subtitle_target_rect,
         m_original_video_size, now, m_fps);
