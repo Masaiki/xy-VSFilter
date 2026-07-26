@@ -40,7 +40,8 @@ XyBitmap::~XyBitmap()
     xy_free(bits);
 }
 
-XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout )
+XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout,
+                                   bool inverted_alpha )
 {
     XyBitmap *result = DEBUG_NEW XyBitmap();
     if (result==NULL)
@@ -75,11 +76,11 @@ XyBitmap * XyBitmap::CreateBitmap( const CRect& target_rect, MemLayout layout )
         result->bits = NULL;
         break;
     }
-    ClearBitmap(result);
+    ClearBitmap(result, inverted_alpha);
     return result;
 }
 
-void XyBitmap::ClearBitmap( XyBitmap *bitmap )
+void XyBitmap::ClearBitmap( XyBitmap *bitmap, bool inverted_alpha )
 {
     if (!bitmap)
         return;
@@ -91,10 +92,11 @@ void XyBitmap::ClearBitmap( XyBitmap *bitmap )
     else
     {
         BYTE * p = bitmap->plans[0];
+        const DWORD transparent = inverted_alpha ? 0xFF000000 : 0x00000000;
         for (int i=0;i<bitmap->h;i++, p+=bitmap->pitch)
         {
-            memsetd(p, 0xFF000000, bitmap->w*4);
-        }        
+            memsetd(p, transparent, bitmap->w*4);
+        }
     }
 }
 
@@ -475,9 +477,9 @@ XySubRenderFrame* XySubRenderFrameCreater::NewXySubRenderFrame( UINT bitmap_coun
     return result;
 }
 
-XyBitmap* XySubRenderFrameCreater::CreateBitmap( const RECT& target_rect )
+XyBitmap* XySubRenderFrameCreater::CreateBitmap( const RECT& target_rect, bool inverted_alpha )
 {
-    return XyBitmap::CreateBitmap(target_rect, m_bitmap_layout);
+    return XyBitmap::CreateBitmap(target_rect, m_bitmap_layout, inverted_alpha);
 }
 
 DWORD XySubRenderFrameCreater::TransColor( DWORD argb )

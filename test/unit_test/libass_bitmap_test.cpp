@@ -127,6 +127,9 @@ namespace
         CComPtr<IXySubRenderFrame> Render(REFERENCE_TIME time, int spd_type, int max_bitmap_count)
         {
             EXPECT_HRESULT_SUCCEEDED(subtitle_->SetMaxBitmapCount(max_bitmap_count));
+            // Render each requested format instead of reusing libass's cached frame from a
+            // preceding call at the same timestamp.
+            subtitle_->m_last_frame = NULL;
             CComPtr<IXySubRenderFrame> frame;
             EXPECT_HRESULT_SUCCEEDED(subtitle_->RenderEx(&frame, spd_type, kFrameRect, kFrameRect,
                                                          kFrameSize, time, kFps));
@@ -226,6 +229,101 @@ namespace
         return canvas;
     }
 
+    BYTE Div255(unsigned int value)
+    {
+        return static_cast<BYTE>((value + 1 + ((value + 1) >> 8)) >> 8);
+    }
+
+    Canvas CompositeReference(ASS_Image *images, XyColorSpace color_space)
+    {
+        const bool planar = color_space == XY_CS_AYUV_PLANAR;
+        Canvas canvas = { kFrameSize.cx, kFrameSize.cy, planar,
+                          std::vector<BYTE>(static_cast<size_t>(kFrameSize.cx) * kFrameSize.cy * 4, 0) };
+        const size_t plane_size = static_cast<size_t>(canvas.width) * canvas.height;
+
+        if (planar) {
+            std::fill(canvas.bytes.begin(), canvas.bytes.begin() + plane_size, 0xFF);
+        } else if (color_space != XY_CS_ARGB_F) {
+            for (size_t i = 3; i < canvas.bytes.size(); i += 4)
+                canvas.bytes[i] = 0xFF;
+        }
+
+        XySubRenderFrameCreater *frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
+        for (ASS_Image *image = images; image; image = image->next) {
+            const DWORD argb = (image->color << 24) ^ (image->color >> 8) ^ 0xFF000000;
+            const DWORD color = frame_creater->TransColor(argb);
+            const BYTE color_a = static_cast<BYTE>(color >> 24);
+
+            for (int y = 0; y < image->h; ++y) {
+                for (int x = 0; x < image->w; ++x) {
+                    const BYTE coverage = image->bitmap[y * image->stride + x];
+                    const size_t output =
+                        static_cast<size_t>(image->dst_y + y) * canvas.width + image->dst_x + x;
+
+                    if (planar) {
+                        BYTE &dst_a = canvas.bytes[output];
+                        BYTE &dst_y = canvas.bytes[plane_size + output];
+                        BYTE &dst_u = canvas.bytes[plane_size * 2 + output];
+                        BYTE &dst_v = canvas.bytes[plane_size * 3 + output];
+                        if (x < (image->w & ~15)) {
+                            const unsigned int src_a =
+                                ((static_cast<unsigned int>(coverage) + 1) * color_a) >> 8;
+                            const unsigned int comp_a = 0x100 - src_a;
+                            const unsigned int dst_blend =
+                                ((dst_a ^ 0xFF) * comp_a + 0x80) >> 8;
+
+                            dst_a = static_cast<BYTE>(
+                                0xFF - min(src_a + dst_blend, 0xFFu));
+                            dst_y = static_cast<BYTE>(
+                                (((color >> 16) & 0xFF) * src_a + dst_y * comp_a + 0x80) >> 8);
+                            dst_u = static_cast<BYTE>(
+                                (((color >> 8) & 0xFF) * src_a + dst_u * comp_a + 0x80) >> 8);
+                            dst_v = static_cast<BYTE>(
+                                ((color & 0xFF) * src_a + dst_v * comp_a + 0x80) >> 8);
+                        } else {
+                            const BYTE src_a =
+                                Div255(static_cast<unsigned int>(coverage) * color_a);
+                            const BYTE comp_a = static_cast<BYTE>(~src_a);
+
+                            dst_a = static_cast<BYTE>(
+                                (src_a + Div255(static_cast<unsigned int>(dst_a ^ 0xFF) * comp_a))
+                                 ^ 0xFF);
+                            dst_y = Div255(((color >> 16) & 0xFF) * src_a
+                                         + static_cast<unsigned int>(dst_y) * comp_a);
+                            dst_u = Div255(((color >> 8) & 0xFF) * src_a
+                                         + static_cast<unsigned int>(dst_u) * comp_a);
+                            dst_v = Div255((color & 0xFF) * src_a
+                                         + static_cast<unsigned int>(dst_v) * comp_a);
+                        }
+                    } else {
+                        BYTE *dst = canvas.bytes.data() + output * 4;
+                        const unsigned int src_a =
+                            ((static_cast<unsigned int>(coverage) + 1) * color_a) >> 8;
+                        const unsigned int comp_a = 0x100 - src_a;
+                        const unsigned int dst_opacity =
+                            color_space == XY_CS_ARGB_F ? dst[3] : dst[3] ^ 0xFF;
+
+                        dst[0] = static_cast<BYTE>(
+                            (static_cast<unsigned int>(dst[0]) * comp_a
+                             + (color & 0xFF) * (src_a + 1)) >> 8);
+                        dst[1] = static_cast<BYTE>(
+                            (static_cast<unsigned int>(dst[1]) * comp_a
+                             + ((color >> 8) & 0xFF) * (src_a + 1)) >> 8);
+                        dst[2] = static_cast<BYTE>(
+                            (static_cast<unsigned int>(dst[2]) * comp_a
+                             + ((color >> 16) & 0xFF) * (src_a + 1)) >> 8);
+                        const BYTE output_opacity = static_cast<BYTE>(
+                            (dst_opacity * comp_a >> 8) + src_a);
+                        dst[3] = color_space == XY_CS_ARGB_F
+                            ? output_opacity
+                            : output_opacity ^ 0xFF;
+                    }
+                }
+            }
+        }
+        return canvas;
+    }
+
     void ExpectPixelEquivalent(IXySubRenderFrame *expected, IXySubRenderFrame *actual,
                                const char *format_name)
     {
@@ -234,6 +332,28 @@ namespace
         const Canvas actual_canvas = FlattenFrame(actual);
         EXPECT_EQ(expected_canvas.planar, actual_canvas.planar);
         EXPECT_EQ(expected_canvas.bytes, actual_canvas.bytes);
+    }
+}
+
+TEST_F(LibassBitmapTest, CompositeMatchesScalarReference)
+{
+    const REFERENCE_TIME time = 5000000;
+    ASSERT_GT(CountRawImages(time), 1);
+
+    for (const FormatCase &format : kFormats) {
+        SCOPED_TRACE(format.name);
+        CComPtr<IXySubRenderFrame> frame = Render(time, format.spd_type, 1);
+        const Canvas actual = FlattenFrame(frame);
+
+        int changed = 0;
+        ASS_Image *images = ass_render_frame(subtitle_->m_ass_context.m_renderer.get(),
+                                             subtitle_->m_ass_context.m_track.get(),
+                                             time / 10000, &changed);
+        ASSERT_TRUE(images != NULL);
+        const Canvas expected = CompositeReference(images, format.color_space);
+
+        EXPECT_EQ(expected.planar, actual.planar);
+        EXPECT_EQ(expected.bytes, actual.bytes);
     }
 }
 
