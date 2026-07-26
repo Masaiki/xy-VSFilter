@@ -72,6 +72,7 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <ClCompile Include="libass_bitmap_test.cpp" />
+    <ClCompile Include="libass_regression_test.cpp" />
     <ClCompile Include="overall_test.cpp" />
   </ItemGroup>
   <ItemGroup>

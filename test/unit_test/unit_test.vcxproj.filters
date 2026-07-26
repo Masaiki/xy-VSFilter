@@ -18,6 +18,9 @@
     <ClCompile Include="libass_bitmap_test.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="libass_regression_test.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

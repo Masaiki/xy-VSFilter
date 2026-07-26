@@ -7,10 +7,13 @@
 *.user
 *.vspx
 /.git-rewrite
+/.ci-results
+/artifacts
 /bin
 ipch
 /src/filters/BaseClasses/*.asm
 /src/filters/transform/VSFilter/*.asm
 /src/filters/transform/vsfilter/version_in.h
+/test/unit_test/bin
 /.vs
 /msvc

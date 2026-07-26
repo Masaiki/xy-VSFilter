@@ -1,44 +1,99 @@
-name: C/C++ CI
+name: Regression CI
 
-on: [push]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-win:
+  regression:
+    name: regression-${{ matrix.name }}
     runs-on: windows-2022
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
         include:
-        - platform: 'Win32'
-        - platform: 'x64'
+          - name: release-win32
+            configuration: Release
+            platform: Win32
+            publish: true
+          - name: release-x64
+            configuration: Release
+            platform: x64
+            publish: true
+          - name: debug-x64
+            configuration: Debug
+            platform: x64
+            publish: false
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out pinned sources and submodules
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: install submodules
-        shell: cmd
-        run: |
-          git submodule update --init --recursive --remote
-      - name: install nasm
+          submodules: recursive
+
+      - name: Install VSNASM
         shell: cmd
         run: |
           git clone https://github.com/ShiftMediaProject/VSNASM.git
           .\VSNASM\install_script.bat
-      - name: Install VS2010 Redistributable (for vsyasm)
+
+      - name: Install VS2010 Redistributable for VSYASM
+        shell: pwsh
         run: choco install vcredist2010 -y
-      - name: install yasm
+
+      - name: Install VSYASM
         shell: cmd
         run: |
           git clone https://github.com/ShiftMediaProject/VSYASM.git
           .\VSYASM\install_script.bat
-      - name: add msbuild to PATH
+
+      - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
-      - name: build
-        run: MSBuild.exe VSFilter.sln /t:xy_sub_filter:Rebuild /p:WindowsTargetPlatformVersion=10.0 /p:PlatformToolset=v143 /m /p:Configuration=Release /p:Platform=${{matrix.platform}}
-      - name: copy
+
+      - name: Build and run regression tests
+        shell: pwsh
         run: |
-          cmake -E copy bin\lib_17.0\${{matrix.platform}}\Release\XySubFilter.dll dist\${{matrix.platform}}\XySubFilter.dll
-          cmake -E copy scripts\Install_XySubFilter.bat dist\${{matrix.platform}}\Install_XySubFilter.bat && cmake -E copy scripts\Uninstall_XySubFilter.bat dist\${{matrix.platform}}\Uninstall_XySubFilter.bat
-      - name: upload
+          ./scripts/Run-RegressionTests.ps1 `
+            -Configuration '${{ matrix.configuration }}' `
+            -Platform '${{ matrix.platform }}' `
+            -ResultsDirectory '.ci-results\${{ matrix.name }}'
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-diagnostics-${{ matrix.name }}
+          path: .ci-results/${{ matrix.name }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stage release artifact
+        if: matrix.publish
+        shell: pwsh
+        run: |
+          cmake -E make_directory 'dist\${{ matrix.platform }}'
+          cmake -E copy `
+            'bin\lib_17.0\${{ matrix.platform }}\Release\XySubFilter.dll' `
+            'dist\${{ matrix.platform }}\XySubFilter.dll'
+          cmake -E copy `
+            'scripts\Install_XySubFilter.bat' `
+            'dist\${{ matrix.platform }}\Install_XySubFilter.bat'
+          cmake -E copy `
+            'scripts\Uninstall_XySubFilter.bat' `
+            'dist\${{ matrix.platform }}\Uninstall_XySubFilter.bat'
+
+      - name: Upload release artifact
+        if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
           name: xysubfilter_with_libass-${{ matrix.platform }}

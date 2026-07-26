@@ -1,0 +1,58 @@
+[Script Info]
+; Original regression fixture for xy-VSFilter. No dialogue or effect code was
+; copied from an external subtitle.
+ScriptType: v4.00+
+PlayResX: 640
+PlayResY: 360
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+Kerning: yes
+YCbCr Matrix: TV.601
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Pixel Operator Mono,34,&H0020C0F0,&H000080FF,&H00E04020,&H80000000,0,0,0,0,100,100,1,0,1,3,2,7,20,20,20,1
+Style: Accent,Pixel Operator Mono,26,&H0040F060,&H000080FF,&H002020E0,&H60000000,-1,0,0,0,100,100,0,0,1,2,1,5,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+; 1.5s: ordinary glyphs with outline, shadow, spacing and per-channel alpha.
+Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\pos(38,45)\1a&H20&\3a&H60&\4a&H90&}Regression 0123
+Dialogue: 1,0:00:01.00,0:00:02.00,Accent,,0,0,0,,{\pos(330,118)\frz-7\fscx115\fscy92}Alpha Tail
+
+; 2.5s: two semi-transparent vector layers. Their non-zero overlap covers a
+; full 16-pixel block and a scalar remainder in both source images.
+Dialogue: 0,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\an7\alpha&H80&\clip(90,176,144,220)\p1\pos(100,180)\bord0\shad0}m 0 0 l 40 0 40 34 0 34{\p0}
+Dialogue: 1,0:00:02.00,0:00:03.00,Default,,0,0,0,,{\an7\alpha&H70&\clip(90,176,150,220)\p1\pos(106,180)\bord0\shad0}m 0 0 l 40 0 40 34 0 34{\p0}
+
+; 3.5s: disconnected components exercise grouping and max_bitmap_count.
+Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&H2020E0&\p1\pos(20,32)\bord0\shad0}m 0 0 l 37 0 37 23 0 23{\p0}
+Dialogue: 1,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&H20E020&\p1\pos(105,32)\bord0\shad0}m 0 0 l 39 0 39 25 0 25{\p0}
+Dialogue: 2,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&HE02020&\p1\pos(205,32)\bord0\shad0}m 0 0 l 41 0 41 27 0 27{\p0}
+Dialogue: 3,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&H20A0E0&\p1\pos(320,32)\bord0\shad0}m 0 0 l 43 0 43 29 0 29{\p0}
+Dialogue: 4,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&HE0A020&\p1\pos(450,32)\bord0\shad0}m 0 0 l 45 0 45 31 0 31{\p0}
+Dialogue: 5,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&HA020E0&\p1\pos(25,145)\bord0\shad0}m 0 0 l 47 0 47 33 0 33{\p0}
+Dialogue: 6,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&H20E0A0&\p1\pos(145,145)\bord0\shad0}m 0 0 l 49 0 49 35 0 35{\p0}
+Dialogue: 7,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&HE020A0&\p1\pos(285,145)\bord0\shad0}m 0 0 l 51 0 51 37 0 37{\p0}
+Dialogue: 8,0:00:03.00,0:00:04.00,Default,,0,0,0,,{\c&HA0E020&\p1\pos(445,145)\bord0\shad0}m 0 0 l 53 0 53 39 0 39{\p0}
+
+; 4.5s: animated position, transform, scale, rotation and fade.
+Dialogue: 0,0:00:04.00,0:00:05.00,Default,,0,0,0,,{\move(45,65,390,245,0,1000)\fad(120,180)\t(0,1000,\fscx165\fscy65\frz38)\bord3\shad2}Transform
+Dialogue: 1,0:00:04.00,0:00:05.00,Accent,,0,0,0,,{\pos(410,92)\org(410,92)\t(0,1000,\frx35\fry-25\frz-18)\blur1.4}Rotate
+
+; 5.5s: rectangular/vector clip and inverse clip over translucent layers.
+Dialogue: 0,0:00:05.00,0:00:06.00,Default,,0,0,0,,{\alpha&H50&\clip(90,70,510,285)\p1\pos(55,50)\bord5\shad0}m 0 0 l 520 0 520 270 0 270{\p0}
+Dialogue: 1,0:00:05.00,0:00:06.00,Accent,,0,0,0,,{\alpha&H68&\iclip(180,105,430,250)\p1\pos(100,80)\bord3\shad0}m 0 0 l 430 0 430 220 0 220{\p0}
+Dialogue: 2,0:00:05.00,0:00:06.00,Default,,0,0,0,,{\alpha&H58&\clip(m 120 55 l 520 75 470 285 85 245)\p1\pos(0,0)\bord0\shad0}m 60 40 l 580 40 580 310 60 310{\p0}
+
+; 6.5s: dense overlapping layers model a compact effects-heavy frame.
+Dialogue: 0,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H20&\p1\pos(25,25)\bord2\shad0\frz-18}m 0 0 l 190 0 150 74 20 82{\p0}
+Dialogue: 1,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H30&\p1\pos(105,42)\bord3\shad0\frz-12}m 0 0 l 210 0 170 82 18 91{\p0}
+Dialogue: 2,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H40&\p1\pos(185,59)\bord4\shad0\frz-6}m 0 0 l 230 0 185 90 16 100{\p0}
+Dialogue: 3,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H50&\p1\pos(265,76)\bord2\shad0\frz0}m 0 0 l 250 0 200 98 14 109{\p0}
+Dialogue: 4,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H60&\p1\pos(345,93)\bord3\shad0\frz6}m 0 0 l 270 0 215 106 12 118{\p0}
+Dialogue: 5,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H70&\p1\pos(35,135)\bord4\shad0\frz12}m 0 0 l 290 0 230 114 10 127{\p0}
+Dialogue: 6,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H28&\p1\pos(125,152)\bord2\shad0\frz18}m 0 0 l 310 0 245 122 8 136{\p0}
+Dialogue: 7,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H38&\p1\pos(215,169)\bord3\shad0\frz24}m 0 0 l 330 0 260 130 6 145{\p0}
+Dialogue: 8,0:00:06.00,0:00:07.00,Default,,0,0,0,,{\alpha&H48&\p1\pos(305,186)\bord4\shad0\frz30}m 0 0 l 350 0 275 138 4 154{\p0}
+Dialogue: 9,0:00:06.00,0:00:07.00,Accent,,0,0,0,,{\pos(320,180)\an5\alpha&H35&\bord4\shad3\blur0.8\fscx135\fscy85\frz-9}Dense Effects 987

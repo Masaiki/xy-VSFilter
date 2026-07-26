@@ -16,9 +16,21 @@
 #include "test_video_info2_color_info.h"
 #include "test_overall.h"
 
+#ifdef DEBUG
+extern bool g_fUseKASSERT;
+#endif
 
 int wmain(int argc, wchar_t ** argv)
 {
+    if (GetEnvironmentVariableW(L"XY_TEST_NONINTERACTIVE", NULL, 0)) {
+        SetErrorMode(SEM_FAILCRITICALERRORS |
+                     SEM_NOGPFAULTERRORBOX |
+                     SEM_NOOPENFILEERRORBOX);
+#ifdef DEBUG
+        g_fUseKASSERT = true;
+#endif
+    }
+
     if (argc!=2)
     {
         std::wcout<<argv[0]<<L" script_name"<<std::endl;
@@ -30,5 +42,7 @@ int wmain(int argc, wchar_t ** argv)
 
     testing::InitGoogleTest(&argc, argv);
 
-    return RUN_ALL_TESTS();
+    const int result = RUN_ALL_TESTS();
+    CloseTestScript();
+    return result;
 }

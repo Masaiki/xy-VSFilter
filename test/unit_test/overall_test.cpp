@@ -7,8 +7,17 @@ using namespace std;
 
 csri_inst * g_csri_inst_yyy = NULL;
 
+void CloseTestScript()
+{
+    if (g_csri_inst_yyy) {
+        csri_close(g_csri_inst_yyy);
+        g_csri_inst_yyy = NULL;
+    }
+}
+
 void OpenTestScript( const char *filename )
 {
+    CloseTestScript();
     csri_rend * csri_rend_xxx = csri_renderer_default();
 
     g_csri_inst_yyy = csri_open_file(csri_rend_xxx, filename, NULL);
@@ -32,5 +41,5 @@ void OverallTest( float fps /*= 25*/, int width/*=1280*/, int height/*=720*/, do
     {
         csri_render(g_csri_inst_yyy, &frame, time);
     }
-    csri_close(g_csri_inst_yyy);
+    CloseTestScript();
 }
