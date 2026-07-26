@@ -179,6 +179,19 @@ namespace
         return Sha256(bytes.empty() ? NULL : bytes.data(), bytes.size());
     }
 
+    std::string Sha256NormalizedText(const std::vector<BYTE> &bytes)
+    {
+        std::vector<BYTE> normalized;
+        normalized.reserve(bytes.size());
+        for (size_t i = 0; i < bytes.size(); ++i) {
+            if (bytes[i] == '\r' && i + 1 < bytes.size() &&
+                bytes[i + 1] == '\n')
+                continue;
+            normalized.push_back(bytes[i]);
+        }
+        return Sha256(normalized);
+    }
+
     std::string Sha256(const std::string &value)
     {
         return Sha256(reinterpret_cast<const BYTE *>(value.data()), value.size());
@@ -682,6 +695,17 @@ namespace
     };
 }
 
+TEST(LibassRegressionUtilityTest, FixtureHashTreatsCrLfAsLf)
+{
+    const std::vector<BYTE> lf = {
+        'a', '\n', 'b', '\n'
+    };
+    const std::vector<BYTE> crlf = {
+        'a', '\r', '\n', 'b', '\r', '\n'
+    };
+    EXPECT_EQ(Sha256NormalizedText(lf), Sha256NormalizedText(crlf));
+}
+
 TEST_F(LibassRegressionTest, FixtureContainsAnEmptyFrame)
 {
     const RenderCase empty = { 640, 360, 500 };
@@ -743,7 +767,8 @@ TEST_F(LibassRegressionTest, ScalarReferenceAndGoldenOutputsMatch)
 {
     const bool update_golden =
         EnvironmentString(L"XY_UPDATE_GOLDEN") == L"1";
-    const std::string fixture_sha256 = Sha256(fixture_bytes_);
+    const std::string fixture_sha256 =
+        Sha256NormalizedText(fixture_bytes_);
     const std::string font_sha256 = Sha256(font_bytes_);
     ASSERT_FALSE(fixture_sha256.empty());
     ASSERT_FALSE(font_sha256.empty());

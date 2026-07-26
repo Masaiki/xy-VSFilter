@@ -254,11 +254,11 @@ try {
 
     Invoke-UnitTestPhase `
         -Name 'libass-regression' `
-        -Filter 'LibassBitmapTest.*:LibassRegressionTest.*' `
+        -Filter 'LibassBitmapTest.*:LibassRegression*.*' `
         -Repeat 50
     Invoke-UnitTestPhase `
         -Name 'remaining-unit-tests' `
-        -Filter '*-OverallTest.*:LibassBitmapTest.*:LibassRegressionTest.*'
+        -Filter '*-OverallTest.*:LibassBitmapTest.*:LibassRegression*.*'
 } finally {
     Pop-Location
 }
