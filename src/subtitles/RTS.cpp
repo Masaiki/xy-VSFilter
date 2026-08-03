@@ -3593,6 +3593,11 @@ static __forceinline __m128i packed_pix_mix_sse2(const __m128i &dst,
     __m128i ones = _mm_set1_epi32(0x1);
     if (InvertedAlpha)
         d_a = _mm_add_epi32(d_a, ones);
+
+    // For inverted alpha, a's low word contains 256 - src alpha. Multiplying
+    // it by the incremented destination alpha can produce 65536, which wraps
+    // to zero in this 16-bit multiply. The subtraction below still leaves the
+    // correct value in bits 8-15.
     d_a = _mm_mullo_epi16(d_a, a);
     if (InvertedAlpha)
         d_a = _mm_sub_epi32(d_a, ones);

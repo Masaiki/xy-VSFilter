@@ -256,9 +256,15 @@ namespace
 
             for (int y = 0; y < image->h; ++y) {
                 for (int x = 0; x < image->w; ++x) {
+                    const int output_x = image->dst_x + x;
+                    const int output_y = image->dst_y + y;
+                    if (output_x < 0 || output_x >= canvas.width ||
+                        output_y < 0 || output_y >= canvas.height)
+                        continue;
+
                     const BYTE coverage = image->bitmap[y * image->stride + x];
                     const size_t output =
-                        static_cast<size_t>(image->dst_y + y) * canvas.width + image->dst_x + x;
+                        static_cast<size_t>(output_y) * canvas.width + output_x;
 
                     if (planar) {
                         BYTE &dst_a = canvas.bytes[output];
