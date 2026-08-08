@@ -3568,6 +3568,7 @@ static __forceinline void pixmix_sse2(DWORD *dst, DWORD color, DWORD alpha)
     *dst = (DWORD)_mm_cvtsi128_si32(r) + (alpha << 24);
 }
 
+template <bool InvertedAlpha>
 static __forceinline __m128i packed_pix_mix_sse2(const __m128i &dst,
     const __m128i &c_r, const __m128i &c_g, const __m128i &c_b, const __m128i &a)
 {
@@ -3589,7 +3590,17 @@ static __forceinline __m128i packed_pix_mix_sse2(const __m128i &dst,
     d_g = _mm_or_si128(d_g, c_g);
     d_b = _mm_or_si128(d_b, c_b);
 
+    __m128i ones = _mm_set1_epi32(0x1);
+    if (InvertedAlpha)
+        d_a = _mm_add_epi32(d_a, ones);
+
+    // For inverted alpha, a's low word contains 256 - src alpha. Multiplying
+    // it by the incremented destination alpha can produce 65536, which wraps
+    // to zero in this 16-bit multiply. The subtraction below still leaves the
+    // correct value in bits 8-15.
     d_a = _mm_mullo_epi16(d_a, a);
+    if (InvertedAlpha)
+        d_a = _mm_sub_epi32(d_a, ones);
     d_r = _mm_madd_epi16(d_r, a);
     d_g = _mm_madd_epi16(d_g, a);
     d_b = _mm_madd_epi16(d_b, a);
@@ -3599,10 +3610,11 @@ static __forceinline __m128i packed_pix_mix_sse2(const __m128i &dst,
     d_g = _mm_srli_epi32(d_g, 8);
     d_b = _mm_srli_epi32(d_b, 8);
 
-    __m128i ones = _mm_set1_epi32(0x1);
-    __m128i a_sub_one = _mm_srli_epi32(a, 16);
-    a_sub_one = _mm_sub_epi32(a_sub_one, ones);
-    d_a = _mm_add_epi32(d_a, a_sub_one);
+    if (!InvertedAlpha) {
+        __m128i a_sub_one = _mm_srli_epi32(a, 16);
+        a_sub_one = _mm_sub_epi32(a_sub_one, ones);
+        d_a = _mm_add_epi32(d_a, a_sub_one);
+    }
 
     d_a = _mm_slli_epi32(d_a, 24);
     d_r = _mm_slli_epi32(d_r, 16);
@@ -3613,6 +3625,7 @@ static __forceinline __m128i packed_pix_mix_sse2(const __m128i &dst,
     return _mm_or_si128(d_b, d_a);
 }
 
+template <bool InvertedAlpha>
 static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int w, DWORD color)
 {
     __m128i c_r = _mm_set1_epi32((color & 0xFF0000));
@@ -3634,10 +3647,6 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
         __m128i d3 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(dst + 32));
         __m128i d4 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(dst + 48));
 
-        __m128i ra;
-#ifdef _DEBUG
-        ra = _mm_setzero_si128();
-#endif // _DEBUG
         __m128i a1 = _mm_unpacklo_epi8(a, zero);
         a1 = _mm_add_epi16(a1, ones);
         a1 = _mm_mullo_epi16(a1, c_a);
@@ -3650,7 +3659,7 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
 
         a = _mm_packus_epi16(a1, a2);
 
-        ra = _mm_cmpeq_epi32(ra, ra);
+        __m128i ra = _mm_cmpeq_epi32(zero, zero);
         ra = _mm_xor_si128(ra, a);
         a1 = _mm_unpacklo_epi8(ra, a);
         a2 = _mm_unpackhi_epi8(a1, zero);
@@ -3664,10 +3673,10 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
         a3 = _mm_add_epi16(a3, ones);
         a4 = _mm_add_epi16(a4, ones);
 
-        d1 = packed_pix_mix_sse2(d1, c_r, c_g, c_b, a1);
-        d2 = packed_pix_mix_sse2(d2, c_r, c_g, c_b, a2);
-        d3 = packed_pix_mix_sse2(d3, c_r, c_g, c_b, a3);
-        d4 = packed_pix_mix_sse2(d4, c_r, c_g, c_b, a4);
+        d1 = packed_pix_mix_sse2<InvertedAlpha>(d1, c_r, c_g, c_b, a1);
+        d2 = packed_pix_mix_sse2<InvertedAlpha>(d2, c_r, c_g, c_b, a2);
+        d3 = packed_pix_mix_sse2<InvertedAlpha>(d3, c_r, c_g, c_b, a3);
+        d4 = packed_pix_mix_sse2<InvertedAlpha>(d4, c_r, c_g, c_b, a4);
 
         _mm_storeu_si128(reinterpret_cast<__m128i *>(dst), d1);
         _mm_storeu_si128(reinterpret_cast<__m128i *>(dst + 16), d2);
@@ -3677,7 +3686,16 @@ static __forceinline void packed_pix_mix_sse2(BYTE *dst, const BYTE *alpha, int 
     DWORD *dst_w = reinterpret_cast<DWORD *>(dst);
     for (; alpha < alpha_end; alpha++, dst_w++)
     {
-        pixmix_sse2(dst_w, color, *alpha);
+        if (!InvertedAlpha) {
+            pixmix_sse2(dst_w, color, *alpha);
+        } else {
+            const DWORD dst_alpha = *dst_w >> 24;
+            const DWORD src_alpha = (((static_cast<DWORD>(*alpha) + 1) * (color >> 24)) >> 8);
+            pixmix_sse2(dst_w, color, *alpha);
+            const DWORD output_alpha =
+                (((dst_alpha + 1) * (0x100 - src_alpha) - 1) >> 8) << 24;
+            *dst_w = (*dst_w & 0x00FFFFFF) | output_alpha;
+        }
     }
 }
 
@@ -3922,17 +3940,12 @@ namespace
         components.swap(merged_components);
     }
 
+    template <bool Planar, bool InvertedAlpha>
     void CompositeLibassComponent(XyBitmap &bitmap,
                                   const LibassComponent &component,
                                   const std::vector<LibassTile> &tiles,
-                                  XyColorSpace color_space,
                                   XySubRenderFrameCreater &frame_creater)
     {
-        // Packed formats use the opposite alpha convention while mixing. ARGB_F keeps that
-        // convention as its output; the other packed formats are flipped back after compositing.
-        if (color_space != XY_CS_AYUV_PLANAR)
-            XyBitmap::FlipAlphaValue(bitmap.bits, bitmap.w, bitmap.h, bitmap.pitch);
-
         for (auto tile_index : component.tile_indices) {
             const ASS_Image &tile = *tiles[tile_index].image;
             const int xoff = tile.dst_x - bitmap.x;
@@ -3942,7 +3955,7 @@ namespace
 
             for (int y = 0; y < tile.h; ++y) {
                 const BYTE *alpha = tile.bitmap + y * tile.stride;
-                if (color_space == XY_CS_AYUV_PLANAR) {
+                if (Planar) {
                     const int row_offset = (yoff + y) * bitmap.pitch + xoff;
                     BYTE *dstA = bitmap.plans[0] + row_offset;
                     BYTE *dstY = bitmap.plans[1] + row_offset;
@@ -3955,13 +3968,10 @@ namespace
                 } else {
                     auto dst = reinterpret_cast<uint8_t *>(bitmap.plans[0]
                         + (yoff + y) * bitmap.pitch + xoff * 4);
-                    packed_pix_mix_sse2(dst, alpha, tile.w, color);
+                    packed_pix_mix_sse2<InvertedAlpha>(dst, alpha, tile.w, color);
                 }
             }
         }
-
-        if (color_space == XY_CS_ARGB || color_space == XY_CS_AYUV || color_space == XY_CS_AUYV)
-            XyBitmap::FlipAlphaValue(bitmap.bits, bitmap.w, bitmap.h, bitmap.pitch);
     }
 }
 
@@ -4112,10 +4122,21 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
                 const LibassComponent &component = components[component_index];
                 const RECT allocation_rect =
                     NormalizeLibassAllocationRect(component.allocation_rect, color_space);
-                XyBitmap *bitmap = render_frame_creater->CreateBitmap(allocation_rect);
+                XyBitmap *bitmap = render_frame_creater->CreateBitmap(
+                    allocation_rect, color_space != XY_CS_ARGB_F);
                 sub_render_frame->m_bitmaps.GetAt(component_index).reset(bitmap);
                 sub_render_frame->m_bitmap_ids.GetAt(component_index) = rt + component_index;
-                CompositeLibassComponent(*bitmap, component, tiles, color_space, *render_frame_creater);
+
+                if (color_space == XY_CS_AYUV_PLANAR) {
+                    CompositeLibassComponent<true, true>(
+                        *bitmap, component, tiles, *render_frame_creater);
+                } else if (color_space == XY_CS_ARGB_F) {
+                    CompositeLibassComponent<false, false>(
+                        *bitmap, component, tiles, *render_frame_creater);
+                } else {
+                    CompositeLibassComponent<false, true>(
+                        *bitmap, component, tiles, *render_frame_creater);
+                }
             }
 
             m_last_frame = sub_render_frame;
@@ -4136,14 +4157,14 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
 
         XySubRenderFrameCreater *render_frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
         XySubRenderFrame *sub_render_frame = render_frame_creater->NewXySubRenderFrame(1);
-        XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(clip_rect);
+        XyBitmap *tmp = XySubRenderFrameCreater::GetDefaultCreater()->CreateBitmap(
+            clip_rect, color_space != XY_CS_ARGB_F);
         sub_render_frame->m_bitmaps.GetAt(0).reset(tmp);
         sub_render_frame->m_bitmap_ids.GetAt(0) = rt;
 
         switch (color_space)
         {
         case XY_CS_ARGB_F:
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
                 argb = render_frame_creater->TransColor(argb);
@@ -4151,7 +4172,7 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
                 {
                     auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left)*4);
                     auto alpha = i->bitmap + y * i->stride;
-                    packed_pix_mix_sse2(dst, alpha, i->w, argb);
+                    packed_pix_mix_sse2<false>(dst, alpha, i->w, argb);
                 }
             }
             break;
@@ -4175,7 +4196,6 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
             }
             break;
         case XY_CS_ARGB:
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
                 argb = render_frame_creater->TransColor(argb);
@@ -4183,13 +4203,11 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
                 {
                     auto dst = reinterpret_cast<uint8_t *>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
                     auto alpha = i->bitmap + y * i->stride;
-                    packed_pix_mix_sse2(dst, alpha, i->w, argb);
+                    packed_pix_mix_sse2<true>(dst, alpha, i->w, argb);
                 }
             }
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             break;
         case XY_CS_AYUV:
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
                 uint32_t ayuv = render_frame_creater->TransColor(argb);
@@ -4197,13 +4215,11 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
                 {
                     auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
                     auto alpha = i->bitmap + y * i->stride;
-                    packed_pix_mix_sse2(dst, alpha, i->w, ayuv);
+                    packed_pix_mix_sse2<true>(dst, alpha, i->w, ayuv);
                 }
             }
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             break;
         case XY_CS_AUYV:
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             for (auto i = img; i != nullptr; i = i->next) {
                 uint32_t argb = (i->color << 24) ^ (i->color >> 8) ^ 0xFF000000;
                 uint32_t auyv = render_frame_creater->TransColor(argb);
@@ -4211,10 +4227,9 @@ STDMETHODIMP CRenderedTextSubtitle::RenderEx( IXySubRenderFrame**subRenderFrame,
                 {
                     auto dst = reinterpret_cast<uint8_t*>(tmp->plans[0] + (i->dst_y + y - clip_rect.top) * tmp->pitch + (i->dst_x - clip_rect.left) * 4);
                     auto alpha = i->bitmap + y * i->stride;
-                    packed_pix_mix_sse2(dst, alpha, i->w, auyv);
+                    packed_pix_mix_sse2<true>(dst, alpha, i->w, auyv);
                 }
             }
-            XyBitmap::FlipAlphaValue(tmp->bits, tmp->w, tmp->h, tmp->pitch);
             break;
         }
         m_last_frame = sub_render_frame;
