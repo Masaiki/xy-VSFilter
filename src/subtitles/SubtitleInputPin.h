@@ -26,6 +26,7 @@
 #include "SubtitleRenderBackend.h"
 #include "TextRendererMode.h"
 #include "VsFilterCompatibility.h"
+#include "LibassRenderOptions.h"
 
 //
 // CSubtitleInputPinHelper
@@ -90,5 +91,6 @@ public:
     SubtitleRenderBackend m_render_backend;
     TextRendererMode m_text_renderer_mode;
     VsFilterCompatibilityMode m_vsfilter_compatibility_mode;
+    LibassRenderOptions m_libass_options;
     std::shared_ptr<CSRI_Loader> m_csri_loader;
 };

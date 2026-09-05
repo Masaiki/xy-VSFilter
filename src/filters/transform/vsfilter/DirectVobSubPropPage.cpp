@@ -31,6 +31,7 @@
 #include "../../../DSUtil/MediaTypes.h"
 
 #include "../../../subtitles/SubtitleRenderBackend.h"
+#include "../../../subtitles/LibassRenderOptions.h"
 #include "../../../subtitles/TextRendererMode.h"
 #include "../../../subtitles/VsFilterCompatibility.h"
 
@@ -99,6 +100,106 @@ int GetVsFilterCompatibilityModeComboValue(const CComboBox& combo)
     const int index = combo.GetCurSel();
     return index == CB_ERR ? VSFILTER_COMPATIBILITY_XY
                            : NormalizeVsFilterCompatibilityMode(static_cast<int>(combo.GetItemData(index)));
+}
+
+void PopulateLibassHintingModeCombo(CComboBox& combo, int selected_mode)
+{
+    struct Entry
+    {
+        LPCTSTR label;
+        LibassHintingMode mode;
+    };
+    const Entry entries[] = {
+        { _T("None (default)"), LIBASS_HINTING_NONE },
+        { _T("Light"), LIBASS_HINTING_LIGHT },
+        { _T("Normal"), LIBASS_HINTING_NORMAL },
+        { _T("Native"), LIBASS_HINTING_NATIVE },
+    };
+
+    selected_mode = NormalizeLibassHintingMode(selected_mode);
+    int selected_index = 0;
+    combo.ResetContent();
+    for (const auto& entry : entries) {
+        const int index = combo.AddString(entry.label);
+        combo.SetItemData(index, entry.mode);
+        if (entry.mode == selected_mode) {
+            selected_index = index;
+        }
+    }
+    combo.SetCurSel(selected_index);
+}
+
+int GetLibassHintingModeComboValue(const CComboBox& combo)
+{
+    const int index = combo.GetCurSel();
+    return index == CB_ERR ? LIBASS_HINTING_NONE
+                           : NormalizeLibassHintingMode(static_cast<int>(combo.GetItemData(index)));
+}
+
+void PopulateLibassShaperCombo(CComboBox& combo, int selected_mode)
+{
+    struct Entry
+    {
+        LPCTSTR label;
+        LibassShaper mode;
+    };
+    const Entry entries[] = {
+        { _T("Complex (default)"), LIBASS_SHAPER_COMPLEX },
+        { _T("Simple"), LIBASS_SHAPER_SIMPLE },
+    };
+
+    selected_mode = NormalizeLibassShaper(selected_mode);
+    int selected_index = 0;
+    combo.ResetContent();
+    for (const auto& entry : entries) {
+        const int index = combo.AddString(entry.label);
+        combo.SetItemData(index, entry.mode);
+        if (entry.mode == selected_mode) {
+            selected_index = index;
+        }
+    }
+    combo.SetCurSel(selected_index);
+}
+
+int GetLibassShaperComboValue(const CComboBox& combo)
+{
+    const int index = combo.GetCurSel();
+    return index == CB_ERR ? LIBASS_SHAPER_COMPLEX
+                           : NormalizeLibassShaper(static_cast<int>(combo.GetItemData(index)));
+}
+
+void PopulateLibassStyleOverrideCombo(CComboBox& combo, int selected_mode)
+{
+    struct Entry
+    {
+        LPCTSTR label;
+        LibassStyleOverride mode;
+    };
+    const Entry entries[] = {
+        { _T("No"), LIBASS_STYLE_OVERRIDE_NO },
+        { _T("Yes"), LIBASS_STYLE_OVERRIDE_YES },
+        { _T("Scale (default)"), LIBASS_STYLE_OVERRIDE_SCALE },
+        { _T("Force"), LIBASS_STYLE_OVERRIDE_FORCE },
+    };
+
+    selected_mode = NormalizeLibassStyleOverride(selected_mode);
+    int selected_index = 0;
+    combo.ResetContent();
+    for (const auto& entry : entries) {
+        const int index = combo.AddString(entry.label);
+        combo.SetItemData(index, entry.mode);
+        if (entry.mode == selected_mode) {
+            selected_index = index;
+        }
+    }
+    combo.SetCurSel(selected_index);
+}
+
+int GetLibassStyleOverrideComboValue(const CComboBox& combo)
+{
+    const int index = combo.GetCurSel();
+    return index == CB_ERR ? LIBASS_STYLE_OVERRIDE_SCALE
+                           : NormalizeLibassStyleOverride(static_cast<int>(combo.GetItemData(index)));
 }
 
 }
@@ -1288,6 +1389,284 @@ void CDVSMorePPage::UpdateControlData(bool fSave)
         PopulateTextRendererModeCombo(m_text_renderer_mode_combo, m_text_renderer_mode);
         PopulateVsFilterCompatibilityModeCombo(m_vsfilter_compatibility_mode_combo, m_vsfilter_compatibility_mode);
         m_vsfilter_compatibility_mode_combo.EnableWindow(m_fVSAssRendering);
+    }
+}
+
+/* CDVSLibassPPage */
+
+CDVSLibassPPage::CDVSLibassPPage(LPUNKNOWN pUnk, HRESULT* phr, TCHAR* pName) :
+    CDVSBasePPage(pName, pUnk, IDD_DVSLIBASSPAGE, IDD_DVSLIBASSPAGE)
+{
+    BindControl(IDC_COMBO_LIBASS_HINTING_MODE, m_libass_hinting_mode_combo);
+    BindControl(IDC_COMBO_LIBASS_SHAPER, m_libass_shaper_combo);
+    BindControl(IDC_COMBO_LIBASS_STYLE_OVERRIDE, m_libass_style_override_combo);
+    BindControl(IDC_CHECK_LIBASS_SCALE_SIGNS, m_libass_scale_signs_check);
+    BindControl(IDC_CHECK_LIBASS_JUSTIFY, m_libass_justify_check);
+    BindControl(IDC_EDIT_LIBASS_FONT_SCALE, m_libass_font_scale_edit);
+    BindControl(IDC_SPIN_LIBASS_FONT_SCALE, m_libass_font_scale_spin);
+    BindControl(IDC_EDIT_LIBASS_LINE_SPACING, m_libass_line_spacing_edit);
+    BindControl(IDC_EDIT_LIBASS_LINE_POSITION, m_libass_line_position_edit);
+    BindControl(IDC_SPIN_LIBASS_LINE_POSITION, m_libass_line_position_spin);
+    BindControl(IDC_EDIT_LIBASS_STYLE_OVERRIDES, m_libass_style_overrides_edit);
+    BindControl(IDC_EDIT_LIBASS_STYLES_FILE, m_libass_styles_file_edit);
+    BindControl(IDC_BTN_LIBASS_STYLES_BROWSE, m_libass_styles_browse_button);
+    BindControl(IDC_CHECK_LIBASS_USE_EMBEDDED_FONTS, m_libass_use_embedded_fonts_check);
+    BindControl(IDC_EDIT_LIBASS_FONTS_DIR, m_libass_fonts_dir_edit);
+    BindControl(IDC_BTN_LIBASS_FONTS_DIR_BROWSE, m_libass_fonts_dir_browse_button);
+    BindControl(IDC_EDIT_LIBASS_GLYPH_CACHE_LIMIT, m_libass_glyph_cache_limit_edit);
+    BindControl(IDC_SPIN_LIBASS_GLYPH_CACHE_LIMIT, m_libass_glyph_cache_limit_spin);
+    BindControl(IDC_EDIT_LIBASS_BITMAP_CACHE_MAX, m_libass_bitmap_cache_max_edit);
+    BindControl(IDC_SPIN_LIBASS_BITMAP_CACHE_MAX, m_libass_bitmap_cache_max_spin);
+    BindControl(IDC_EDIT_LIBASS_PRUNE_DELAY, m_libass_prune_delay_edit);
+}
+
+void CDVSLibassPPage::EnableLibassControls(bool enable)
+{
+    m_libass_hinting_mode_combo.EnableWindow(enable);
+    m_libass_shaper_combo.EnableWindow(enable);
+    m_libass_style_override_combo.EnableWindow(enable);
+    m_libass_scale_signs_check.EnableWindow(enable);
+    m_libass_justify_check.EnableWindow(enable);
+    m_libass_font_scale_edit.EnableWindow(enable);
+    m_libass_font_scale_spin.EnableWindow(enable);
+    m_libass_line_spacing_edit.EnableWindow(enable);
+    m_libass_line_position_edit.EnableWindow(enable);
+    m_libass_line_position_spin.EnableWindow(enable);
+    m_libass_style_overrides_edit.EnableWindow(enable);
+    m_libass_styles_file_edit.EnableWindow(enable);
+    m_libass_styles_browse_button.EnableWindow(enable);
+    m_libass_use_embedded_fonts_check.EnableWindow(enable);
+    m_libass_fonts_dir_edit.EnableWindow(enable);
+    m_libass_fonts_dir_browse_button.EnableWindow(enable);
+    m_libass_glyph_cache_limit_edit.EnableWindow(enable);
+    m_libass_glyph_cache_limit_spin.EnableWindow(enable);
+    m_libass_bitmap_cache_max_edit.EnableWindow(enable);
+    m_libass_bitmap_cache_max_spin.EnableWindow(enable);
+    m_libass_prune_delay_edit.EnableWindow(enable);
+}
+
+bool CDVSLibassPPage::OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch(uMsg)
+    {
+    case WM_COMMAND:
+        {
+            switch(HIWORD(wParam))
+            {
+            case BN_CLICKED:
+                {
+                    if(LOWORD(wParam) == IDC_BTN_LIBASS_STYLES_BROWSE)
+                    {
+                        AFX_MANAGE_STATE(AfxGetStaticModuleState());
+                        CFileDialog fd(TRUE, NULL, m_libass_styles_file,
+                            OFN_EXPLORER | OFN_ENABLESIZING | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST,
+                            _T("Subtitle styles (*.ass;*.ssa)|*.ass;*.ssa|All files (*.*)|*.*||"),
+                            CDialog::FromHandle(m_Dlg), 0);
+                        if(fd.DoModal() == IDOK)
+                        {
+                            m_libass_styles_file_edit.SetWindowText(fd.GetPathName());
+                        }
+                        return(true);
+                    }
+                    else if(LOWORD(wParam) == IDC_BTN_LIBASS_FONTS_DIR_BROWSE)
+                    {
+                        AFX_MANAGE_STATE(AfxGetStaticModuleState());
+                        TCHAR pathbuff[MAX_PATH];
+
+                        BROWSEINFO bi;
+                        bi.hwndOwner = m_Dlg;
+                        bi.pidlRoot = NULL;
+                        bi.pszDisplayName = pathbuff;
+                        bi.lpszTitle = _T("");
+                        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_EDITBOX | BIF_VALIDATE | BIF_USENEWUI;
+                        bi.lpfn = NULL;
+                        bi.lParam = 0;
+                        bi.iImage = 0;
+
+                        LPITEMIDLIST iil;
+                        if(iil = SHBrowseForFolder(&bi))
+                        {
+                            SHGetPathFromIDList(iil, pathbuff);
+                            m_libass_fonts_dir_edit.SetWindowText(pathbuff);
+                        }
+                        return(true);
+                    }
+                }
+                break;
+            }
+        }
+        break;
+    }
+    return(false);
+}
+
+void CDVSLibassPPage::UpdateObjectData(bool fSave)
+{
+    HRESULT hr = NOERROR;
+    if(fSave)
+    {
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_LIBASS_HINTING_MODE, m_libass_hinting_mode);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_FONT_SCALE, m_libass_font_scale);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_LINE_SPACING, m_libass_line_spacing);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_LINE_POSITION, m_libass_line_position);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_LIBASS_SHAPER, m_libass_shaper);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_LIBASS_STYLE_OVERRIDE, m_libass_style_override);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_LIBASS_SCALE_SIGNS, m_libass_scale_signs);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_LIBASS_JUSTIFY, m_libass_justify);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetString(DirectVobSubXyOptions::STRING_LIBASS_STYLE_OVERRIDES,
+            m_libass_style_overrides.GetBuffer(), m_libass_style_overrides.GetLength());
+        m_libass_style_overrides.ReleaseBuffer();
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetString(DirectVobSubXyOptions::STRING_LIBASS_STYLES_FILE,
+            m_libass_styles_file.GetBuffer(), m_libass_styles_file.GetLength());
+        m_libass_styles_file.ReleaseBuffer();
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetString(DirectVobSubXyOptions::STRING_LIBASS_FONTS_DIR,
+            m_libass_fonts_dir.GetBuffer(), m_libass_fonts_dir.GetLength());
+        m_libass_fonts_dir.ReleaseBuffer();
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetBool(DirectVobSubXyOptions::BOOL_LIBASS_USE_EMBEDDED_FONTS, m_libass_use_embedded_fonts);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_PRUNE_DELAY, m_libass_prune_delay);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_LIBASS_GLYPH_CACHE_LIMIT, m_libass_glyph_cache_limit);
+        CHECK_N_LOG(hr, "Failed to set option");
+        hr = m_pDirectVobSubXy->XySetInt(DirectVobSubXyOptions::INT_LIBASS_BITMAP_CACHE_MAX_SIZE, m_libass_bitmap_cache_max_size);
+        CHECK_N_LOG(hr, "Failed to set option");
+    }
+    else
+    {
+        int backend;
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, &backend);
+        CHECK_N_LOG(hr, "Failed to get option");
+        m_fLibassBackend = NormalizeBackend(backend) == SUBTITLE_RENDER_BACKEND_LIBASS;
+
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_LIBASS_HINTING_MODE, &m_libass_hinting_mode);
+        m_libass_hinting_mode = NormalizeLibassHintingMode(m_libass_hinting_mode);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_FONT_SCALE, &m_libass_font_scale);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_LINE_SPACING, &m_libass_line_spacing);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_LINE_POSITION, &m_libass_line_position);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_LIBASS_SHAPER, &m_libass_shaper);
+        m_libass_shaper = NormalizeLibassShaper(m_libass_shaper);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_LIBASS_STYLE_OVERRIDE, &m_libass_style_override);
+        m_libass_style_override = NormalizeLibassStyleOverride(m_libass_style_override);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetBool(DirectVobSubXyOptions::BOOL_LIBASS_SCALE_SIGNS, &m_libass_scale_signs);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetBool(DirectVobSubXyOptions::BOOL_LIBASS_JUSTIFY, &m_libass_justify);
+        CHECK_N_LOG(hr, "Failed to get option");
+        LPWSTR str = nullptr;
+        hr = m_pDirectVobSubXy->XyGetString(DirectVobSubXyOptions::STRING_LIBASS_STYLE_OVERRIDES, &str, nullptr);
+        if (SUCCEEDED(hr)) {
+            m_libass_style_overrides = str;
+            LocalFree(str);
+        }
+        CHECK_N_LOG(hr, "Failed to get option");
+        str = nullptr;
+        hr = m_pDirectVobSubXy->XyGetString(DirectVobSubXyOptions::STRING_LIBASS_STYLES_FILE, &str, nullptr);
+        if (SUCCEEDED(hr)) {
+            m_libass_styles_file = str;
+            LocalFree(str);
+        }
+        CHECK_N_LOG(hr, "Failed to get option");
+        str = nullptr;
+        hr = m_pDirectVobSubXy->XyGetString(DirectVobSubXyOptions::STRING_LIBASS_FONTS_DIR, &str, nullptr);
+        if (SUCCEEDED(hr)) {
+            m_libass_fonts_dir = str;
+            LocalFree(str);
+        }
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetBool(DirectVobSubXyOptions::BOOL_LIBASS_USE_EMBEDDED_FONTS, &m_libass_use_embedded_fonts);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetDouble(DirectVobSubXyOptions::DOUBLE_LIBASS_PRUNE_DELAY, &m_libass_prune_delay);
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_LIBASS_GLYPH_CACHE_LIMIT, &m_libass_glyph_cache_limit);
+        if (m_libass_glyph_cache_limit < 0) m_libass_glyph_cache_limit = 0;
+        CHECK_N_LOG(hr, "Failed to get option");
+        hr = m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_LIBASS_BITMAP_CACHE_MAX_SIZE, &m_libass_bitmap_cache_max_size);
+        if (m_libass_bitmap_cache_max_size < 0) m_libass_bitmap_cache_max_size = 0;
+        CHECK_N_LOG(hr, "Failed to get option");
+    }
+}
+
+void CDVSLibassPPage::UpdateControlData(bool fSave)
+{
+    if(fSave)
+    {
+        CString str;
+
+        m_libass_font_scale = m_libass_font_scale_spin.GetPos32() / 100.0;
+        m_libass_line_position = m_libass_line_position_spin.GetPos32();
+
+        m_libass_line_spacing_edit.GetWindowText(str);
+        m_libass_line_spacing = _tstof(str);
+        m_libass_prune_delay_edit.GetWindowText(str);
+        m_libass_prune_delay = _tstof(str);
+
+        m_libass_style_overrides_edit.GetWindowText(m_libass_style_overrides);
+        m_libass_styles_file_edit.GetWindowText(m_libass_styles_file);
+        m_libass_fonts_dir_edit.GetWindowText(m_libass_fonts_dir);
+
+        m_libass_hinting_mode = GetLibassHintingModeComboValue(m_libass_hinting_mode_combo);
+        m_libass_shaper = GetLibassShaperComboValue(m_libass_shaper_combo);
+        m_libass_style_override = GetLibassStyleOverrideComboValue(m_libass_style_override_combo);
+        m_libass_scale_signs = !!m_libass_scale_signs_check.GetCheck();
+        m_libass_justify = !!m_libass_justify_check.GetCheck();
+        m_libass_use_embedded_fonts = !!m_libass_use_embedded_fonts_check.GetCheck();
+        m_libass_glyph_cache_limit = m_libass_glyph_cache_limit_spin.GetPos32();
+        m_libass_bitmap_cache_max_size = m_libass_bitmap_cache_max_spin.GetPos32();
+    }
+    else
+    {
+        CString str;
+
+        // Refresh the backend state so the enable state survives Apply + tab switches.
+        int backend = SUBTITLE_RENDER_BACKEND_LIBASS;
+        if (SUCCEEDED(m_pDirectVobSubXy->XyGetInt(DirectVobSubXyOptions::INT_SUBTITLE_RENDER_BACKEND, &backend))) {
+            m_fLibassBackend = NormalizeBackend(backend) == SUBTITLE_RENDER_BACKEND_LIBASS;
+        }
+
+        m_libass_font_scale_spin.SetRange32(0, 10000);
+        m_libass_font_scale_spin.SetPos32(static_cast<int>(m_libass_font_scale * 100 + 0.5));
+
+        m_libass_line_position_spin.SetRange32(0, 150);
+        m_libass_line_position_spin.SetPos32(static_cast<int>(m_libass_line_position + 0.5));
+
+        str.Format(_T("%.6g"), m_libass_line_spacing);
+        m_libass_line_spacing_edit.SetWindowText(str);
+        str.Format(_T("%.6g"), m_libass_prune_delay);
+        m_libass_prune_delay_edit.SetWindowText(str);
+
+        m_libass_style_overrides_edit.SetWindowText(m_libass_style_overrides);
+        m_libass_styles_file_edit.SetWindowText(m_libass_styles_file);
+        m_libass_fonts_dir_edit.SetWindowText(m_libass_fonts_dir);
+
+        PopulateLibassHintingModeCombo(m_libass_hinting_mode_combo, m_libass_hinting_mode);
+        PopulateLibassShaperCombo(m_libass_shaper_combo, m_libass_shaper);
+        PopulateLibassStyleOverrideCombo(m_libass_style_override_combo, m_libass_style_override);
+        m_libass_scale_signs_check.SetCheck(m_libass_scale_signs);
+        m_libass_justify_check.SetCheck(m_libass_justify);
+        m_libass_use_embedded_fonts_check.SetCheck(m_libass_use_embedded_fonts);
+
+        m_libass_glyph_cache_limit_spin.SetRange32(0, INT_MAX);
+        m_libass_glyph_cache_limit_spin.SetPos32(m_libass_glyph_cache_limit);
+        m_libass_bitmap_cache_max_spin.SetRange32(0, INT_MAX);
+        m_libass_bitmap_cache_max_spin.SetPos32(m_libass_bitmap_cache_max_size);
+
+        EnableLibassControls(m_fLibassBackend);
     }
 }
 

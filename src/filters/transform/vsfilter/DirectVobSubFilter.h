@@ -61,6 +61,9 @@ protected:
     HRESULT GetIsEmbeddedSubStream(int iSelected, bool *fIsEmbedded);
 
     void UpdateLanguageCount();
+
+    // XyOptionsImpl
+    void UpdateLibassRenderOptions();
 public:
     CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUID& clsid = __uuidof(CDirectVobSubFilter));
 	virtual ~CDirectVobSubFilter();

@@ -479,6 +479,51 @@ BEGIN
     RTEXT           "Cache Size(MB)",IDC_LABLE_CACHE_SIZE,14,60,57,8
 END
 
+IDD_DVSLIBASSPAGE DIALOGEX 0, 0, 247, 296
+STYLE DS_SETFONT | WS_CHILD
+FONT 8, "MS Sans Serif", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Rendering",IDC_STATIC,7,3,233,92
+    RTEXT           "Font scale (%)",IDC_STATIC,13,16,66,8
+    EDITTEXT        IDC_EDIT_LIBASS_FONT_SCALE,84,14,38,12,ES_RIGHT | ES_AUTOHSCROLL
+    CONTROL         "",IDC_SPIN_LIBASS_FONT_SCALE,"msctls_updown32",UDS_SETBUDDYINT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,124,13,10,14
+    RTEXT           "Line spacing",IDC_STATIC,13,31,66,8
+    EDITTEXT        IDC_EDIT_LIBASS_LINE_SPACING,84,29,38,12,ES_RIGHT | ES_AUTOHSCROLL
+    RTEXT           "Vertical position",IDC_STATIC,13,46,66,8
+    EDITTEXT        IDC_EDIT_LIBASS_LINE_POSITION,84,44,38,12,ES_RIGHT | ES_AUTOHSCROLL
+    CONTROL         "",IDC_SPIN_LIBASS_LINE_POSITION,"msctls_updown32",UDS_SETBUDDYINT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,124,43,10,14
+    LTEXT           "Text shaper:",IDC_STATIC,13,63,66,8
+    COMBOBOX        IDC_COMBO_LIBASS_SHAPER,84,61,100,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Font hinting:",IDC_STATIC,13,79,66,8
+    COMBOBOX        IDC_COMBO_LIBASS_HINTING_MODE,84,77,100,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "Style Override",IDC_STATIC,7,99,233,86
+    LTEXT           "Style override:",IDC_STATIC,13,112,68,8
+    COMBOBOX        IDC_COMBO_LIBASS_STYLE_OVERRIDE,84,110,100,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Scale signs (typesetting) too",IDC_CHECK_LIBASS_SCALE_SIGNS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,127,110,10
+    CONTROL         "Justify text",IDC_CHECK_LIBASS_JUSTIFY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,150,127,80,10
+    LTEXT           "Style overrides ([Style.]Param=Value,...):",IDC_STATIC,13,142,210,8
+    EDITTEXT        IDC_EDIT_LIBASS_STYLE_OVERRIDES,13,152,224,12,ES_AUTOHSCROLL
+    LTEXT           "Styles file:",IDC_STATIC,13,171,44,8
+    EDITTEXT        IDC_EDIT_LIBASS_STYLES_FILE,60,169,133,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "Browse...",IDC_BTN_LIBASS_STYLES_BROWSE,197,168,40,14
+    GROUPBOX        "Fonts",IDC_STATIC,7,189,233,46
+    CONTROL         "Use fonts embedded in the media container",IDC_CHECK_LIBASS_USE_EMBEDDED_FONTS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,13,200,200,10
+    LTEXT           "Fonts directory:",IDC_STATIC,13,215,60,8
+    EDITTEXT        IDC_EDIT_LIBASS_FONTS_DIR,76,213,117,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "Browse...",IDC_BTN_LIBASS_FONTS_DIR_BROWSE,197,212,40,14
+    GROUPBOX        "Caches && Memory",IDC_STATIC,7,239,233,50
+    RTEXT           "Glyph cache limit",IDC_STATIC,13,253,72,8
+    EDITTEXT        IDC_EDIT_LIBASS_GLYPH_CACHE_LIMIT,88,251,38,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_LIBASS_GLYPH_CACHE_LIMIT,"msctls_updown32",UDS_SETBUDDYINT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,128,250,10,14
+    RTEXT           "Bitmap cache max (MB)",IDC_STATIC,13,268,72,8
+    EDITTEXT        IDC_EDIT_LIBASS_BITMAP_CACHE_MAX,88,266,38,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_LIBASS_BITMAP_CACHE_MAX,"msctls_updown32",UDS_SETBUDDYINT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,128,265,10,14
+    LTEXT           "Prune delay (s, -1 = off)",IDC_STATIC,145,253,89,8
+    EDITTEXT        IDC_EDIT_LIBASS_PRUNE_DELAY,145,266,89,12,ES_RIGHT | ES_AUTOHSCROLL
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -714,6 +759,7 @@ BEGIN
     IDD_DVSMISCPAGE         "M&isc"
     IDS_R_GENERAL           "General"
     IDD_DVSMOREPAGE         "M&ore"
+    IDD_DVSLIBASSPAGE       "lib&ass"
 END
 
 STRINGTABLE
@@ -774,6 +820,21 @@ BEGIN
     IDS_RT_STYLE            "style2"
     IDS_RT_TEXT_RENDERER_MODE "text_renderer_mode"
     IDS_RT_VSFILTER_COMPATIBILITY_MODE "vsfilter_compatibility_mode"
+    IDS_RT_LIBASS_HINTING_MODE "libass_hinting_mode"
+    IDS_RT_LIBASS_FONT_SCALE "libass_font_scale"
+    IDS_RT_LIBASS_LINE_SPACING "libass_line_spacing"
+    IDS_RT_LIBASS_LINE_POSITION "libass_line_position"
+    IDS_RT_LIBASS_SHAPER "libass_shaper"
+    IDS_RT_LIBASS_STYLE_OVERRIDE "libass_style_override"
+    IDS_RT_LIBASS_SCALE_SIGNS "libass_scale_signs"
+    IDS_RT_LIBASS_JUSTIFY "libass_justify"
+    IDS_RT_LIBASS_STYLE_OVERRIDES "libass_style_overrides"
+    IDS_RT_LIBASS_STYLES_FILE "libass_styles_file"
+    IDS_RT_LIBASS_FONTS_DIR "libass_fonts_dir"
+    IDS_RT_LIBASS_USE_EMBEDDED_FONTS "libass_use_embedded_fonts"
+    IDS_RT_LIBASS_PRUNE_DELAY "libass_prune_delay"
+    IDS_RT_LIBASS_GLYPH_CACHE_LIMIT "libass_glyph_cache_limit"
+    IDS_RT_LIBASS_BITMAP_CACHE_MAX_SIZE "libass_bitmap_cache_max_size"
     IDS_RTM_SUBTITLEDELAY   "subtitle_delay"
     IDS_RTM_SUBTITLESPEEDMUL "subtitle_speed_mul"
     IDS_RTM_SUBTITLESPEEDDIV "subtitle_Speed_div"
@@ -819,6 +880,21 @@ BEGIN
     IDS_RT_STYLE            "Style2"
     IDS_RT_TEXT_RENDERER_MODE "TextRendererMode"
     IDS_RT_VSFILTER_COMPATIBILITY_MODE "VSFilterCompatibilityMode"
+    IDS_RT_LIBASS_HINTING_MODE "LibassHintingMode"
+    IDS_RT_LIBASS_FONT_SCALE "LibassFontScale"
+    IDS_RT_LIBASS_LINE_SPACING "LibassLineSpacing"
+    IDS_RT_LIBASS_LINE_POSITION "LibassLinePosition"
+    IDS_RT_LIBASS_SHAPER "LibassShaper"
+    IDS_RT_LIBASS_STYLE_OVERRIDE "LibassStyleOverride"
+    IDS_RT_LIBASS_SCALE_SIGNS "LibassScaleSigns"
+    IDS_RT_LIBASS_JUSTIFY "LibassJustify"
+    IDS_RT_LIBASS_STYLE_OVERRIDES "LibassStyleOverrides"
+    IDS_RT_LIBASS_STYLES_FILE "LibassStylesFile"
+    IDS_RT_LIBASS_FONTS_DIR "LibassFontsDir"
+    IDS_RT_LIBASS_USE_EMBEDDED_FONTS "LibassUseEmbeddedFonts"
+    IDS_RT_LIBASS_PRUNE_DELAY "LibassPruneDelay"
+    IDS_RT_LIBASS_GLYPH_CACHE_LIMIT "LibassGlyphCacheLimit"
+    IDS_RT_LIBASS_BITMAP_CACHE_MAX_SIZE "LibassBitmapCacheMaxSize"
     IDS_RTM_SUBTITLEDELAY   "Subtitle Delay"
     IDS_RTM_SUBTITLESPEEDMUL "Subtitle Speedmul"
     IDS_RTM_SUBTITLESPEEDDIV "Subtitle Speeddiv"

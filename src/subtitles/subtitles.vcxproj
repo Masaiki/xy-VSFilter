@@ -129,6 +129,8 @@
     <ClInclude Include="HdmvSub.h" />
     <ClInclude Include="hdmv_subtitle_provider.h" />
     <ClInclude Include="libass_context.h" />
+    <ClInclude Include="LibassHinting.h" />
+    <ClInclude Include="LibassRenderOptions.h" />
     <ClInclude Include="mru_cache.h" />
     <ClInclude Include="mod_style.h" />
     <ClInclude Include="Rasterizer.h" />

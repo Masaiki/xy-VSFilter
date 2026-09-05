@@ -22,6 +22,7 @@
 #include "stdafx.h"
 #include "DirectVobSub.h"
 #include "VSFilter.h"
+#include "../../../subtitles/LibassRenderOptions.h"
 #include "../../../subtitles/TextRendererMode.h"
 #include "../../../subtitles/VsFilterCompatibility.h"
 
@@ -1054,6 +1055,84 @@ STDMETHODIMP DirectVobSubImpl::XySetBin( unsigned field, LPVOID value, int size 
 //
 // CDirectVobSub
 //
+static double GetProfileDouble(LPCTSTR section, LPCTSTR entry, double default_value)
+{
+    CString default_str;
+    default_str.Format(_T("%.6g"), default_value);
+    return _tstof(theApp.GetProfileString(section, entry, default_str));
+}
+
+static void WriteProfileDouble(LPCTSTR section, LPCTSTR entry, double value)
+{
+    CString str;
+    str.Format(_T("%.6g"), value);
+    theApp.WriteProfileString(section, entry, str);
+}
+
+LibassRenderOptions DirectVobSubImpl::GetLibassRenderOptions() const
+{
+    LibassRenderOptions options;
+    options.hinting_mode = NormalizeLibassHintingMode(m_xy_int_opt[INT_LIBASS_HINTING_MODE]);
+    options.font_scale = m_xy_double_opt[DOUBLE_LIBASS_FONT_SCALE];
+    options.line_spacing = m_xy_double_opt[DOUBLE_LIBASS_LINE_SPACING];
+    options.line_position = m_xy_double_opt[DOUBLE_LIBASS_LINE_POSITION];
+    options.shaper = NormalizeLibassShaper(m_xy_int_opt[INT_LIBASS_SHAPER]);
+    options.style_override = NormalizeLibassStyleOverride(m_xy_int_opt[INT_LIBASS_STYLE_OVERRIDE]);
+    options.scale_signs = m_xy_bool_opt[BOOL_LIBASS_SCALE_SIGNS];
+    options.justify = m_xy_bool_opt[BOOL_LIBASS_JUSTIFY];
+    options.style_overrides = m_xy_str_opt[STRING_LIBASS_STYLE_OVERRIDES];
+    options.styles_file = m_xy_str_opt[STRING_LIBASS_STYLES_FILE];
+    options.fonts_dir = m_xy_str_opt[STRING_LIBASS_FONTS_DIR];
+    options.use_embedded_fonts = m_xy_bool_opt[BOOL_LIBASS_USE_EMBEDDED_FONTS];
+    options.prune_delay = m_xy_double_opt[DOUBLE_LIBASS_PRUNE_DELAY];
+    options.glyph_cache_limit = m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT];
+    options.bitmap_cache_max_size = m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE];
+    return NormalizeLibassRenderOptions(options);
+}
+
+void DirectVobSubImpl::LoadLibassRenderOptionsFromRegistry()
+{
+    m_xy_int_opt[INT_LIBASS_HINTING_MODE] = static_cast<int>(NormalizeLibassHintingMode(
+        theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_HINTING_MODE), LIBASS_HINTING_NONE)));
+    m_xy_double_opt[DOUBLE_LIBASS_FONT_SCALE] = GetProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_FONT_SCALE), 1.0);
+    m_xy_double_opt[DOUBLE_LIBASS_LINE_SPACING] = GetProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_LINE_SPACING), 0.0);
+    m_xy_double_opt[DOUBLE_LIBASS_LINE_POSITION] = GetProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_LINE_POSITION), 100.0);
+    m_xy_int_opt[INT_LIBASS_SHAPER] = static_cast<int>(NormalizeLibassShaper(
+        theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_SHAPER), LIBASS_SHAPER_COMPLEX)));
+    m_xy_int_opt[INT_LIBASS_STYLE_OVERRIDE] = static_cast<int>(NormalizeLibassStyleOverride(
+        theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_STYLE_OVERRIDE), LIBASS_STYLE_OVERRIDE_SCALE)));
+    m_xy_bool_opt[BOOL_LIBASS_SCALE_SIGNS] = !!theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_SCALE_SIGNS), 0);
+    m_xy_bool_opt[BOOL_LIBASS_JUSTIFY] = !!theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_JUSTIFY), 0);
+    m_xy_str_opt[STRING_LIBASS_STYLE_OVERRIDES] = theApp.GetProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_STYLE_OVERRIDES), _T(""));
+    m_xy_str_opt[STRING_LIBASS_STYLES_FILE] = theApp.GetProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_STYLES_FILE), _T(""));
+    m_xy_str_opt[STRING_LIBASS_FONTS_DIR] = theApp.GetProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_FONTS_DIR), _T(""));
+    m_xy_bool_opt[BOOL_LIBASS_USE_EMBEDDED_FONTS] = !!theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_USE_EMBEDDED_FONTS), 1);
+    m_xy_double_opt[DOUBLE_LIBASS_PRUNE_DELAY] = GetProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_PRUNE_DELAY), -1.0);
+    m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT] = theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_GLYPH_CACHE_LIMIT), 0);
+    m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE] = theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_BITMAP_CACHE_MAX_SIZE), 0);
+    if (m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT] < 0) m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT] = 0;
+    if (m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE] < 0) m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE] = 0;
+}
+
+void DirectVobSubImpl::SaveLibassRenderOptionsToRegistry() const
+{
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_HINTING_MODE), m_xy_int_opt[INT_LIBASS_HINTING_MODE]);
+    WriteProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_FONT_SCALE), m_xy_double_opt[DOUBLE_LIBASS_FONT_SCALE]);
+    WriteProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_LINE_SPACING), m_xy_double_opt[DOUBLE_LIBASS_LINE_SPACING]);
+    WriteProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_LINE_POSITION), m_xy_double_opt[DOUBLE_LIBASS_LINE_POSITION]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_SHAPER), m_xy_int_opt[INT_LIBASS_SHAPER]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_STYLE_OVERRIDE), m_xy_int_opt[INT_LIBASS_STYLE_OVERRIDE]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_SCALE_SIGNS), m_xy_bool_opt[BOOL_LIBASS_SCALE_SIGNS]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_JUSTIFY), m_xy_bool_opt[BOOL_LIBASS_JUSTIFY]);
+    theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_STYLE_OVERRIDES), m_xy_str_opt[STRING_LIBASS_STYLE_OVERRIDES]);
+    theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_STYLES_FILE), m_xy_str_opt[STRING_LIBASS_STYLES_FILE]);
+    theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_FONTS_DIR), m_xy_str_opt[STRING_LIBASS_FONTS_DIR]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_USE_EMBEDDED_FONTS), m_xy_bool_opt[BOOL_LIBASS_USE_EMBEDDED_FONTS]);
+    WriteProfileDouble(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_PRUNE_DELAY), m_xy_double_opt[DOUBLE_LIBASS_PRUNE_DELAY]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_GLYPH_CACHE_LIMIT), m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT]);
+    theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_LIBASS_BITMAP_CACHE_MAX_SIZE), m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE]);
+}
+
 CDirectVobSub::CDirectVobSub( const Option *options, CCritSec * pLock )
     : DirectVobSubImpl(options, pLock)
 {
@@ -1101,6 +1180,7 @@ CDirectVobSub::CDirectVobSub( const Option *options, CCritSec * pLock )
         theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), TEXT_RENDERER_LEGACY_GDI)));
     m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE] = static_cast<int>(NormalizeVsFilterCompatibilityMode(
         theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_VSFILTER_COMPATIBILITY_MODE), VSFILTER_COMPATIBILITY_XY)));
+    LoadLibassRenderOptionsFromRegistry();
     m_xy_bool_opt[BOOL_FLIP_PICTURE]  = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPPICTURE), 0);
     m_xy_bool_opt[BOOL_FLIP_SUBTITLE] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPSUBTITLES), 0);
     m_xy_bool_opt[BOOL_OSD] = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SHOWOSDSTATS), 0);
@@ -1341,6 +1421,7 @@ STDMETHODIMP CDirectVobSub::UpdateRegistry()
     theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_STYLE), style <<= m_defStyle);
     theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_VSFILTER_COMPATIBILITY_MODE), m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+    SaveLibassRenderOptionsToRegistry();
     theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPPICTURE), m_xy_bool_opt[BOOL_FLIP_PICTURE]);
     theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_FLIPSUBTITLES), m_xy_bool_opt[BOOL_FLIP_SUBTITLE]);
     theApp.WriteProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_SHOWOSDSTATS), m_xy_bool_opt[BOOL_OSD]);
@@ -1519,6 +1600,7 @@ CDVS4XySubFilter::CDVS4XySubFilter( const Option *options, CCritSec * pLock )
         theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), TEXT_RENDERER_LEGACY_GDI)));
     m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE] = static_cast<int>(NormalizeVsFilterCompatibilityMode(
         theApp.GetProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_VSFILTER_COMPATIBILITY_MODE), VSFILTER_COMPATIBILITY_XY)));
+    LoadLibassRenderOptionsFromRegistry();
 
     m_nReloaderDisableCount                 = !!theApp.GetProfileInt(ResStr(IDS_R_GENERAL), ResStr(IDS_RG_DISABLERELOADER), 0) ? 1 : 0;
     m_SubtitleDelay                         =   theApp.GetProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLEDELAY), 0);
@@ -1759,6 +1841,7 @@ STDMETHODIMP CDVS4XySubFilter::UpdateRegistry()
     theApp.WriteProfileString(ResStr(IDS_R_TEXT), ResStr(IDS_RT_STYLE), style <<= m_defStyle);
     theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_TEXT_RENDERER_MODE), m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     theApp.WriteProfileInt(ResStr(IDS_R_TEXT), ResStr(IDS_RT_VSFILTER_COMPATIBILITY_MODE), m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+    SaveLibassRenderOptionsToRegistry();
     theApp.WriteProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLEDELAY), m_SubtitleDelay);
     theApp.WriteProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLESPEEDMUL), m_SubtitleSpeedMul);
     theApp.WriteProfileInt(ResStr(IDS_R_TIMING), ResStr(IDS_RTM_SUBTITLESPEEDDIV), m_SubtitleSpeedDiv);

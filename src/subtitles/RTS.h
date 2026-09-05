@@ -532,6 +532,7 @@ public:
     void Deinit();
     void SetTextRendererMode(TextRendererMode mode);
     void SetVsFilterCompatibilityMode(VsFilterCompatibilityMode mode);
+    void SetLibassRenderOptions(const LibassRenderOptions &options);
 
     DECLARE_IUNKNOWN
     STDMETHODIMP NonDelegatingQueryInterface(REFIID riid, void** ppv);

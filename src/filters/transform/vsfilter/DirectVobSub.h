@@ -26,6 +26,7 @@
 #include "..\..\..\..\include\IFilterVersion.h"
 #include "version.h"
 #include "XyOptionsImpl.h"
+#include "../../../subtitles/LibassRenderOptions.h"
 
 class DirectVobSubImpl : public IDirectVobSub2, public XyOptionsImpl, public IFilterVersion
 {
@@ -73,6 +74,10 @@ protected:
     bool is_compatible();
     UINT GetCompatibleProfileInt(LPCTSTR lpszSection, LPCTSTR lpszEntry, int nDefault);
     CString GetCompatibleProfileString(LPCTSTR lpszSection, LPCTSTR lpszEntry, LPCTSTR lpszDefault);
+
+    LibassRenderOptions GetLibassRenderOptions() const;
+    void LoadLibassRenderOptionsFromRegistry();
+    void SaveLibassRenderOptionsToRegistry() const;
 
     virtual HRESULT GetCurStyles(SubStyle sub_style[], int count) { return E_NOTIMPL; }
     virtual HRESULT SetCurStyles(const SubStyle sub_style[], int count) { return E_NOTIMPL; }

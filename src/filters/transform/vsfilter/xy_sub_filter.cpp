@@ -9,6 +9,7 @@
 #include "../../../SubPic/SimpleSubPicProviderImpl.h"
 #include "../../../subpic/SimpleSubPicWrapper.h"
 #include "../../../subpic/color_conv_table.h"
+#include "../../../subtitles/LibassHinting.h"
 #include "../../../subtitles/VsFilterCompatibility.h"
 
 #include "CAutoTiming.h"
@@ -242,6 +243,7 @@ XySubFilter::XySubFilter( LPUNKNOWN punk,
     pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
     pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+    pin->m_libass_options = GetLibassRenderOptions();
     pin->m_csri_loader = m_csri_loader;
     m_pSubtitleInputPin.Add(pin);
     ASSERT(SUCCEEDED(*phr));
@@ -501,6 +503,33 @@ STDMETHODIMP XySubFilter::Pause()
 // XyOptionsImpl
 //
 
+void XySubFilter::UpdateLibassRenderOptions()
+{
+    const LibassRenderOptions options = GetLibassRenderOptions();
+
+    m_xy_int_opt[INT_LIBASS_HINTING_MODE] = static_cast<int>(options.hinting_mode);
+    m_xy_int_opt[INT_LIBASS_SHAPER] = static_cast<int>(options.shaper);
+    m_xy_int_opt[INT_LIBASS_STYLE_OVERRIDE] = static_cast<int>(options.style_override);
+    m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT] = options.glyph_cache_limit;
+    m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE] = options.bitmap_cache_max_size;
+    m_xy_double_opt[DOUBLE_LIBASS_FONT_SCALE] = options.font_scale;
+    m_xy_double_opt[DOUBLE_LIBASS_LINE_SPACING] = options.line_spacing;
+    m_xy_double_opt[DOUBLE_LIBASS_LINE_POSITION] = options.line_position;
+    m_xy_double_opt[DOUBLE_LIBASS_PRUNE_DELAY] = options.prune_delay;
+
+    for(int i = 0; i < m_pSubtitleInputPin.GetCount(); i++)
+        m_pSubtitleInputPin[i]->m_libass_options = options;
+    POSITION pos = m_pSubStreams.GetHeadPosition();
+    while(pos)
+    {
+        CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+        auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+        if (rts) {
+            rts->SetLibassRenderOptions(options);
+        }
+    }
+}
+
 HRESULT XySubFilter::OnOptionChanged( unsigned field )
 {
     HRESULT hr = DirectVobSubImpl::OnOptionChanged(field);
@@ -720,6 +749,25 @@ HRESULT XySubFilter::OnOptionChanged( unsigned field )
         InvalidateSubtitle();
         break;
     }
+    case INT_LIBASS_HINTING_MODE:
+    case DOUBLE_LIBASS_FONT_SCALE:
+    case DOUBLE_LIBASS_LINE_SPACING:
+    case DOUBLE_LIBASS_LINE_POSITION:
+    case INT_LIBASS_SHAPER:
+    case INT_LIBASS_STYLE_OVERRIDE:
+    case BOOL_LIBASS_SCALE_SIGNS:
+    case BOOL_LIBASS_JUSTIFY:
+    case STRING_LIBASS_STYLE_OVERRIDES:
+    case STRING_LIBASS_STYLES_FILE:
+    case STRING_LIBASS_FONTS_DIR:
+    case BOOL_LIBASS_USE_EMBEDDED_FONTS:
+    case DOUBLE_LIBASS_PRUNE_DELAY:
+    case INT_LIBASS_GLYPH_CACHE_LIMIT:
+    case INT_LIBASS_BITMAP_CACHE_MAX_SIZE:
+        UpdateLibassRenderOptions();
+        m_context_id++;
+        InvalidateSubtitle();
+        break;
     }
 
     return hr;
@@ -1120,7 +1168,7 @@ STDMETHODIMP XySubFilter::GetPages(CAUUID* pPages)
     XY_LOG_INFO(pPages);
     CheckPointer(pPages, E_POINTER);
 
-    pPages->cElems = 5;
+    pPages->cElems = 6;
     pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID)*pPages->cElems);
 
     if(pPages->pElems == NULL) return E_OUTOFMEMORY;
@@ -1128,6 +1176,7 @@ STDMETHODIMP XySubFilter::GetPages(CAUUID* pPages)
     int i = 0;
     pPages->pElems[i++] = __uuidof(CXySubFilterMainPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterMorePPage);
+    pPages->pElems[i++] = __uuidof(CXySubFilterLibassPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterTimingPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterPathsPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterAboutPPage);
@@ -2012,6 +2061,7 @@ bool XySubFilter::Open()
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             if (pRTS) pRTS->SetTextRendererMode(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
             if (pRTS) pRTS->SetVsFilterCompatibilityMode(NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]));
+            if (pRTS) pRTS->SetLibassRenderOptions(GetLibassRenderOptions());
             pRTS && (pRTS->m_csri_context.m_loader = m_csri_loader);
             pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
                 ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
@@ -2157,14 +2207,9 @@ void XySubFilter::SetSubtitle( ISubStream* pSubStream, bool fApplyDefStyle /*= t
                     styles_overrides.swap(pRTS->reserved_styles);
                 }
 
-                if (styles_overrides.size()) {
-                    std::unique_ptr<char *[]> tmp = std::make_unique<char *[]>(styles_overrides.size() + 1);
-                    for (size_t i = 0; i < styles_overrides.size(); ++i)
-                        tmp[i] = const_cast<char *>(styles_overrides[i].GetString());
-                    tmp[styles_overrides.size()] = NULL;
-                    ass_set_style_overrides(pRTS->m_ass_context.m_ass.get(), tmp.get());
-                    ass_process_force_style(pRTS->m_ass_context.m_track.get());
-                }
+                // Combines the generated overrides with the user's libass style
+                // override string (see STRING_LIBASS_STYLE_OVERRIDES).
+                pRTS->m_ass_context.SetExtraStyleOverrides(std::move(styles_overrides));
             }
 
             pRTS->m_ePARCompensationType = CSimpleTextSubtitle::EPCTDisabled;
@@ -2617,6 +2662,9 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
 {
     XY_LOG_INFO(pSubStream);
     CAutoLock cAutolock(&m_csFilter);
+	if (auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream)) {
+		rts->SetLibassRenderOptions(GetLibassRenderOptions());
+	}
 
     POSITION pos = m_pSubStreams.Find(pSubStream);
     if(!pos)
@@ -2636,6 +2684,7 @@ void XySubFilter::AddSubStream(ISubStream* pSubStream)
         pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
         pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
         pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+        pin->m_libass_options = GetLibassRenderOptions();
         pin->m_csri_loader = m_csri_loader;
         m_pSubtitleInputPin.Add(pin);
     }

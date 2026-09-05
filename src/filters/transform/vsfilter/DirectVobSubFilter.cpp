@@ -32,6 +32,7 @@
 #include "../../../SubPic/SimpleSubPicProviderImpl.h"
 #include "../../../SubPic/PooledSubPic.h"
 #include "../../../subpic/SimpleSubPicWrapper.h"
+#include "../../../subtitles/LibassHinting.h"
 #include "../../../subtitles/VsFilterCompatibility.h"
 
 #include <initguid.h>
@@ -114,12 +115,14 @@ CDirectVobSubFilter::CDirectVobSubFilter(LPUNKNOWN punk, HRESULT* phr, const GUI
     m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND] = static_cast<int>(NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
     m_xy_int_opt[INT_TEXT_RENDERER_MODE] = static_cast<int>(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
     m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE] = static_cast<int>(NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]));
+    m_xy_int_opt[INT_LIBASS_HINTING_MODE] = static_cast<int>(NormalizeLibassHintingMode(m_xy_int_opt[INT_LIBASS_HINTING_MODE]));
 
     HRESULT hr = S_OK;
     auto pin = new CTextInputPin(this, m_pLock, &m_csSubLock, &hr);
     pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
     pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
     pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+    pin->m_libass_options = GetLibassRenderOptions();
     m_pTextInput.Add(pin);
     ASSERT(SUCCEEDED(hr));
 
@@ -1075,7 +1078,7 @@ STDMETHODIMP CDirectVobSubFilter::GetPages(CAUUID* pPages)
 {
     CheckPointer(pPages, E_POINTER);
 
-	pPages->cElems = 8;
+	pPages->cElems = 9;
     pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID)*pPages->cElems);
 
 	if(pPages->pElems == NULL) return E_OUTOFMEMORY;
@@ -1085,6 +1088,7 @@ STDMETHODIMP CDirectVobSubFilter::GetPages(CAUUID* pPages)
     pPages->pElems[i++] = __uuidof(CDVSGeneralPPage);
     pPages->pElems[i++] = __uuidof(CDVSMiscPPage);
     pPages->pElems[i++] = __uuidof(CDVSMorePPage);
+    pPages->pElems[i++] = __uuidof(CDVSLibassPPage);
     pPages->pElems[i++] = __uuidof(CDVSTimingPPage);
     pPages->pElems[i++] = __uuidof(CDVSColorPPage);
     pPages->pElems[i++] = __uuidof(CDVSPathsPPage);
@@ -1573,6 +1577,7 @@ bool CDirectVobSubFilter::Open()
             pRTS && (pRTS->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]));
             if (pRTS) pRTS->SetTextRendererMode(NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]));
             if (pRTS) pRTS->SetVsFilterCompatibilityMode(NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]));
+            if (pRTS) pRTS->SetLibassRenderOptions(GetLibassRenderOptions());
             pRTS && (pRTS->m_warning_callback = [this](const CString& message) {
                 ShowSystrayNotification(&m_tbid, _T("Subtitle warning"), message);
             });
@@ -1852,6 +1857,9 @@ void CDirectVobSubFilter::AddSubStream(ISubStream* pSubStream)
 {
     XY_LOG_INFO(pSubStream);
 	CAutoLock cAutoLock(&m_csSubLock);
+	if (auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream)) {
+		rts->SetLibassRenderOptions(GetLibassRenderOptions());
+	}
 
 	POSITION pos = m_pSubStreams.Find(pSubStream);
 	if(!pos)
@@ -1871,6 +1879,7 @@ void CDirectVobSubFilter::AddSubStream(ISubStream* pSubStream)
         pin->m_render_backend = NormalizeBackend(m_xy_int_opt[INT_SUBTITLE_RENDER_BACKEND]);
         pin->m_text_renderer_mode = NormalizeTextRendererMode(m_xy_int_opt[INT_TEXT_RENDERER_MODE]);
         pin->m_vsfilter_compatibility_mode = NormalizeVsFilterCompatibilityMode(m_xy_int_opt[INT_VSFILTER_COMPATIBILITY_MODE]);
+        pin->m_libass_options = GetLibassRenderOptions();
 		m_pTextInput.Add(pin);
 	}
 }
@@ -2241,6 +2250,34 @@ void CDirectVobSubFilter::SetYuvMatrix()
 // XyOptionsImpl
 //
 
+void CDirectVobSubFilter::UpdateLibassRenderOptions()
+{
+    const LibassRenderOptions options = GetLibassRenderOptions();
+
+    m_xy_int_opt[INT_LIBASS_HINTING_MODE] = static_cast<int>(options.hinting_mode);
+    m_xy_int_opt[INT_LIBASS_SHAPER] = static_cast<int>(options.shaper);
+    m_xy_int_opt[INT_LIBASS_STYLE_OVERRIDE] = static_cast<int>(options.style_override);
+    m_xy_int_opt[INT_LIBASS_GLYPH_CACHE_LIMIT] = options.glyph_cache_limit;
+    m_xy_int_opt[INT_LIBASS_BITMAP_CACHE_MAX_SIZE] = options.bitmap_cache_max_size;
+    m_xy_double_opt[DOUBLE_LIBASS_FONT_SCALE] = options.font_scale;
+    m_xy_double_opt[DOUBLE_LIBASS_LINE_SPACING] = options.line_spacing;
+    m_xy_double_opt[DOUBLE_LIBASS_LINE_POSITION] = options.line_position;
+    m_xy_double_opt[DOUBLE_LIBASS_PRUNE_DELAY] = options.prune_delay;
+
+    for(int i = 0; i < m_pTextInput.GetCount(); i++)
+        m_pTextInput[i]->m_libass_options = options;
+    POSITION pos = m_pSubStreams.GetHeadPosition();
+    while(pos)
+    {
+        CComPtr<ISubStream> pSubStream = m_pSubStreams.GetNext(pos);
+        auto rts = dynamic_cast<CRenderedTextSubtitle*>(pSubStream.p);
+        if (rts) {
+            rts->SetLibassRenderOptions(options);
+        }
+    }
+    InvalidateSubtitle();
+}
+
 HRESULT CDirectVobSubFilter::OnOptionChanged( unsigned field )
 {
     HRESULT hr = CDirectVobSub::OnOptionChanged(field);
@@ -2323,6 +2360,23 @@ HRESULT CDirectVobSubFilter::OnOptionChanged( unsigned field )
         InvalidateSubtitle();
         break;
     }
+    case INT_LIBASS_HINTING_MODE:
+    case DOUBLE_LIBASS_FONT_SCALE:
+    case DOUBLE_LIBASS_LINE_SPACING:
+    case DOUBLE_LIBASS_LINE_POSITION:
+    case INT_LIBASS_SHAPER:
+    case INT_LIBASS_STYLE_OVERRIDE:
+    case BOOL_LIBASS_SCALE_SIGNS:
+    case BOOL_LIBASS_JUSTIFY:
+    case STRING_LIBASS_STYLE_OVERRIDES:
+    case STRING_LIBASS_STYLES_FILE:
+    case STRING_LIBASS_FONTS_DIR:
+    case BOOL_LIBASS_USE_EMBEDDED_FONTS:
+    case DOUBLE_LIBASS_PRUNE_DELAY:
+    case INT_LIBASS_GLYPH_CACHE_LIMIT:
+    case INT_LIBASS_BITMAP_CACHE_MAX_SIZE:
+        UpdateLibassRenderOptions();
+        break;
     }
 
     return hr;

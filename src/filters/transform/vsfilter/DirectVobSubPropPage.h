@@ -181,6 +181,58 @@ public:
     CDVSMorePPage(LPUNKNOWN lpunk, HRESULT* phr);
 };
 
+[uuid("19078713-500E-4D36-B5FF-B42BE9C3DB9D")]
+class CDVSLibassPPage : public CDVSBasePPage
+{
+    bool m_fLibassBackend;
+    int m_libass_hinting_mode;
+    double m_libass_font_scale;
+    double m_libass_line_spacing;
+    double m_libass_line_position;
+    int m_libass_shaper;
+    int m_libass_style_override;
+    bool m_libass_scale_signs;
+    bool m_libass_justify;
+    CStringW m_libass_style_overrides;
+    CStringW m_libass_styles_file;
+    CStringW m_libass_fonts_dir;
+    bool m_libass_use_embedded_fonts;
+    double m_libass_prune_delay;
+    int m_libass_glyph_cache_limit;
+    int m_libass_bitmap_cache_max_size;
+
+    CComboBox m_libass_hinting_mode_combo;
+    CComboBox m_libass_shaper_combo;
+    CComboBox m_libass_style_override_combo;
+    CButton m_libass_scale_signs_check;
+    CButton m_libass_justify_check;
+    CEdit m_libass_font_scale_edit;
+    CSpinButtonCtrl m_libass_font_scale_spin;
+    CEdit m_libass_line_spacing_edit;
+    CEdit m_libass_line_position_edit;
+    CSpinButtonCtrl m_libass_line_position_spin;
+    CEdit m_libass_style_overrides_edit;
+    CEdit m_libass_styles_file_edit;
+    CButton m_libass_styles_browse_button;
+    CButton m_libass_use_embedded_fonts_check;
+    CEdit m_libass_fonts_dir_edit;
+    CButton m_libass_fonts_dir_browse_button;
+    CEdit m_libass_glyph_cache_limit_edit;
+    CSpinButtonCtrl m_libass_glyph_cache_limit_spin;
+    CEdit m_libass_bitmap_cache_max_edit;
+    CSpinButtonCtrl m_libass_bitmap_cache_max_spin;
+    CEdit m_libass_prune_delay_edit;
+
+    void EnableLibassControls(bool enable);
+protected:
+    virtual bool OnMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    virtual void UpdateControlData(bool fSave);
+    virtual void UpdateObjectData(bool fSave);
+
+public:
+    CDVSLibassPPage(LPUNKNOWN lpunk, HRESULT* phr, TCHAR *pName = NAME("DirectVobSub libass Property Page"));
+};
+
 [uuid("F544E0F5-CA3C-47ea-A64D-35FCF1602396")]
 class CDVSAboutPPage : public CDVSBasePPage
 {
@@ -331,6 +383,15 @@ protected:
 
 public:
     CXySubFilterMorePPage(LPUNKNOWN lpunk, HRESULT* phr);
+};
+
+[uuid("E44B5335-ECB5-4EF9-91AA-F6153B39F649")]
+class CXySubFilterLibassPPage : public CDVSLibassPPage
+{
+public:
+    CXySubFilterLibassPPage(LPUNKNOWN lpunk, HRESULT* phr
+        , TCHAR *pName = NAME("XySubFilter libass Property Page"))
+        : CDVSLibassPPage(lpunk, phr, pName) {}
 };
 
 [uuid("1438A8B4-E8AF-4A81-BCA8-970751A9EE82")]

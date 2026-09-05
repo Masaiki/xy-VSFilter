@@ -2314,6 +2314,7 @@ void CRenderedTextSubtitle::Copy(CSimpleTextSubtitle& sts)
     if(CRenderedTextSubtitle* pRTS = dynamic_cast<CRenderedTextSubtitle*>(&sts))
     {
         m_size = pRTS->m_size;
+        m_ass_context.ApplyRenderOptions(pRTS->m_ass_context.m_options, nullptr);
     }
 }
 
@@ -2423,6 +2424,59 @@ void CRenderedTextSubtitle::SetVsFilterCompatibilityMode(VsFilterCompatibilityMo
         m_vsfilter_compatibility_mode = mode;
         m_mod_image_cache.ResetDecoded();
         Deinit(false, false);
+    }
+}
+
+// Map the VSFilter default style to an ASS_Style for libass' selective style
+// override. Field conventions follow detect_style_changes() in xy_sub_filter.cpp.
+static void StsStyleToAssStyle(const STSStyle &sts, CStringA &font_name, ASS_Style *style)
+{
+    memset(style, 0, sizeof(*style));
+    font_name = UTF16To8(sts.fontName.GetString());
+    style->Name = const_cast<char *>("Default");
+    style->FontName = const_cast<char *>(font_name.GetString());
+    style->FontSize = sts.fontSize;
+    style->PrimaryColour = (sts.alpha[0] << 24) | sts.colors[0];
+    style->SecondaryColour = (sts.alpha[1] << 24) | sts.colors[1];
+    style->OutlineColour = (sts.alpha[2] << 24) | sts.colors[2];
+    style->BackColour = (sts.alpha[3] << 24) | sts.colors[3];
+    style->Bold = sts.fontWeight >= FW_BOLD ? -1 : 0;
+    style->Italic = sts.fItalic ? -1 : 0;
+    style->Underline = sts.fUnderline ? -1 : 0;
+    style->StrikeOut = sts.fStrikeOut ? -1 : 0;
+    style->ScaleX = sts.fontScaleX / 100.0;
+    style->ScaleY = sts.fontScaleY / 100.0;
+    style->Spacing = sts.fontSpacing;
+    style->Angle = sts.fontAngleZ;
+    style->BorderStyle = sts.borderStyle ? 3 : 1;
+    style->Outline = sts.outlineWidthX;
+    style->Shadow = sts.shadowDepthX;
+    int Alignment = ((sts.scrAlignment - 1) % 3) + 1;
+    if (sts.scrAlignment <= 3) {
+        Alignment |= VALIGN_SUB;
+    } else if (sts.scrAlignment <= 6) {
+        Alignment |= VALIGN_CENTER;
+    } else {
+        Alignment |= VALIGN_TOP;
+    }
+    style->Alignment = Alignment;
+    const CRect &margin = sts.marginRect.get();
+    style->MarginL = margin.left;
+    style->MarginR = margin.right;
+    style->MarginV = margin.bottom;
+    style->Encoding = sts.charSet;
+}
+
+void CRenderedTextSubtitle::SetLibassRenderOptions(const LibassRenderOptions &options)
+{
+    STSStyle default_style;
+    if (GetDefaultStyle(default_style)) {
+        CStringA font_name;
+        ASS_Style style;
+        StsStyleToAssStyle(default_style, font_name, &style);
+        m_ass_context.ApplyRenderOptions(options, &style);
+    } else {
+        m_ass_context.ApplyRenderOptions(options, nullptr);
     }
 }
 

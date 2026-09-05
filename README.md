@@ -12,6 +12,15 @@ This is a subtitle render filter for directshow video players such as mpc-hc/mpc
     - Options -> Subtitle -> Subtitle renderer in MPC-BE 
     - Options -> Playback -> Output -> Subtitle Renderer in MPC-HC
 
+When updating an existing installation, close the player, replace the DLL in
+its installed location, and run `Install_XySubFilter.bat` as administrator again
+before restarting the player. New property tabs such as `libass` have their own
+COM class registrations; replacing or rebuilding the DLL alone leaves those
+classes unregistered, so the player can show the old tabs while omitting the new
+ones. For a development build without the install script next to it, register
+the DLL using `regsvr32.exe "<full path to XySubFilter.dll>"` from an elevated
+command prompt.
+
 ## How to compile
 1. Clone or download release from https://github.com/ShiftMediaProject/VSYASM and https://github.com/ShiftMediaProject/VSNASM, and run install_script.bat as administrator.
 2. Clone the repo and run `git submodule update --init --recursive --remote` in the folder.

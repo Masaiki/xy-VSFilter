@@ -38,6 +38,12 @@
     <ClInclude Include="test_font_fallback.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test_libass_hinting.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="test_libass_options.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="test_media_side_data.h">
       <Filter>Header Files</Filter>
     </ClInclude>

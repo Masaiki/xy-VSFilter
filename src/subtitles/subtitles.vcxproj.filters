@@ -230,6 +230,12 @@
     <ClInclude Include="libass_context.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="LibassHinting.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LibassRenderOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="csri_loader.h">
       <Filter>Header Files</Filter>
     </ClInclude>

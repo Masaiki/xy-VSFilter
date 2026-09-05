@@ -42,6 +42,114 @@ static const char *detect_bom(const char *buf, const size_t bufsize) {
     return "UTF-8";
 }
 
+static ASS_Hinting ToAssHinting(LibassHintingMode mode)
+{
+    switch (NormalizeLibassHintingMode(static_cast<int>(mode))) {
+    case LIBASS_HINTING_LIGHT:
+        return ASS_HINTING_LIGHT;
+    case LIBASS_HINTING_NORMAL:
+        return ASS_HINTING_NORMAL;
+    case LIBASS_HINTING_NATIVE:
+        return ASS_HINTING_NATIVE;
+    case LIBASS_HINTING_NONE:
+    default:
+        return ASS_HINTING_NONE;
+    }
+}
+
+std::vector<CStringA> ParseLibassStyleOverrideString(const CStringW &str)
+{
+    std::vector<CStringA> result;
+    int pos = 0;
+    while (pos >= 0) {
+        CStringW token = str.Tokenize(L",", pos);
+        token.Trim();
+        if (!token.IsEmpty()) {
+            result.push_back(UTF16To8(token.GetString()));
+        }
+    }
+    return result;
+}
+
+void ASS_Context::ApplyRenderOptions(const LibassRenderOptions &opts, const ASS_Style *selective_style)
+{
+    m_options = NormalizeLibassRenderOptions(opts);
+
+    if (m_ass) {
+        if (!m_options.fonts_dir.IsEmpty()) {
+            ass_set_fonts_dir(m_ass.get(), UTF16To8(m_options.fonts_dir.GetString()).GetString());
+        }
+        ass_set_extract_fonts(m_ass.get(), m_options.use_embedded_fonts ? 1 : 0);
+    }
+
+    if (m_renderer) {
+        ass_set_font_scale(m_renderer.get(), m_options.font_scale);
+        ass_set_line_spacing(m_renderer.get(), m_options.line_spacing);
+        // libass: 0 = bottom (default), 100 = top; mpv --sub-pos: 0 = top, 100 = bottom (default)
+        ass_set_line_position(m_renderer.get(), 100.0 - m_options.line_position);
+        ass_set_shaper(m_renderer.get(), m_options.shaper == LIBASS_SHAPER_SIMPLE ? ASS_SHAPING_SIMPLE : ASS_SHAPING_COMPLEX);
+        ass_set_hinting(m_renderer.get(), ToAssHinting(m_options.hinting_mode));
+        ass_set_cache_limits(m_renderer.get(), m_options.glyph_cache_limit, m_options.bitmap_cache_max_size);
+        ass_set_selective_style_override_enabled(m_renderer.get(),
+            LibassOverrideBits(m_options.style_override, m_options.justify, m_options.scale_signs));
+        if (selective_style) {
+            // libass only reads the style (strings are copied by the function).
+            ass_set_selective_style_override(m_renderer.get(), const_cast<ASS_Style *>(selective_style));
+        }
+    }
+
+    if (m_track) {
+        ass_configure_prune(m_track.get(), static_cast<long long>(m_options.prune_delay * 1000.0));
+
+        // Read the styles file at most once per track and per file, so repeated
+        // option changes do not accumulate styles in the track.
+        const bool read_styles = m_options.style_override != LIBASS_STYLE_OVERRIDE_NO && !m_options.styles_file.IsEmpty();
+        if (read_styles && m_styles_file_applied != m_options.styles_file) {
+            ass_read_styles(m_track.get(), UTF16To8(m_options.styles_file.GetString()).GetString(), NULL);
+            m_styles_file_applied = m_options.styles_file;
+        } else if (!read_styles) {
+            m_styles_file_applied.Empty();
+        }
+    }
+
+    ApplyStyleOverrides();
+}
+
+void ASS_Context::SetExtraStyleOverrides(std::vector<CStringA> extra)
+{
+    m_extra_style_overrides = std::move(extra);
+    ApplyStyleOverrides();
+}
+
+void ASS_Context::ApplyStyleOverrides()
+{
+    if (!m_ass) return;
+
+    // Combine the filter-generated overrides (Force Default Style) with the
+    // user override string; ass_set_style_overrides replaces the list as a whole.
+    std::vector<CStringA> overrides = m_extra_style_overrides;
+    if (m_options.style_override != LIBASS_STYLE_OVERRIDE_NO) {
+        std::vector<CStringA> user = ParseLibassStyleOverrideString(m_options.style_overrides);
+        overrides.insert(overrides.end(), user.begin(), user.end());
+    }
+
+    if (overrides.empty()) {
+        ass_set_style_overrides(m_ass.get(), NULL);
+        return;
+    }
+
+    std::vector<const char *> tmp;
+    tmp.reserve(overrides.size() + 1);
+    for (const auto &override : overrides) {
+        tmp.push_back(override.GetString());
+    }
+    tmp.push_back(NULL);
+    ass_set_style_overrides(m_ass.get(), tmp.data());
+    if (m_track) {
+        ass_process_force_style(m_track.get());
+    }
+}
+
 bool ASS_Context::LoadASSFile(CString path)
 {
     UnloadASS();
@@ -51,7 +159,9 @@ bool ASS_Context::LoadASSFile(CString path)
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
 
-    ass_set_extract_fonts(m_ass.get(), 1);
+    // Library-level options (font extraction, fonts dir, style overrides) must
+    // be set before the file is read, so they apply while parsing.
+    ApplyRenderOptions(m_options, nullptr);
 
     size_t bufsize = 0;
     FILE *fp = _wfopen(path.GetString(), L"rb");
@@ -63,6 +173,7 @@ bool ASS_Context::LoadASSFile(CString path)
     if (!m_track) return false;
 
     ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
+    ApplyRenderOptions(m_options, nullptr);
 
     m_assloaded = true;
     m_assfontloaded = true;
@@ -75,15 +186,19 @@ bool ASS_Context::LoadASSTrack(char *data, int size)
 
     m_ass = decltype(m_ass)(ass_library_init());
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
-    m_track = decltype(m_track)(ass_new_track(m_ass.get()));
 
-    ass_set_extract_fonts(m_ass.get(), 1);
+    // Library-level options (font extraction, fonts dir, style overrides) must
+    // be set before the track data is processed.
+    ApplyRenderOptions(m_options, nullptr);
+
+    m_track = decltype(m_track)(ass_new_track(m_ass.get()));
 
     if (!m_track) return false;
 
     ass_process_codec_private(m_track.get(), data, size);
 
     ass_set_fonts(m_renderer.get(), NULL, NULL, ASS_FONTPROVIDER_DIRECTWRITE, NULL, 0);
+    ApplyRenderOptions(m_options, nullptr);
 
     m_assloaded = true;
     return true;
@@ -93,6 +208,8 @@ void ASS_Context::UnloadASS()
 {
     m_assloaded = false;
     m_assfontloaded = false;
+    m_styles_file_applied.Empty();
+    m_extra_style_overrides.clear();
     if (m_track) m_track.reset();
     if (m_renderer) m_renderer.reset();
     if (m_ass) m_ass.reset();
@@ -103,6 +220,11 @@ void ASS_Context::UnloadASS()
 
 void ASS_Context::LoadASSFont(IPin *pPin, IFilterGraph *pGraph)
 {
+    if (!m_options.use_embedded_fonts) {
+        m_assfontloaded = true;
+        return;
+    }
+
     // Try to load fonts in the container
     CComPtr<IAMGraphStreams> graphStreams;
     CComPtr<IDSMResourceBag> bag;

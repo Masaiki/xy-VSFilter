@@ -48,6 +48,7 @@ public:
     // XyOptionsImpl
     virtual HRESULT OnOptionChanged(unsigned field);
     virtual HRESULT DoGetField(unsigned field, void *value);
+    void UpdateLibassRenderOptions();
 
     // IXyOptions
     STDMETHODIMP XyGetString   (unsigned field, LPWSTR   *value, int *chars);
