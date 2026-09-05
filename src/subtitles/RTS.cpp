@@ -3362,6 +3362,7 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
         case CMD_mover:
             {
                 if ((params.GetCount() == 8 || params.GetCount() == 10)
+                        && !sub->m_effects[EF_MOVE]
                         && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVE))) {
                     ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
                     effect.feature_mask |= MOD_EFFECT_MOVE;
@@ -3395,6 +3396,7 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
         case CMD_moves3:
             {
                 if ((params.GetCount() == 6 || params.GetCount() == 8)
+                        && !sub->m_effects[EF_MOVE]
                         && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVE))) {
                     ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
                     effect.feature_mask |= MOD_EFFECT_MOVE;
@@ -3416,6 +3418,7 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
         case CMD_moves4:
             {
                 if ((params.GetCount() == 8 || params.GetCount() == 10)
+                        && !sub->m_effects[EF_MOVE]
                         && (!sub->m_mod_effects || !(sub->m_mod_effects->feature_mask & MOD_EFFECT_MOVE))) {
                     ModEffectState& effect = EnsureWritableModEffectState(sub->m_mod_effects);
                     effect.feature_mask |= MOD_EFFECT_MOVE;
@@ -3595,6 +3598,9 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
             {
                 STSStyle* val;
                 style = (!p.IsEmpty() && m_styles.Lookup(p, val) && val) ? *val : org;
+                if (!IsVsFilterModMode() && style.fontSpacing < 0) {
+                    style.fontSpacing = 0;
+                }
                 mod_style.reset();
                 break;
             }

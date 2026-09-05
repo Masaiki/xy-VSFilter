@@ -2251,7 +2251,8 @@ SharedPtrByte Rasterizer::CompositeModAlphaMask(const SharedPtrOverlay& overlay,
                 coverage = body_row[column];
             }
             if (alpha_row) {
-                coverage = (coverage * alpha_row[column] + (1 << 11)) >> 12;
+                // Both masks use the 6-bit coverage range [0, 0x40].
+                coverage = (coverage * alpha_row[column] + 32) >> 6;
             }
             output_row[column] = static_cast<BYTE>(coverage);
         }
