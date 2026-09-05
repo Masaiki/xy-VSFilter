@@ -233,6 +233,9 @@
     <ClInclude Include="LibassHinting.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="LibassLog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="LibassRenderOptions.h">
       <Filter>Header Files</Filter>
     </ClInclude>

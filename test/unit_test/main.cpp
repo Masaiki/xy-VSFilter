@@ -14,6 +14,7 @@
 #include "test_font_fallback.h"
 #include "test_libass_hinting.h"
 #include "test_libass_options.h"
+#include "test_libass_log.h"
 #include "test_media_side_data.h"
 #include "test_video_info2_color_info.h"
 #include "test_vsfilter_mod.h"

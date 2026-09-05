@@ -1078,7 +1078,7 @@ STDMETHODIMP CDirectVobSubFilter::GetPages(CAUUID* pPages)
 {
     CheckPointer(pPages, E_POINTER);
 
-	pPages->cElems = 9;
+	pPages->cElems = 10;
     pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID)*pPages->cElems);
 
 	if(pPages->pElems == NULL) return E_OUTOFMEMORY;
@@ -1092,6 +1092,7 @@ STDMETHODIMP CDirectVobSubFilter::GetPages(CAUUID* pPages)
     pPages->pElems[i++] = __uuidof(CDVSTimingPPage);
     pPages->pElems[i++] = __uuidof(CDVSColorPPage);
     pPages->pElems[i++] = __uuidof(CDVSPathsPPage);
+    pPages->pElems[i++] = __uuidof(CDVSLogsPPage);
     pPages->pElems[i++] = __uuidof(CDVSAboutPPage);
 
     return NOERROR;

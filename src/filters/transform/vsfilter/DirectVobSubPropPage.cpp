@@ -32,6 +32,7 @@
 
 #include "../../../subtitles/SubtitleRenderBackend.h"
 #include "../../../subtitles/LibassRenderOptions.h"
+#include "../../../subtitles/LibassLog.h"
 #include "../../../subtitles/TextRendererMode.h"
 #include "../../../subtitles/VsFilterCompatibility.h"
 
@@ -1668,6 +1669,54 @@ void CDVSLibassPPage::UpdateControlData(bool fSave)
 
         EnableLibassControls(m_fLibassBackend);
     }
+}
+
+CDVSLogsPPage::CDVSLogsPPage(LPUNKNOWN punk, HRESULT* phr) :
+    CDVSBasePPage(NAME("libass Logs Property Page"), punk, IDD_DVSLOGSPAGE, IDD_DVSLOGSPAGE)
+{
+    m_fDisableInstantUpdate = true;
+}
+
+void CDVSLogsPPage::Refresh()
+{
+    const std::string snapshot = GetLibassLog().Snapshot();
+    const CStringW text = UTF8To16(snapshot.c_str());
+    SetDlgItemTextW(m_Dlg, IDC_EDIT_LIBASS_LOG, text);
+    SetDlgItemTextW(m_Dlg, IDC_LIBASS_LOG_STATUS, snapshot.empty()
+        ? L"No libass messages yet. Play an ASS/SSA subtitle, then refresh."
+        : L"Snapshot refreshed. Older messages are discarded when full.");
+    ::EnableWindow(GetDlgItem(m_Dlg, IDC_COPY_LIBASS_LOG), !snapshot.empty());
+}
+
+void CDVSLogsPPage::UpdateControlData(bool fSave)
+{
+    if (!fSave) {
+        // A message can contain newlines, which expand to CRLF in the snapshot.
+        SendDlgItemMessage(m_Dlg, IDC_EDIT_LIBASS_LOG, EM_SETLIMITTEXT,
+            LibassLog::EntryCapacity * LibassLog::MessageCapacity * 2, 0);
+        Refresh();
+    }
+}
+
+INT_PTR CDVSLogsPPage::OnReceiveMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // Diagnostic actions must not dirty the property page or save filter settings.
+    if (message == WM_COMMAND && HIWORD(wParam) == BN_CLICKED) {
+        if (LOWORD(wParam) == IDC_REFRESH_LIBASS_LOG) {
+            Refresh();
+            return TRUE;
+        }
+        if (LOWORD(wParam) == IDC_COPY_LIBASS_LOG) {
+            HWND edit = GetDlgItem(hwnd, IDC_EDIT_LIBASS_LOG);
+            DWORD start, end;
+            SendMessage(edit, EM_GETSEL, reinterpret_cast<WPARAM>(&start), reinterpret_cast<LPARAM>(&end));
+            SendMessage(edit, EM_SETSEL, 0, -1);
+            SendMessage(edit, WM_COPY, 0, 0);
+            SendMessage(edit, EM_SETSEL, start, end);
+            return TRUE;
+        }
+    }
+    return CBasePropertyPage::OnReceiveMessage(hwnd, message, wParam, lParam);
 }
 
 /* CDVSAboutPPage */

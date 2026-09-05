@@ -1168,7 +1168,7 @@ STDMETHODIMP XySubFilter::GetPages(CAUUID* pPages)
     XY_LOG_INFO(pPages);
     CheckPointer(pPages, E_POINTER);
 
-    pPages->cElems = 6;
+    pPages->cElems = 7;
     pPages->pElems = (GUID*)CoTaskMemAlloc(sizeof(GUID)*pPages->cElems);
 
     if(pPages->pElems == NULL) return E_OUTOFMEMORY;
@@ -1179,6 +1179,7 @@ STDMETHODIMP XySubFilter::GetPages(CAUUID* pPages)
     pPages->pElems[i++] = __uuidof(CXySubFilterLibassPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterTimingPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterPathsPPage);
+    pPages->pElems[i++] = __uuidof(CXySubFilterLogsPPage);
     pPages->pElems[i++] = __uuidof(CXySubFilterAboutPPage);
 
     return NOERROR;

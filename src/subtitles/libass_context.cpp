@@ -1,5 +1,32 @@
 #include "stdafx.h"
 #include "libass_context.h"
+#include "LibassLog.h"
+
+static void LibassMessageCallback(int level, const char* format, va_list args, void*)
+{
+    // libass recommends level 5 for application logs; per-frame debug is omitted.
+    if (level > 5) return;
+
+    char message[LibassLog::MessageCapacity];
+    const int length = vsnprintf(message, sizeof(message), format, args);
+    if (length >= static_cast<int>(sizeof(message))) {
+        const char suffix[] = "... [truncated]";
+        memcpy(message + sizeof(message) - sizeof(suffix), suffix, sizeof(suffix));
+    }
+    if (length < 0) strcpy_s(message, "Unable to format libass message");
+
+    // Preserve libass's default stderr output for info and higher severities.
+    if (level <= 4) fprintf(stderr, "[ass] %s\n", message);
+
+    SYSTEMTIME time;
+    GetLocalTime(&time);
+    const char* levels[] = { "FATAL", "ERROR", "WARN", "INFO", "INFO", "INFO" };
+    char entry[LibassLog::MessageCapacity + 64];
+    sprintf_s(entry, "[%02u:%02u:%02u.%03u] [%s] %s",
+        time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
+        level >= 0 ? levels[level] : "UNKNOWN", message);
+    GetLibassLog().Append(entry);
+}
 
 static std::unique_ptr<char[]> read_file_bytes(FILE *fp, size_t *bufsize)
 {
@@ -157,7 +184,10 @@ bool ASS_Context::LoadASSFile(CString path)
     if (path.IsEmpty()) return false;
 
     m_ass = decltype(m_ass)(ass_library_init());
+    if (!m_ass) return false;
+    ass_set_message_cb(m_ass.get(), LibassMessageCallback, nullptr);
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
+    if (!m_renderer) return false;
 
     // Library-level options (font extraction, fonts dir, style overrides) must
     // be set before the file is read, so they apply while parsing.
@@ -185,7 +215,10 @@ bool ASS_Context::LoadASSTrack(char *data, int size)
     UnloadASS();
 
     m_ass = decltype(m_ass)(ass_library_init());
+    if (!m_ass) return false;
+    ass_set_message_cb(m_ass.get(), LibassMessageCallback, nullptr);
     m_renderer = decltype(m_renderer)(ass_renderer_init(m_ass.get()));
+    if (!m_renderer) return false;
 
     // Library-level options (font extraction, fonts dir, style overrides) must
     // be set before the track data is processed.

@@ -21,6 +21,14 @@ ones. For a development build without the install script next to it, register
 the DLL using `regsvr32.exe "<full path to XySubFilter.dll>"` from an elevated
 command prompt.
 
+The **Logs** tab shows a snapshot of recent libass messages from all instances
+of this filter DLL in the current player process. Open the tab or click
+**Refresh** after reproducing an issue, then use **Copy all** to copy the text.
+Logging starts when libass initializes, including for external and embedded
+ASS/SSA subtitles. The in-memory buffer retains up to 256 messages (2 KiB per
+message, with longer messages marked as truncated); verbose debug output is
+excluded. Logs are not saved to disk and disappear when the DLL is unloaded.
+
 ## How to compile
 1. Clone or download release from https://github.com/ShiftMediaProject/VSYASM and https://github.com/ShiftMediaProject/VSNASM, and run install_script.bat as administrator.
 2. Clone the repo and run `git submodule update --init --recursive --remote` in the folder.

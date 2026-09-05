@@ -41,6 +41,9 @@
     <ClInclude Include="test_libass_hinting.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test_libass_log.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="test_libass_options.h">
       <Filter>Header Files</Filter>
     </ClInclude>

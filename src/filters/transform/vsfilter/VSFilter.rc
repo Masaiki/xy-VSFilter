@@ -479,6 +479,18 @@ BEGIN
     RTEXT           "Cache Size(MB)",IDC_LABLE_CACHE_SIZE,14,60,57,8
 END
 
+IDD_DVSLOGSPAGE DIALOGEX 0, 0, 247, 296
+STYLE DS_SETFONT | WS_CHILD
+FONT 8, "MS Sans Serif", 400, 0, 0x1
+BEGIN
+    LTEXT           "Recent libass messages from this filter in this player process.",IDC_STATIC,7,7,233,18
+    LTEXT           "Keeps the latest 256 messages; debug output is excluded.",IDC_STATIC,7,27,233,18
+    EDITTEXT        IDC_EDIT_LIBASS_LOG,7,48,233,208,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    LTEXT           "",IDC_LIBASS_LOG_STATUS,7,260,233,17
+    PUSHBUTTON      "&Refresh",IDC_REFRESH_LIBASS_LOG,128,279,54,14
+    PUSHBUTTON      "&Copy all",IDC_COPY_LIBASS_LOG,186,279,54,14
+END
+
 IDD_DVSLIBASSPAGE DIALOGEX 0, 0, 247, 296
 STYLE DS_SETFONT | WS_CHILD
 FONT 8, "MS Sans Serif", 400, 0, 0x1
@@ -760,6 +772,7 @@ BEGIN
     IDS_R_GENERAL           "General"
     IDD_DVSMOREPAGE         "M&ore"
     IDD_DVSLIBASSPAGE       "lib&ass"
+    IDD_DVSLOGSPAGE         "&Logs"
 END
 
 STRINGTABLE

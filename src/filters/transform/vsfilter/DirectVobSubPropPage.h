@@ -61,6 +61,24 @@ protected:
 	void BindControl(UINT id, CWnd& control);
 };
 
+[uuid("0715A593-E7D8-4590-A0CF-CA739DB70DD4")]
+class CDVSLogsPPage : public CDVSBasePPage
+{
+    void Refresh();
+protected:
+    void UpdateControlData(bool fSave) override;
+    INT_PTR OnReceiveMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) override;
+public:
+    CDVSLogsPPage(LPUNKNOWN punk, HRESULT* phr);
+};
+
+[uuid("23AA2F0A-CA12-4C4D-8FD8-45B76F092BED")]
+class CXySubFilterLogsPPage : public CDVSLogsPPage
+{
+public:
+    CXySubFilterLogsPPage(LPUNKNOWN punk, HRESULT* phr) : CDVSLogsPPage(punk, phr) {}
+};
+
 [uuid("60765CF5-01C2-4ee7-A44B-C791CF25FEA0")]
 class CDVSMainPPage : public CDVSBasePPage
 {

@@ -293,14 +293,19 @@
 #define IDC_EDIT_LIBASS_BITMAP_CACHE_MAX 367
 #define IDC_SPIN_LIBASS_BITMAP_CACHE_MAX 368
 #define IDC_EDIT_LIBASS_PRUNE_DELAY     369
+#define IDD_DVSLOGSPAGE                 339
+#define IDC_EDIT_LIBASS_LOG             370
+#define IDC_REFRESH_LIBASS_LOG          371
+#define IDC_COPY_LIBASS_LOG             372
+#define IDC_LIBASS_LOG_STATUS           373
 
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        339
+#define _APS_NEXT_RESOURCE_VALUE        340
 #define _APS_NEXT_COMMAND_VALUE         32770
-#define _APS_NEXT_CONTROL_VALUE         370
+#define _APS_NEXT_CONTROL_VALUE         374
 #define _APS_NEXT_SYMED_VALUE           210
 #endif
 #endif
