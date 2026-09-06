@@ -943,10 +943,6 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
     output_overlay->mHeight = input_overlay.mHeight;
     output_overlay->mOverlayWidth = input_overlay.mOverlayWidth;
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight;
-    output_overlay->mVsFilterModGradientWidth = input_overlay.mVsFilterModGradientWidth;
-    output_overlay->mVsFilterModGradientHeight = input_overlay.mVsFilterModGradientHeight;
-    output_overlay->mVsFilterModGradientOffsetX = input_overlay.mVsFilterModGradientOffsetX;
-    output_overlay->mVsFilterModGradientOffsetY = input_overlay.mVsFilterModGradientOffsetY;
     output_overlay->mfWideOutlineEmpty = input_overlay.mfWideOutlineEmpty;
 
     double gaussian_blur_strength_x = gaussian_blur_strength*target_scale_x;
@@ -987,12 +983,6 @@ bool Rasterizer::OldFixedPointBlur(const Overlay& input_overlay, float be_streng
         output_overlay->mHeight += (bluradjust_y<<1);
         output_overlay->mOverlayWidth += (bluradjust_x>>2);
         output_overlay->mOverlayHeight += (bluradjust_y>>2);
-        const int mod_blur_adjust = GetVsFilterModBlurAdjust(
-            be_strength, gaussian_blur_strength);
-        output_overlay->mVsFilterModGradientWidth += (mod_blur_adjust >> 2);
-        output_overlay->mVsFilterModGradientHeight += (mod_blur_adjust >> 2);
-        output_overlay->mVsFilterModGradientOffsetX -= mod_blur_adjust;
-        output_overlay->mVsFilterModGradientOffsetY -= mod_blur_adjust;
     }
     else
     {
@@ -1311,15 +1301,6 @@ bool Rasterizer::GaussianBlur( const Overlay& input_overlay, double gaussian_blu
     output_overlay->mHeight        = input_overlay.mHeight + (bluradjust_y<<1);
     output_overlay->mOverlayWidth  = input_overlay.mOverlayWidth + (bluradjust_x>>2);
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight + (bluradjust_y>>2);
-    const int mod_blur_adjust = GetVsFilterModBlurAdjust(0, gaussian_blur_strength);
-    output_overlay->mVsFilterModGradientWidth =
-        input_overlay.mVsFilterModGradientWidth + (mod_blur_adjust >> 2);
-    output_overlay->mVsFilterModGradientHeight =
-        input_overlay.mVsFilterModGradientHeight + (mod_blur_adjust >> 2);
-    output_overlay->mVsFilterModGradientOffsetX =
-        input_overlay.mVsFilterModGradientOffsetX - mod_blur_adjust;
-    output_overlay->mVsFilterModGradientOffsetY =
-        input_overlay.mVsFilterModGradientOffsetY - mod_blur_adjust;
 
     output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth+15)&~15;
 
@@ -1382,15 +1363,6 @@ bool Rasterizer::BeBlur( const Overlay& input_overlay, float be_strength,
     output_overlay->mHeight        = input_overlay.mHeight + (bluradjust_y<<1);
     output_overlay->mOverlayWidth  = input_overlay.mOverlayWidth + (bluradjust_x>>2);
     output_overlay->mOverlayHeight = input_overlay.mOverlayHeight + (bluradjust_y>>2);
-    const int mod_blur_adjust = GetVsFilterModBlurAdjust(be_strength, 0);
-    output_overlay->mVsFilterModGradientWidth =
-        input_overlay.mVsFilterModGradientWidth + (mod_blur_adjust >> 2);
-    output_overlay->mVsFilterModGradientHeight =
-        input_overlay.mVsFilterModGradientHeight + (mod_blur_adjust >> 2);
-    output_overlay->mVsFilterModGradientOffsetX =
-        input_overlay.mVsFilterModGradientOffsetX - mod_blur_adjust;
-    output_overlay->mVsFilterModGradientOffsetY =
-        input_overlay.mVsFilterModGradientOffsetY - mod_blur_adjust;
 
     output_overlay->mOverlayPitch = (output_overlay->mOverlayWidth+15)&~15;
 
@@ -3092,11 +3064,13 @@ Overlay* Overlay::GetSubpixelVariance(unsigned int xshift, unsigned int yshift)
 
     overlay->mOverlayWidth = ((overlay->mWidth+7)>>3) + 1;
     overlay->mOverlayHeight = ((overlay->mHeight + 7)>>3) + 1;
+    overlay->mOverlayPitch = (overlay->mOverlayWidth+15)&~15;
+    // MOD also uses bilinear subpixel positioning. Preserve its paint origin
+    // independently of the shifted coverage bitmap's allocation dimensions.
     overlay->mVsFilterModGradientWidth = mVsFilterModGradientWidth;
     overlay->mVsFilterModGradientHeight = mVsFilterModGradientHeight;
     overlay->mVsFilterModGradientOffsetX = mVsFilterModGradientOffsetX - xshift;
     overlay->mVsFilterModGradientOffsetY = mVsFilterModGradientOffsetY - yshift;
-    overlay->mOverlayPitch = (overlay->mOverlayWidth+15)&~15;
     
 
     overlay->mfWideOutlineEmpty = mfWideOutlineEmpty;
@@ -3150,9 +3124,11 @@ Overlay* Overlay::GetSubpixelVariance(unsigned int xshift, unsigned int yshift)
     {
         byte* dst = body;
         const byte* src = mBody.get();
-        for (int i=0;i<mOverlayHeight;i++)
+        const int copy_width = min(mOverlayWidth, overlay->mOverlayWidth);
+        const int copy_height = min(mOverlayHeight, overlay->mOverlayHeight);
+        for (int i=0;i<copy_height;i++)
         {
-            memcpy(dst, src, mOverlayWidth);
+            memcpy(dst, src, copy_width);
             dst += overlay->mOverlayPitch;
             src += mOverlayPitch;
         }
@@ -3161,9 +3137,9 @@ Overlay* Overlay::GetSubpixelVariance(unsigned int xshift, unsigned int yshift)
             ASSERT(border && mBorder);
             dst = border;
             src = mBorder.get();
-            for (int i=0;i<mOverlayHeight;i++)
+            for (int i=0;i<copy_height;i++)
             {
-                memcpy(dst, src, mOverlayWidth);
+                memcpy(dst, src, copy_width);
                 dst += overlay->mOverlayPitch;
                 src += mOverlayPitch;
             }

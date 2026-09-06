@@ -339,6 +339,42 @@ void CreateDrawItemExTree( CompositeDrawItemListList& input,
     XyRectExList *out_rect_ex_list );
 void DecideDrawMethod( CompositeDrawItemListList& compDrawItemListList, XyRectExList& rect_ex_list );
 
+static void BuildGroupedDrawItems(CompositeDrawItemListList& input,
+    CAtlArray<GroupedDrawItems>& output)
+{
+    CompositeDrawItemExTree tree;
+    XyRectExList rects;
+    CreateDrawItemExTree(input, &tree, &rects);
+    DecideDrawMethod(input, rects);
+    XyRectExList grouped;
+    MergeRects(rects, &grouped);
+    output.SetCount(grouped.GetCount());
+    POSITION pos = grouped.GetHeadPosition();
+    for (int id = 0; pos; ++id) {
+        XyRectEx& rect = grouped.GetNext(pos);
+        output[id].clip_rect = rect;
+        POSITION item_pos = rect.item_ex_list->GetHeadPosition();
+        while (item_pos) {
+            CompositeDrawItemEx* item = rect.item_ex_list->GetNext(item_pos);
+            if (item->rect_id_list.GetTail() != id) item->rect_id_list.AddTail(id);
+        }
+    }
+    for (unsigned i = 0; i < tree.GetCount(); ++i) {
+        CompositeDrawItemExVec& items = tree[i];
+        for (int layer = 0; layer < 3; ++layer) {
+            for (unsigned j = 0; j < items.GetCount(); ++j) {
+                CompositeDrawItemEx& item = items[j];
+                SharedPtrDrawItem* draw = layer == 0 ? &item.item->shadow
+                    : layer == 1 ? &item.item->outline : &item.item->body;
+                if (!*draw) continue;
+                POSITION item_pos = item.rect_id_list.GetHeadPosition();
+                item.rect_id_list.GetNext(item_pos);
+                while (item_pos) output[item.rect_id_list.GetNext(item_pos)].draw_item_list.AddTail(*draw);
+            }
+        }
+    }
+}
+
 void CompositeDrawItem::Draw( XySubRenderFrame**output, CompositeDrawItemListList& compDrawItemListList )
 {
     if (!output)
@@ -347,79 +383,8 @@ void CompositeDrawItem::Draw( XySubRenderFrame**output, CompositeDrawItemListLis
     }
     *output = NULL;
 
-    CompositeDrawItemExTree draw_item_ex_tree;
-    XyRectExList rect_ex_list;
-    CreateDrawItemExTree(compDrawItemListList, &draw_item_ex_tree, &rect_ex_list);
-
-    //fix subpixel gap whenever possible
-    DecideDrawMethod(compDrawItemListList, rect_ex_list);
-
-    XyRectExList grouped_rect_exs;
-    MergeRects(rect_ex_list, &grouped_rect_exs);
-
     CAtlArray<GroupedDrawItems> grouped_draw_items;
-
-    grouped_draw_items.SetCount(grouped_rect_exs.GetCount());
-
-    POSITION pos = grouped_rect_exs.GetHeadPosition();
-    for(int rect_id=0;pos;rect_id++)
-    {
-        XyRectEx& item = grouped_rect_exs.GetNext(pos);
-        grouped_draw_items.GetAt(rect_id).clip_rect = item;
-        POSITION pos_item = item.item_ex_list->GetHeadPosition();
-        while(pos_item)
-        {
-            CompositeDrawItemEx* draw_item_ex = item.item_ex_list->GetNext(pos_item);
-            if( draw_item_ex->rect_id_list.GetTail() != rect_id )//wipe out repeated item. this safe since the list has a dummy item -1
-                draw_item_ex->rect_id_list.AddTail(rect_id);
-        }
-    }
-    for (unsigned i=0;i<draw_item_ex_tree.GetCount();i++)
-    {
-        CompositeDrawItemExVec &draw_item_ex_vec = draw_item_ex_tree[i];
-        for (unsigned j=0;j<draw_item_ex_vec.GetCount();j++)
-        {
-            CompositeDrawItemEx &draw_item_ex = draw_item_ex_vec[j];
-            if (draw_item_ex.item->shadow)
-            {
-                pos = draw_item_ex.rect_id_list.GetHeadPosition();;
-                draw_item_ex.rect_id_list.GetNext(pos);
-                while(pos)
-                {
-                    int id = draw_item_ex.rect_id_list.GetNext(pos);
-                    grouped_draw_items[id].draw_item_list.AddTail( draw_item_ex.item->shadow );
-                }
-            }
-        }
-        for (unsigned j=0;j<draw_item_ex_vec.GetCount();j++)
-        {
-            CompositeDrawItemEx &draw_item_ex = draw_item_ex_vec[j];
-            if (draw_item_ex.item->outline)
-            {
-                pos = draw_item_ex.rect_id_list.GetHeadPosition();;
-                draw_item_ex.rect_id_list.GetNext(pos);
-                while(pos)
-                {
-                    int id = draw_item_ex.rect_id_list.GetNext(pos);
-                    grouped_draw_items[id].draw_item_list.AddTail( draw_item_ex.item->outline );
-                }
-            }
-        }
-        for (unsigned j=0;j<draw_item_ex_vec.GetCount();j++)
-        {
-            CompositeDrawItemEx &draw_item_ex = draw_item_ex_vec[j];
-            if (draw_item_ex.item->body)
-            {
-                pos = draw_item_ex.rect_id_list.GetHeadPosition();;
-                draw_item_ex.rect_id_list.GetNext(pos);
-                while(pos)
-                {
-                    int id = draw_item_ex.rect_id_list.GetNext(pos);
-                    grouped_draw_items[id].draw_item_list.AddTail( draw_item_ex.item->body );
-                }
-            }
-        }
-    }
+    BuildGroupedDrawItems(compDrawItemListList, grouped_draw_items);
 
     XySubRenderFrameCreater *render_frame_creater = XySubRenderFrameCreater::GetDefaultCreater();
 
@@ -439,63 +404,8 @@ void CompositeDrawItem::DrawDirect(SubPicDesc& target,
         return;
     }
 
-    CompositeDrawItemExTree draw_item_ex_tree;
-    XyRectExList rect_ex_list;
-    CreateDrawItemExTree(compDrawItemListList, &draw_item_ex_tree, &rect_ex_list);
-    DecideDrawMethod(compDrawItemListList, rect_ex_list);
-
-    XyRectExList grouped_rect_exs;
-    MergeRects(rect_ex_list, &grouped_rect_exs);
-
     CAtlArray<GroupedDrawItems> grouped_draw_items;
-    grouped_draw_items.SetCount(grouped_rect_exs.GetCount());
-
-    POSITION pos = grouped_rect_exs.GetHeadPosition();
-    for (int rect_id = 0; pos; ++rect_id) {
-        XyRectEx& item = grouped_rect_exs.GetNext(pos);
-        POSITION pos_item = item.item_ex_list->GetHeadPosition();
-        while (pos_item) {
-            CompositeDrawItemEx* draw_item_ex = item.item_ex_list->GetNext(pos_item);
-            if (draw_item_ex->rect_id_list.GetTail() != rect_id) {
-                draw_item_ex->rect_id_list.AddTail(rect_id);
-            }
-        }
-        grouped_draw_items[rect_id].clip_rect = item;
-    }
-
-    for (unsigned i = 0; i < draw_item_ex_tree.GetCount(); ++i) {
-        CompositeDrawItemExVec& draw_item_ex_vec = draw_item_ex_tree[i];
-        for (unsigned j = 0; j < draw_item_ex_vec.GetCount(); ++j) {
-            CompositeDrawItemEx& draw_item_ex = draw_item_ex_vec[j];
-            if (!draw_item_ex.item->shadow) continue;
-            POSITION item_pos = draw_item_ex.rect_id_list.GetHeadPosition();
-            draw_item_ex.rect_id_list.GetNext(item_pos);
-            while (item_pos) {
-                grouped_draw_items[draw_item_ex.rect_id_list.GetNext(item_pos)]
-                    .draw_item_list.AddTail(draw_item_ex.item->shadow);
-            }
-        }
-        for (unsigned j = 0; j < draw_item_ex_vec.GetCount(); ++j) {
-            CompositeDrawItemEx& draw_item_ex = draw_item_ex_vec[j];
-            if (!draw_item_ex.item->outline) continue;
-            POSITION item_pos = draw_item_ex.rect_id_list.GetHeadPosition();
-            draw_item_ex.rect_id_list.GetNext(item_pos);
-            while (item_pos) {
-                grouped_draw_items[draw_item_ex.rect_id_list.GetNext(item_pos)]
-                    .draw_item_list.AddTail(draw_item_ex.item->outline);
-            }
-        }
-        for (unsigned j = 0; j < draw_item_ex_vec.GetCount(); ++j) {
-            CompositeDrawItemEx& draw_item_ex = draw_item_ex_vec[j];
-            if (!draw_item_ex.item->body) continue;
-            POSITION item_pos = draw_item_ex.rect_id_list.GetHeadPosition();
-            draw_item_ex.rect_id_list.GetNext(item_pos);
-            while (item_pos) {
-                grouped_draw_items[draw_item_ex.rect_id_list.GetNext(item_pos)]
-                    .draw_item_list.AddTail(draw_item_ex.item->body);
-            }
-        }
-    }
+    BuildGroupedDrawItems(compDrawItemListList, grouped_draw_items);
 
     // Draw into the caller's RGB32 surface.  The normal frame path first
     // renders onto an opaque-black premultiplied bitmap and then performs a

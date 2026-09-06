@@ -272,6 +272,7 @@ private:
     bool m_fBorder;
     bool m_vsfilter_mod_compatibility;
     SharedPtrConstModPaintSource m_mod_paint_source;
+    size_t m_mod_paint_hash;
 };
 
 class GroupedDrawItemsHashKey

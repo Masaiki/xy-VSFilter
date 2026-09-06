@@ -373,9 +373,9 @@ ULONG DrawItemHashKey::UpdateHashValue()
         m_hash_value += m_switchpts[i];
         m_hash_value += (m_hash_value<<5);
     }
-    if (m_mod_paint_source)
+    if (m_mod_paint_hash)
     {
-        const size_t mod_hash = m_mod_paint_source->GetHash();
+        const size_t mod_hash = m_mod_paint_hash;
         m_hash_value += static_cast<ULONG>(mod_hash);
 #ifdef _WIN64
         m_hash_value += static_cast<ULONG>(mod_hash >> 32);
@@ -394,6 +394,7 @@ DrawItemHashKey::DrawItemHashKey( const DrawItem& draw_item)
     , m_fBorder(draw_item.fBorder)
     , m_vsfilter_mod_compatibility(draw_item.vsfilter_mod_compatibility)
     , m_mod_paint_source(draw_item.mod_paint_source)
+    , m_mod_paint_hash(draw_item.mod_paint_source ? draw_item.mod_paint_source->GetHash() : 0)
 {
     for(int i=0;i<countof(m_switchpts);i++)
         m_switchpts[i] = draw_item.switchpts[i];
@@ -409,6 +410,7 @@ bool DrawItemHashKey::operator==( const DrawItemHashKey& key ) const
         m_fBody == key.m_fBody &&
         m_fBorder == key.m_fBorder &&
         m_vsfilter_mod_compatibility == key.m_vsfilter_mod_compatibility &&
+        m_mod_paint_hash == key.m_mod_paint_hash &&
         !memcmp(m_switchpts, key.m_switchpts, sizeof(m_switchpts)) &&
         ((m_mod_paint_source.get() == key.m_mod_paint_source.get())
             || (m_mod_paint_source && key.m_mod_paint_source
