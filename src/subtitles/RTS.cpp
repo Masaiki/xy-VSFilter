@@ -1278,9 +1278,15 @@ bool CPolygon::ParseStr()
     int baseline = (int)(64 * m_scaley * m_baseline);
     m_descent    = baseline;
     m_ascent    -= baseline;
-    m_width      = ((int)(m_style.get().fontScaleX/100 * m_width  ) + 4) >> 3;
-    m_ascent     = ((int)(m_style.get().fontScaleY/100 * m_ascent ) + 4) >> 3;
-    m_descent    = ((int)(m_style.get().fontScaleY/100 * m_descent) + 4) >> 3;
+    if (m_mod_compatibility_mode) {
+        m_width      = ((int)(m_style.get().fontScaleX * m_width / 100.0) + 4) >> 3;
+        m_ascent     = ((int)(m_style.get().fontScaleY * m_ascent / 100.0) + 4) >> 3;
+        m_descent    = ((int)(m_style.get().fontScaleY * m_descent / 100.0) + 4) >> 3;
+    } else {
+        m_width      = ((int)(m_style.get().fontScaleX/100 * m_width  ) + 4) >> 3;
+        m_ascent     = ((int)(m_style.get().fontScaleY/100 * m_ascent ) + 4) >> 3;
+        m_descent    = ((int)(m_style.get().fontScaleY/100 * m_descent) + 4) >> 3;
+    }
     return(true);
 }
 
@@ -1619,10 +1625,19 @@ CRectCoor2 CLine::PaintAll( CompositeDrawItemList* output, const CRectCoor2& cli
             p.y + mod_offset.y - mod_vertical_spacing + m_ascent - w->m_ascent);
         bodyPos = outlinePos;
 
-        shadowPos.x   = static_cast<int>(w->m_target_scale_x * shadowPos_x + 0.5) + margin.x;
-        shadowPos.y   = static_cast<int>(w->m_target_scale_y * shadowPos_y + 0.5) + margin.y;
-        outlinePos.x  =                  w->m_target_scale_x * outlinePos.x       + margin.x;
-        outlinePos.y  =                  w->m_target_scale_y * outlinePos.y       + margin.y;
+        if (w->m_mod_compatibility_mode) {
+            outlinePos.x = w->m_target_scale_x * outlinePos.x + margin.x;
+            outlinePos.y = w->m_target_scale_y * outlinePos.y + margin.y;
+            shadowPos.x = static_cast<int>(outlinePos.x)
+                + static_cast<int>(w->m_target_scale_x * w->m_style.get().shadowDepthX + 0.5);
+            shadowPos.y = static_cast<int>(outlinePos.y)
+                + static_cast<int>(w->m_target_scale_y * w->m_style.get().shadowDepthY + 0.5);
+        } else {
+            shadowPos.x = static_cast<int>(w->m_target_scale_x * shadowPos_x + 0.5) + margin.x;
+            shadowPos.y = static_cast<int>(w->m_target_scale_y * shadowPos_y + 0.5) + margin.y;
+            outlinePos.x = w->m_target_scale_x * outlinePos.x + margin.x;
+            outlinePos.y = w->m_target_scale_y * outlinePos.y + margin.y;
+        }
         bodyPos.x     =                  w->m_target_scale_x * bodyPos.x          + margin.x;
         bodyPos.y     =                  w->m_target_scale_y * bodyPos.y          + margin.y;
         org_coor2.x   =                  w->m_target_scale_x * org.x              + margin.x;//fix me: move it out of this loop
@@ -3219,7 +3234,10 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
             }
         case CMD_fscx:
             {
-                double n = CalcAnimation(wcstod(p, NULL), style.fontScaleX, fAnimate);
+                const double target = IsVsFilterModMode()
+                    ? static_cast<double>(wcstol(p, NULL, 10))
+                    : wcstod(p, NULL);
+                double n = CalcAnimation(target, style.fontScaleX, fAnimate);
                 style.fontScaleX = !p.IsEmpty()
                                    ? ((n < 0) ? 0 : n)
                                        : org.fontScaleX;
@@ -3227,7 +3245,10 @@ bool CRenderedTextSubtitle::ParseSSATag( CSubtitle* sub, const AssTagList& assTa
             }
         case CMD_fscy:
             {
-                double n = CalcAnimation(wcstod(p, NULL), style.fontScaleY, fAnimate);
+                const double target = IsVsFilterModMode()
+                    ? static_cast<double>(wcstol(p, NULL, 10))
+                    : wcstod(p, NULL);
+                double n = CalcAnimation(target, style.fontScaleY, fAnimate);
                 style.fontScaleY = !p.IsEmpty()
                                    ? ((n < 0) ? 0 : n)
                                        : org.fontScaleY;
