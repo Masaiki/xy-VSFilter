@@ -510,3 +510,52 @@ TEST(VsFilterModTest, DefaultModeSkipsModTagsWithoutLegacyPrefix)
     EXPECT_EQ(nullptr, jitter_word->m_mod_style.get());
     EXPECT_EQ(nullptr, subtitles.GetHead().s->m_mod_effects.get());
 }
+
+TEST(VsFilterModTest, ModModeScalesGeometryMatchingTargetScale)
+{
+    CCritSec lock;
+    auto get_rendered_geometry = [&](VsFilterCompatibilityMode mode, const SIZE& orig_size, const CRect& vid_rect, POINT* out_pos, SIZE* out_size) {
+        CRenderedTextSubtitle renderer(&lock);
+        renderer.m_render_backend = SUBTITLE_RENDER_BACKEND_VSFILTER;
+        renderer.m_vsfilter_compatibility_mode = mode;
+        renderer.m_dstScreenSize = CSize(1280, 720);
+        STSStyle* default_style = renderer.CreateDefaultStyle(DEFAULT_CHARSET);
+        default_style->fontSize = 50;
+        renderer.Add(L"\x53c8\x662f\x4e0d\x9002\x914d\x5417", true, 0, 5000);
+        renderer.Sort();
+        renderer.Init(vid_rect, vid_rect, orig_size);
+
+        CComPtr<IXySubRenderFrame> frame;
+        HRESULT hr = renderer.RenderEx(&frame, MSP_RGBA, vid_rect, vid_rect, orig_size, 2000 * 10000i64, 25.0);
+        EXPECT_HRESULT_SUCCEEDED(hr);
+        ASSERT_NE(nullptr, frame);
+        int count = 0;
+        frame->GetBitmapCount(&count);
+        ASSERT_GT(count, 0);
+        ULONGLONG id = 0;
+        LPCVOID pixels = nullptr;
+        int pitch = 0;
+        frame->GetBitmap(0, &id, out_pos, out_size, &pixels, &pitch);
+    };
+
+    // Test target_scale = 1.5 (720p layout -> 1080p target)
+    POINT xy_pos = {}, mod_pos = {};
+    SIZE xy_size = {}, mod_size = {};
+    get_rendered_geometry(VSFILTER_COMPATIBILITY_XY, CSize(1280, 720), CRect(0, 0, 1920, 1080), &xy_pos, &xy_size);
+    get_rendered_geometry(VSFILTER_COMPATIBILITY_MOD, CSize(1280, 720), CRect(0, 0, 1920, 1080), &mod_pos, &mod_size);
+
+    EXPECT_EQ(xy_pos.x, mod_pos.x);
+    EXPECT_EQ(xy_pos.y, mod_pos.y);
+    EXPECT_NEAR(xy_size.cx, mod_size.cx, 1);
+    EXPECT_NEAR(xy_size.cy, mod_size.cy, 2);
+
+    // Test target_scale = 2.0 (1080p layout -> 4K target)
+    get_rendered_geometry(VSFILTER_COMPATIBILITY_XY, CSize(1920, 1080), CRect(0, 0, 3840, 2160), &xy_pos, &xy_size);
+    get_rendered_geometry(VSFILTER_COMPATIBILITY_MOD, CSize(1920, 1080), CRect(0, 0, 3840, 2160), &mod_pos, &mod_size);
+
+    EXPECT_EQ(xy_pos.x, mod_pos.x);
+    EXPECT_EQ(xy_pos.y, mod_pos.y);
+    EXPECT_NEAR(xy_size.cx, mod_size.cx, 1);
+    EXPECT_NEAR(xy_size.cy, mod_size.cy, 2);
+}
+

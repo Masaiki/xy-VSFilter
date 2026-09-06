@@ -668,6 +668,8 @@ void CWord::TransformMod(PathData* path_data, const CPointCoor2& org)
         const __m128 xzoomf = _mm_set1_ps(static_cast<float>(m_mod_scale_x * 20000.0));
         const __m128 yzoomf = _mm_set1_ps(static_cast<float>(m_mod_scale_y * 20000.0));
         const __m128 min_focal = _mm_set1_ps(1000.0f);
+        const __m128 target_scale_x = _mm_set1_ps(static_cast<float>(m_target_scale_x));
+        const __m128 target_scale_y = _mm_set1_ps(static_cast<float>(m_target_scale_y));
         const __m128 half = _mm_set1_ps(0.5f);
 
         for (int base = 0; base < path_data->mPathPoints; base += 4) {
@@ -743,6 +745,8 @@ void CWord::TransformMod(PathData* path_data, const CPointCoor2& org)
             yy = _mm_mul_ps(point_y, yzoomf);
             point_y = _mm_div_ps(yy, _mm_max_ps(denominator, min_focal));
 
+            point_x = _mm_mul_ps(point_x, target_scale_x);
+            point_y = _mm_mul_ps(point_y, target_scale_y);
             point_x = _mm_add_ps(point_x, render_org_x);
             point_y = _mm_add_ps(point_y, render_org_y);
             point_x = _mm_add_ps(point_x, half);
@@ -862,10 +866,12 @@ void CWord::TransformMod(PathData* path_data, const CPointCoor2& org)
         const float projected_x = xx * xzoomf / max(zz + xzoomf, 1000.0f);
         const float projected_y = yy * yzoomf / max(zz + yzoomf, 1000.0f);
 
+        const float scaled_x = projected_x * static_cast<float>(m_target_scale_x);
+        const float scaled_y = projected_y * static_cast<float>(m_target_scale_y);
         path_data->mpPathPoints[i].x = static_cast<LONG>(
-            projected_x + static_cast<float>(org.x) + 0.5f);
+            scaled_x + static_cast<float>(org.x) + 0.5f);
         path_data->mpPathPoints[i].y = static_cast<LONG>(
-            projected_y + static_cast<float>(org.y) + 0.5f);
+            scaled_y + static_cast<float>(org.y) + 0.5f);
         if (m_round_to_whole_pixel_after_scale_to_target
                 && (m_target_scale_x != 1.0 || m_target_scale_y != 1.0)) {
             path_data->mpPathPoints[i].x = (path_data->mpPathPoints[i].x + 32) & ~63;
