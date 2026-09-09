@@ -38,7 +38,7 @@ jobs:
       - name: Check out pinned sources and submodules
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           submodules: recursive
 
       - name: Install VSNASM
@@ -86,15 +86,24 @@ jobs:
             'bin\lib_17.0\${{ matrix.platform }}\Release\XySubFilter.dll' `
             'dist\${{ matrix.platform }}\XySubFilter.dll'
           cmake -E copy `
+            'bin\lib_17.0\${{ matrix.platform }}\Release\VSFilter.dll' `
+            'dist\${{ matrix.platform }}\VSFilter.dll'
+          cmake -E copy `
             'scripts\Install_XySubFilter.bat' `
             'dist\${{ matrix.platform }}\Install_XySubFilter.bat'
           cmake -E copy `
             'scripts\Uninstall_XySubFilter.bat' `
             'dist\${{ matrix.platform }}\Uninstall_XySubFilter.bat'
+          cmake -E copy `
+            'scripts\Install_VSFilter.bat' `
+            'dist\${{ matrix.platform }}\Install_VSFilter.bat'
+          cmake -E copy `
+            'scripts\Uninstall_VSFilter.bat' `
+            'dist\${{ matrix.platform }}\Uninstall_VSFilter.bat'
 
       - name: Upload release artifact
         if: matrix.publish
         uses: actions/upload-artifact@v4
         with:
-          name: xysubfilter_with_libass-${{ matrix.platform }}
+          name: vsfilter-xysubfilter-${{ matrix.platform }}
           path: dist
