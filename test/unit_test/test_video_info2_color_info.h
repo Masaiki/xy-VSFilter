@@ -20,7 +20,10 @@ public:
 
     HRESULT CheckMediaType(const CMediaType *media_type)
     {
-        return media_type && *media_type == m_media_type ? S_OK : S_FALSE;
+        // The source accepts the negotiated output formats so tests can
+        // exercise metadata handling across subtype changes.
+        return media_type && media_type->majortype == MEDIATYPE_Video
+            ? S_OK : S_FALSE;
     }
 
     HRESULT GetMediaType(int position, CMediaType *media_type)
@@ -126,6 +129,73 @@ TEST(BaseVideoFilterTest, PreservesVideoInfo2ControlFlagsForP010Output)
     ASSERT_GE(output_type.FormatLength(), sizeof(VIDEOINFOHEADER2));
     EXPECT_EQ(control_flags, ((VIDEOINFOHEADER2 *)output_type.Format())->dwControlFlags);
 
+    EXPECT_EQ(S_OK, input->Disconnect());
+}
+
+TEST(BaseVideoFilterTest, IgnoresIncompleteVideoInfo2ColorFlags)
+{
+    const DWORD color_info = 0xABCDEF00 | AMCONTROL_COLORINFO_PRESENT;
+    const CMediaType input_type = MakeP010VideoType(color_info);
+
+    HRESULT result = S_OK;
+    TestBaseVideoFilter *filter = new TestBaseVideoFilter(&result);
+    ASSERT_EQ(S_OK, result);
+    CComPtr<IBaseFilter> filter_lifetime = filter;
+
+    TestVideoSourceFilter *source = new TestVideoSourceFilter(input_type, &result);
+    ASSERT_EQ(S_OK, result);
+    CComPtr<IBaseFilter> source_lifetime = source;
+
+    IPin *input = filter->GetPin(0);
+    ASSERT_EQ(S_OK, input->ReceiveConnection(source->GetPin(0), &input_type));
+
+    CMediaType output_type;
+    ASSERT_EQ(S_OK, filter->GetMediaType(0, &output_type));
+    EXPECT_EQ(0u, ((VIDEOINFOHEADER2 *)output_type.Format())->dwControlFlags);
+    EXPECT_EQ(S_OK, input->Disconnect());
+}
+
+TEST(BaseVideoFilterTest, PreservesValidColorInfoForSameSubtype)
+{
+    const DWORD control_flags = 0xABCDEF00 | AMCONTROL_USED | AMCONTROL_COLORINFO_PRESENT;
+    const CMediaType input_type = MakeP010VideoType(control_flags);
+
+    HRESULT result = S_OK;
+    TestBaseVideoFilter *filter = new TestBaseVideoFilter(&result);
+    ASSERT_EQ(S_OK, result);
+    CComPtr<IBaseFilter> filter_lifetime = filter;
+
+    TestVideoSourceFilter *source = new TestVideoSourceFilter(input_type, &result);
+    ASSERT_EQ(S_OK, result);
+    CComPtr<IBaseFilter> source_lifetime = source;
+
+    IPin *input = filter->GetPin(0);
+    ASSERT_EQ(S_OK, input->ReceiveConnection(source->GetPin(0), &input_type));
+
+    CMediaType output_type;
+    ASSERT_EQ(S_OK, filter->GetMediaType(0, &output_type));
+    EXPECT_EQ(control_flags, ((VIDEOINFOHEADER2 *)output_type.Format())->dwControlFlags);
+    EXPECT_EQ(S_OK, input->Disconnect());
+}
+
+TEST(BaseVideoFilterTest, PreservesPaddingFlagsWithoutColorInfo)
+{
+    const DWORD control_flags = AMCONTROL_USED | AMCONTROL_PAD_TO_16x9;
+    const CMediaType input_type = MakeP010VideoType(control_flags);
+
+    HRESULT result = S_OK;
+    TestBaseVideoFilter *filter = new TestBaseVideoFilter(&result);
+    ASSERT_EQ(S_OK, result);
+    CComPtr<IBaseFilter> filter_lifetime = filter;
+    TestVideoSourceFilter *source = new TestVideoSourceFilter(input_type, &result);
+    ASSERT_EQ(S_OK, result);
+    CComPtr<IBaseFilter> source_lifetime = source;
+
+    IPin *input = filter->GetPin(0);
+    ASSERT_EQ(S_OK, input->ReceiveConnection(source->GetPin(0), &input_type));
+    CMediaType output_type;
+    ASSERT_EQ(S_OK, filter->GetMediaType(0, &output_type));
+    EXPECT_EQ(control_flags, ((VIDEOINFOHEADER2 *)output_type.Format())->dwControlFlags);
     EXPECT_EQ(S_OK, input->Disconnect());
 }
 

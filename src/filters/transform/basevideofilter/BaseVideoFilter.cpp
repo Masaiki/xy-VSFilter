@@ -34,7 +34,78 @@
 #include <algorithm>
 #include "xy_logger.h"
 
-#pragma warning(pop) 
+#pragma warning(pop)
+
+namespace
+{
+constexpr DWORD kControlFlagsMask =
+    AMCONTROL_USED | AMCONTROL_PAD_TO_4x3 | AMCONTROL_PAD_TO_16x9
+    | AMCONTROL_COLORINFO_PRESENT;
+constexpr DWORD kColorInfoPresentMask = AMCONTROL_COLORINFO_PRESENT;
+constexpr DWORD kChromaSubsamplingMask = 0x00000f00;
+constexpr DWORD kTransferMatrixMask = 0x00038000;
+constexpr DWORD kRgbColorInfoMask =
+    0x00007000  // nominal range
+    | 0x003c0000 // video lighting
+    | 0x07c00000 // video primaries
+    | 0xf8000000; // transfer function
+
+const VIDEOINFOHEADER2* GetVideoInfoHeader2(const CMediaType& mt)
+{
+    if(mt.formattype != FORMAT_VideoInfo2
+    || mt.FormatLength() < sizeof(VIDEOINFOHEADER2)
+    || !mt.Format())
+        return nullptr;
+    return reinterpret_cast<const VIDEOINFOHEADER2*>(mt.Format());
+}
+
+bool IsYuvSubtype(const GUID& subtype)
+{
+    return subtype == MEDIASUBTYPE_P010
+        || subtype == MEDIASUBTYPE_P016
+        || subtype == MEDIASUBTYPE_NV12
+        || subtype == MEDIASUBTYPE_NV21
+        || subtype == MEDIASUBTYPE_YV12
+        || subtype == MEDIASUBTYPE_I420
+        || subtype == MEDIASUBTYPE_IYUV
+        || subtype == MEDIASUBTYPE_YUY2
+        || subtype == MEDIASUBTYPE_AYUV;
+}
+
+DWORD ColorControlFlagsForOutput(const CMediaType& input, const CMediaType& output)
+{
+    const VIDEOINFOHEADER2* inputVih2 = GetVideoInfoHeader2(input);
+    const VIDEOINFOHEADER2* outputVih2 = GetVideoInfoHeader2(output);
+    if(!inputVih2 || !outputVih2
+    || (inputVih2->dwControlFlags & AMCONTROL_USED) == 0)
+        return 0;
+
+    const DWORD inputFlags = inputVih2->dwControlFlags;
+    DWORD outputFlags = inputFlags & kControlFlagsMask;
+    const bool hasColorInfo = (inputFlags & kColorInfoPresentMask) != 0;
+
+    if(!hasColorInfo)
+        return outputFlags;
+
+    if(input.subtype == output.subtype)
+        return outputFlags | (inputFlags & 0xffffff00);
+
+    if(IsYuvSubtype(input.subtype) && IsYuvSubtype(output.subtype)) {
+        // The conversion may change chroma layout (for example 4:2:0 to
+        // 4:2:2), so do not claim the input siting for a different subtype.
+        return outputFlags | (inputFlags & 0xffffff00 & ~kChromaSubsamplingMask);
+    }
+
+    if(!IsYuvSubtype(output.subtype)) {
+        // Matrix and chroma-siting describe YUV, not an RGB bitmap.  Range,
+        // lighting, primaries and transfer function remain meaningful.
+        return outputFlags | (inputFlags & 0xffffff00 & ~kTransferMatrixMask
+            & ~kChromaSubsamplingMask & kRgbColorInfoMask);
+    }
+
+    return outputFlags;
+}
+}
 
 const GUID* InputFmts[] =
 {
@@ -687,11 +758,12 @@ HRESULT CBaseVideoFilter::GetMediaType(int iPosition, CMediaType* pmt)
 	((VIDEOINFOHEADER*)pmt->Format())->AvgTimePerFrame = ((VIDEOINFOHEADER*)mt.Format())->AvgTimePerFrame;
 	((VIDEOINFOHEADER*)pmt->Format())->dwBitRate = ((VIDEOINFOHEADER*)mt.Format())->dwBitRate;
 	((VIDEOINFOHEADER*)pmt->Format())->dwBitErrorRate = ((VIDEOINFOHEADER*)mt.Format())->dwBitErrorRate;
-	// dwControlFlags carries the DXVA color range, matrix, primaries and transfer function.
-	if(pmt->subtype == mt.subtype
-	&& pmt->formattype == FORMAT_VideoInfo2
+	// Propagate only valid DXVA color metadata. YUV metadata is retained for
+	// another YUV subtype; its matrix/range fields do not describe RGB output.
+	if(pmt->formattype == FORMAT_VideoInfo2
 	&& mt.formattype == FORMAT_VideoInfo2)
-		((VIDEOINFOHEADER2*)pmt->Format())->dwControlFlags = ((VIDEOINFOHEADER2*)mt.Format())->dwControlFlags;
+		((VIDEOINFOHEADER2*)pmt->Format())->dwControlFlags =
+			ColorControlFlagsForOutput(mt, *pmt);
 
 	CorrectMediaType(pmt);
 
