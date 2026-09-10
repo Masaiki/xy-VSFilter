@@ -2962,7 +2962,7 @@ bool PathData::EndPath(HDC hdc)
     if(succeeded)
     {
         mPathPoints = GetPath(hdc, NULL, NULL, 0);
-        if(!mPathPoints)
+        if(mPathPoints < 1)
             return true;
         mpPathTypes = (BYTE*)malloc(sizeof(BYTE) * mPathPoints);
         mpPathPoints = (POINT*)malloc(sizeof(POINT) * mPathPoints);
@@ -2990,7 +2990,7 @@ bool PathData::PartialEndPath(HDC hdc, long dx, long dy)
         BYTE* pNewTypes;
         POINT* pNewPoints;
         nPoints = GetPath(hdc, NULL, NULL, 0);
-        if(!nPoints)
+        if(nPoints < 1)
             return true;
         pNewTypes = (BYTE*)realloc(mpPathTypes, (mPathPoints + nPoints) * sizeof(BYTE));
         pNewPoints = (POINT*)realloc(mpPathPoints, (mPathPoints + nPoints) * sizeof(POINT));
